@@ -15,7 +15,6 @@
 #include "../base/codecompiler.h"
 #include "../base/simdtypes.h"
 #include "../x86/x86emitter.h"
-#include "../x86/x86misc.h"
 
 // [Api-Begin]
 #include "../asmjit_apibegin.h"
@@ -33,7 +32,6 @@ namespace asmjit {
 class ASMJIT_VIRTAPI X86Compiler
   : public CodeCompiler,
     public X86EmitterExplicitT<X86Compiler> {
-
 public:
   ASMJIT_NONCOPYABLE(X86Compiler)
   typedef CodeCompiler Base;
@@ -48,91 +46,73 @@ public:
   ASMJIT_API ~X86Compiler() noexcept;
 
   // --------------------------------------------------------------------------
-  // [Compatibility]
+  // [X86Emitter]
   // --------------------------------------------------------------------------
 
-  //! Explicit cast to `X86Emitter`.
-  ASMJIT_INLINE X86Emitter* asEmitter() noexcept { return reinterpret_cast<X86Emitter*>(this); }
-  //! Explicit cast to `X86Emitter` (const).
-  ASMJIT_INLINE const X86Emitter* asEmitter() const noexcept { return reinterpret_cast<const X86Emitter*>(this); }
-
-  //! Implicit cast to `X86Emitter`.
-  ASMJIT_INLINE operator X86Emitter&() noexcept { return *asEmitter(); }
-  //! Implicit cast to `X86Emitter` (const).
-  ASMJIT_INLINE operator const X86Emitter&() const noexcept { return *asEmitter(); }
+  //! Implicit cast to `X86Emitter&`.
+  inline operator X86Emitter&() noexcept { return *as<X86Emitter>(); }
+  //! Implicit cast to `X86Emitter&` (const).
+  inline operator const X86Emitter&() const noexcept { return *as<X86Emitter>(); }
 
   // --------------------------------------------------------------------------
-  // [Events]
-  // --------------------------------------------------------------------------
-
-  ASMJIT_API virtual Error onAttach(CodeHolder* code) noexcept override;
-
-  // --------------------------------------------------------------------------
-  // [Code-Generation]
-  // --------------------------------------------------------------------------
-
-  ASMJIT_API virtual Error _emit(uint32_t instId, const Operand_& o0, const Operand_& o1, const Operand_& o2, const Operand_& o3) override;
-  ASMJIT_API virtual Error _emit(uint32_t instId, const Operand_& o0, const Operand_& o1, const Operand_& o2, const Operand_& o3, const Operand_& o4, const Operand_& o5) override;
-
-  // -------------------------------------------------------------------------
   // [Finalize]
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
 
-  ASMJIT_API virtual Error finalize() override;
+  ASMJIT_API Error finalize() override;
 
   // --------------------------------------------------------------------------
   // [VirtReg]
   // --------------------------------------------------------------------------
 
 #if !defined(ASMJIT_DISABLE_LOGGING)
-#define ASMJIT_NEW_REG(OUT, PARAM, NAME_FMT)            \
-  va_list ap;                                           \
-  va_start(ap, NAME_FMT);                               \
-  _newReg(OUT, PARAM, NAME_FMT, ap);                    \
-  va_end(ap)
+# define ASMJIT_NEW_REG(OUT, PARAM, NAME_FMT)                 \
+    va_list ap;                                               \
+    va_start(ap, NAME_FMT);                                   \
+    _newReg(OUT, PARAM, NAME_FMT, ap);                        \
+    va_end(ap)
 #else
-#define ASMJIT_NEW_REG(OUT, PARAM, NAME_FMT)            \
-  ASMJIT_UNUSED(NAME_FMT);                              \
-  _newReg(OUT, PARAM, nullptr)
+# define ASMJIT_NEW_REG(OUT, PARAM, NAME_FMT)                 \
+    ASMJIT_UNUSED(NAME_FMT);                                  \
+    _newReg(OUT, PARAM, nullptr)
 #endif
 
-#define ASMJIT_NEW_REG_USER(FUNC, REG)                  \
-  ASMJIT_INLINE REG FUNC(uint32_t typeId) {             \
-    REG reg(NoInit);                                    \
-    _newReg(reg, typeId, nullptr);                      \
-    return reg;                                         \
-  }                                                     \
-                                                        \
-  REG FUNC(uint32_t typeId, const char* nameFmt, ...) { \
-    REG reg(NoInit);                                    \
-    ASMJIT_NEW_REG(reg, typeId, nameFmt);               \
-    return reg;                                         \
-  }
+#define ASMJIT_NEW_REG_USER(FUNC, REG)                        \
+    inline REG FUNC(uint32_t typeId) {                        \
+      REG reg(Globals::NoInit);                               \
+      _newReg(reg, typeId, nullptr);                          \
+      return reg;                                             \
+    }                                                         \
+                                                              \
+    inline REG FUNC(uint32_t typeId, const char* fmt, ...) {  \
+      REG reg(Globals::NoInit);                               \
+      ASMJIT_NEW_REG(reg, typeId, fmt);                       \
+      return reg;                                             \
+    }
 
-#define ASMJIT_NEW_REG_AUTO(FUNC, REG, TYPE_ID)         \
-  ASMJIT_INLINE REG FUNC() {                            \
-    REG reg(NoInit);                                    \
-    _newReg(reg, TYPE_ID, nullptr);                     \
-    return reg;                                         \
-  }                                                     \
-                                                        \
-  REG FUNC(const char* nameFmt, ...) {                  \
-    REG reg(NoInit);                                    \
-    ASMJIT_NEW_REG(reg, TYPE_ID, nameFmt);              \
-    return reg;                                         \
-  }
+#define ASMJIT_NEW_REG_AUTO(FUNC, REG, TYPE_ID)               \
+    inline REG FUNC() {                                       \
+      REG reg(Globals::NoInit);                               \
+      _newReg(reg, TYPE_ID, nullptr);                         \
+      return reg;                                             \
+    }                                                         \
+                                                              \
+    inline REG FUNC(const char* fmt, ...) {                   \
+      REG reg(Globals::NoInit);                               \
+      ASMJIT_NEW_REG(reg, TYPE_ID, fmt);                      \
+      return reg;                                             \
+    }
 
   template<typename RegT>
-  ASMJIT_INLINE RegT newSimilarReg(const RegT& ref) {
-    RegT reg(NoInit);
+  inline RegT newSimilarReg(const RegT& ref) {
+    RegT reg(Globals::NoInit);
     _newReg(reg, ref, nullptr);
     return reg;
   }
 
   template<typename RegT>
-  RegT newSimilarReg(const RegT& ref, const char* nameFmt, ...) {
-    RegT reg(NoInit);
-    ASMJIT_NEW_REG(reg, ref, nameFmt);
+  inline RegT newSimilarReg(const RegT& ref, const char* fmt, ...) {
+    RegT reg(Globals::NoInit);
+    ASMJIT_NEW_REG(reg, ref, fmt);
     return reg;
   }
 
@@ -140,6 +120,7 @@ public:
   ASMJIT_NEW_REG_USER(newGpReg  , X86Gp  )
   ASMJIT_NEW_REG_USER(newMmReg  , X86Mm  )
   ASMJIT_NEW_REG_USER(newKReg   , X86KReg)
+  ASMJIT_NEW_REG_USER(newVecReg , X86Vec )
   ASMJIT_NEW_REG_USER(newXmmReg , X86Xmm )
   ASMJIT_NEW_REG_USER(newYmmReg , X86Ymm )
   ASMJIT_NEW_REG_USER(newZmmReg , X86Zmm )
@@ -195,7 +176,7 @@ public:
 
   //! Create a new memory chunk allocated on the current function's stack.
   ASMJIT_INLINE X86Mem newStack(uint32_t size, uint32_t alignment, const char* name = nullptr) {
-    X86Mem m(NoInit);
+    X86Mem m(Globals::NoInit);
     _newStack(m, size, alignment, name);
     return m;
   }
@@ -206,7 +187,7 @@ public:
 
   //! Put data to a constant-pool and get a memory reference to it.
   ASMJIT_INLINE X86Mem newConst(uint32_t scope, const void* data, size_t size) {
-    X86Mem m(NoInit);
+    X86Mem m(Globals::NoInit);
     _newConst(m, scope, data, size);
     return m;
   }
@@ -245,14 +226,14 @@ public:
   //! Put a YMM `val` to a constant-pool.
   ASMJIT_INLINE X86Mem newYmmConst(uint32_t scope, const Data256& val) noexcept { return newConst(scope, &val, 32); }
 
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // [Instruction Options]
-  // -------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
 
   //! Force the compiler to not follow the conditional or unconditional jump.
-  ASMJIT_INLINE X86Compiler& unfollow() noexcept { _options |= kOptionUnfollow; return *this; }
+  ASMJIT_INLINE X86Compiler& unfollow() noexcept { _instOptions |= Inst::kOptionUnfollow; return *this; }
   //! Tell the compiler that the destination variable will be overwritten.
-  ASMJIT_INLINE X86Compiler& overwrite() noexcept { _options |= kOptionOverwrite; return *this; }
+  ASMJIT_INLINE X86Compiler& overwrite() noexcept { _instOptions |= Inst::kOptionOverwrite; return *this; }
 
   // --------------------------------------------------------------------------
   // [Emit]
@@ -267,18 +248,20 @@ public:
   //! \overload
   ASMJIT_INLINE CCFuncCall* call(const Imm& dst, const FuncSignature& sign) { return addCall(X86Inst::kIdCall, dst, sign); }
   //! \overload
-  ASMJIT_INLINE CCFuncCall* call(uint64_t dst, const FuncSignature& sign) { return addCall(X86Inst::kIdCall, Imm(dst), sign); }
+  ASMJIT_INLINE CCFuncCall* call(uint64_t dst, const FuncSignature& sign) { return addCall(X86Inst::kIdCall, Imm(int64_t(dst)), sign); }
 
   //! Return.
   ASMJIT_INLINE CCFuncRet* ret() { return addRet(Operand(), Operand()); }
   //! \overload
-  ASMJIT_INLINE CCFuncRet* ret(const X86Gp& o0) { return addRet(o0, Operand()); }
+  ASMJIT_INLINE CCFuncRet* ret(const Reg& o0) { return addRet(o0, Operand()); }
   //! \overload
-  ASMJIT_INLINE CCFuncRet* ret(const X86Gp& o0, const X86Gp& o1) { return addRet(o0, o1); }
-  //! \overload
-  ASMJIT_INLINE CCFuncRet* ret(const X86Xmm& o0) { return addRet(o0, Operand()); }
-  //! \overload
-  ASMJIT_INLINE CCFuncRet* ret(const X86Xmm& o0, const X86Xmm& o1) { return addRet(o0, o1); }
+  ASMJIT_INLINE CCFuncRet* ret(const Reg& o0, const Reg& o1) { return addRet(o0, o1); }
+
+  // --------------------------------------------------------------------------
+  // [Events]
+  // --------------------------------------------------------------------------
+
+  ASMJIT_API Error onAttach(CodeHolder* code) noexcept override;
 };
 
 //! \}

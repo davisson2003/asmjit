@@ -9,10 +9,8 @@
 #define _ASMJIT_X86_X86INST_H
 
 // [Dependencies]
-#include "../base/assembler.h" // TODO: Is that necessary?
 #include "../base/inst.h"
 #include "../base/operand.h"
-#include "../base/utils.h"
 #include "../x86/x86globals.h"
 
 // [Api-Begin]
@@ -33,7 +31,7 @@ struct X86Inst {
   //!
   //! Each instruction has a unique ID that is used as an index to AsmJit's
   //! instruction table. Instructions are sorted alphabetically.
-  ASMJIT_ENUM(Id) {
+  enum Id : uint32_t {
     // ${idData:Begin}
     kIdNone = 0,
     kIdAaa,                              // [X86]
@@ -428,6 +426,7 @@ struct X86Inst {
     kIdMinsd,                            // [ANY] {SSE2}
     kIdMinss,                            // [ANY] {SSE}
     kIdMonitor,                          // [ANY] {MONITOR}
+    kIdMonitorx,                         // [ANY] {MONITORX}
     kIdMov,                              // [ANY]
     kIdMovapd,                           // [ANY] {SSE2}
     kIdMovaps,                           // [ANY] {SSE}
@@ -473,6 +472,7 @@ struct X86Inst {
     kIdMulss,                            // [ANY] {SSE}
     kIdMulx,                             // [ANY] {BMI2}
     kIdMwait,                            // [ANY] {MONITOR}
+    kIdMwaitx,                           // [ANY] {MONITORX}
     kIdNeg,                              // [ANY]
     kIdNop,                              // [ANY]
     kIdNot,                              // [ANY]
@@ -1061,7 +1061,7 @@ struct X86Inst {
     kIdVmulsd,                           // [ANY] {AVX|AVX512_F}
     kIdVmulss,                           // [ANY] {AVX|AVX512_F}
     kIdVorpd,                            // [ANY] {AVX|AVX512_DQ+VL}
-    kIdVorps,                            // [ANY] {AVX|AVX512_F+VL}
+    kIdVorps,                            // [ANY] {AVX|AVX512_DQ+VL}
     kIdVp4dpwssd,                        // [ANY] {AVX512_4VNNIW}
     kIdVp4dpwssds,                       // [ANY] {AVX512_4VNNIW}
     kIdVpabsb,                           // [ANY] {AVX|AVX2|AVX512_BW+VL}
@@ -1476,7 +1476,7 @@ struct X86Inst {
   };
 
   //! Instruction encodings, used by \ref X86Assembler (AsmJit specific).
-  ASMJIT_ENUM(EncodingType) {
+  enum EncodingType : uint32_t {
     kEncodingNone = 0,                   //!< Never used.
     kEncodingX86Op,                      //!< X86 [OP].
     kEncodingX86Op_O,                    //!< X86 [OP] (opcode and /0-7).
@@ -1499,6 +1499,7 @@ struct X86Inst {
     kEncodingX86Bt,                      //!< X86 bt, btc, btr, bts.
     kEncodingX86Call,                    //!< X86 call.
     kEncodingX86Cmpxchg,                 //!< X86 [MR] cmpxchg.
+    kEncodingX86Cmpxchg8b_16b,           //!< X86 [MR] cmpxchg8b, cmpxchg16b.
     kEncodingX86Crc,                     //!< X86 crc32.
     kEncodingX86Enter,                   //!< X86 enter.
     kEncodingX86Imul,                    //!< X86 imul.
@@ -1678,7 +1679,9 @@ struct X86Inst {
   //! construct REX, VEX, and EVEX prefixes in the most efficient way. Changing
   //! values defined by these enums many cause AsmJit to emit invalid binary
   //! representations of instructions passed to `X86Assembler::_emit`.
-  ASMJIT_ENUM(OpCodeBits) {
+  enum OpCodeBits : uint32_t {
+    kOpCode_0 = 0,
+
     // MM & VEX & EVEX & XOP
     // ---------------------
     //
@@ -1763,7 +1766,7 @@ struct X86Inst {
     // Compressed displacement tuple-type (specific to AsmJit).
     //
     // Since we store the base offset independently of CDTT we can simplify the
-    // number of 'TUPLE_TYPE' kinds significantly and just handle special cases.
+    // number of 'TUPLE_TYPE' groups significantly and just handle special cases.
     kOpCode_CDTT_Shift    = 16,
     kOpCode_CDTT_Mask     = 0x3 << kOpCode_CDTT_Shift,
     kOpCode_CDTT_None     = 0x0 << kOpCode_CDTT_Shift, // Does nothing.
@@ -1836,9 +1839,9 @@ struct X86Inst {
     // These must be binary compatible with instruction options.
     kOpCode_REX_Shift     = 25,
     kOpCode_REX_Mask      = 0x0FU << kOpCode_REX_Shift,
-    kOpCode_B             = 0x01U << kOpCode_REX_Shift, // Never stored in DB.
-    kOpCode_X             = 0x02U << kOpCode_REX_Shift, // Never stored in DB.
-    kOpCode_R             = 0x04U << kOpCode_REX_Shift, // Never stored in DB.
+    kOpCode_B             = 0x01U << kOpCode_REX_Shift, // Never stored in DB, used by encoder.
+    kOpCode_X             = 0x02U << kOpCode_REX_Shift, // Never stored in DB, used by encoder.
+    kOpCode_R             = 0x04U << kOpCode_REX_Shift, // Never stored in DB, used by encoder.
     kOpCode_W             = 0x08U << kOpCode_REX_Shift,
     kOpCode_W_Shift       = kOpCode_REX_Shift + 3,
 
@@ -1860,7 +1863,7 @@ struct X86Inst {
   //! Instruction flags.
   //!
   //! Details about instruction encoding, operation, features, and some limitations.
-  ASMJIT_ENUM(Flags) {
+  enum Flags : uint32_t {
     kFlagNone             = 0x00000000U, //!< No flags.
 
     // Operand's Use
@@ -1875,7 +1878,7 @@ struct X86Inst {
     // describe the same operation. In such case `kFlagUseComplex` is set and
     // AsmJit will use different approach to calculate operand's use flags.
 
-    kFlagUseA             = 0x00000001U, //!< Use flags are 'A'mbiguous as USE information couldn't be flattened.
+    kFlagUseA             = 0x00000001U, //!< Use flags are ambiguous as USE information couldn't be flattened.
     kFlagUseR             = 0x00000002U, //!< 1st operand is R (read), read-only if `kFlagOpW` isn't set.
     kFlagUseW             = 0x00000004U, //!< 1st operand is W (written), write-only if `kFlagOpR` isn't set.
     kFlagUseX             = 0x00000006U, //!< 1st operand is X (read-write).
@@ -1899,11 +1902,11 @@ struct X86Inst {
     //
     // These describe optional X86 prefixes that can be used to change the instruction's operation.
 
-    kFlagRep              = 0x00001000U, //!< Instruction can be prefixed by using the REP/REPZ/REPE prefix.
-    kFlagRepnz            = 0x00002000U, //!< Instruction can be prefixed by using the REPNZ/REPNE prefix.
-    kFlagLock             = 0x00004000U, //!< Instruction can be prefixed by using the LOCK prefix.
-    kFlagXAcquire         = 0x00008000U, //!< Instruction can be prefixed by using the XACQUIRE prefix.
-    kFlagXRelease         = 0x00010000U, //!< Instruction can be prefixed by using the XRELEASE prefix.
+    kFlagRep              = 0x00001000U, //!< Instruction can be prefixed with using the REP/REPZ/REPE prefix.
+    kFlagRepne            = 0x00002000U, //!< Instruction can be prefixed with using the REPNZ/REPNE prefix.
+    kFlagLock             = 0x00004000U, //!< Instruction can be prefixed with using the LOCK prefix.
+    kFlagXAcquire         = 0x00008000U, //!< Instruction can be prefixed with using the XACQUIRE prefix.
+    kFlagXRelease         = 0x00010000U, //!< Instruction can be prefixed with using the XRELEASE prefix.
     kFlagMib              = 0x00020000U, //!< Instruction uses MIB (BNDLDX|BNDSTX) to encode two registers.
     kFlagVsib             = 0x00040000U, //!< Instruction uses VSIB instead of legacy SIB.
     kFlagVex              = 0x00080000U, //!< Instruction can be encoded by VEX|XOP (AVX|AVX2|BMI|XOP|...).
@@ -1928,7 +1931,7 @@ struct X86Inst {
     // to decide whether to emit VEX or EVEX prefix.
 
     kFlagAvx512_          = 0x00000000U, //!< Internally used in tables, has no meaning.
-    kFlagAvx512K          = 0x01000000U, //!< Supports masking {k0..k7}.
+    kFlagAvx512K          = 0x01000000U, //!< Supports masking {k1..k7}.
     kFlagAvx512Z          = 0x02000000U, //!< Supports zeroing {z}, must be used together with `kAvx512k`.
     kFlagAvx512ER         = 0x04000000U, //!< Supports 'embedded-rounding' {er} with implicit {sae},
     kFlagAvx512SAE        = 0x08000000U, //!< Supports 'suppress-all-exceptions' {sae}.
@@ -1954,9 +1957,9 @@ struct X86Inst {
   };
 
   //! Used to describe what the instruction does and some of its quirks.
-  enum OperationFlags {
+  enum OperationFlags : uint32_t {
     kOperationMovCrDr      = 0x00000001U, //!< `MOV REG <-> CREG|DREG` - OS|SF|ZF|AF|PF|CF flags are undefined.
-    kOperationMovSsSd      = 0x00000002U, //!< `MOVSS|MOVSD XMM, [MEM]` - Sestination operand is completely overwritten.
+    kOperationMovSsSd      = 0x00000002U, //!< `MOVSS|MOVSD XMM, [MEM]` - Destination operand is completely overwritten.
 
     kOperationPrefetch     = 0x10000000U, //!< Instruction does hardware prefetch.
     kOperationBarrier      = 0x20000000U, //!< Instruction acts as a barrier / fence.
@@ -1965,7 +1968,7 @@ struct X86Inst {
   };
 
   //! SSE to AVX conversion mode.
-  enum SseToAvxMode {
+  enum SseToAvxMode : uint32_t {
     kSseToAvxNone         = 0,           //!< No conversion possible.
     kSseToAvxMove         = 1,           //!< No change (no operands changed).
     kSseToAvxMoveIfMem    = 2,           //!< No change if the second operand is mem, extend otherwise.
@@ -1974,15 +1977,15 @@ struct X86Inst {
   };
 
   //! Instruction options (AsmJit specific).
-  ASMJIT_ENUM(Options) {
-    // NOTE: Don't collide with reserved bits used by CodeEmitter (0x0000003F).
-    kOptionOp4Op5Used     = CodeEmitter::kOptionOp4Op5Used,
+  enum Options : uint32_t {
+    kOptionReserved       = Inst::kOptionReserved,
+    kOptionOp4Op5Used     = Inst::kOptionOp4Op5Used,
 
-    kOptionShortForm      = 0x00000040U, //!< Emit short-form of the instruction.
-    kOptionLongForm       = 0x00000080U, //!< Emit long-form of the instruction.
+    kOptionShortForm      = Inst::kOptionShortForm,
+    kOptionLongForm       = Inst::kOptionLongForm,
 
-    kOptionTaken          = 0x00000100U, //!< Conditional jump is likely to be taken.
-    kOptionNotTaken       = 0x00000200U, //!< Conditional jump is unlikely to be taken.
+    kOptionTaken          = Inst::kOptionTaken,
+    kOptionNotTaken       = Inst::kOptionNotTaken,
 
     kOptionVex3           = 0x00000400U, //!< Use 3-byte VEX prefix if possible (AVX) (must be 0x00000400).
     kOptionModMR          = 0x00000800U, //!< Use ModMR instead of ModRM when it's available.
@@ -1990,13 +1993,13 @@ struct X86Inst {
 
     kOptionLock           = 0x00002000U, //!< LOCK prefix (lock-enabled instructions only).
     kOptionRep            = 0x00004000U, //!< REP/REPZ prefix (string instructions only).
-    kOptionRepnz          = 0x00008000U, //!< REPNZ prefix (string instructions only).
+    kOptionRepne          = 0x00008000U, //!< REPNZ prefix (string instructions only).
 
     kOptionXAcquire       = 0x00010000U, //!< XACQUIRE prefix (only allowed instructions).
     kOptionXRelease       = 0x00020000U, //!< XRELEASE prefix (only allowed instructions).
 
-    kOptionER             = 0x00040000U, //!< AVX-512: 'embedded-rounding' {er} and {sae}.
-    kOptionSAE            = 0x00080000U, //!< AVX-512: 'suppress-all-exceptions' {sae}.
+    kOptionER             = 0x00040000U, //!< AVX-512: embedded-rounding {er} and implicit {sae}.
+    kOptionSAE            = 0x00080000U, //!< AVX-512: suppress-all-exceptions {sae}.
     kOption1ToX           = 0x00100000U, //!< AVX-512: broadcast the first element to all {1tox}.
     kOptionRN_SAE         = 0x00000000U, //!< AVX-512: round-to-nearest (even)      {rn-sae} (bits 00).
     kOptionRD_SAE         = 0x00200000U, //!< AVX-512: round-down (toward -inf)     {rd-sae} (bits 01).
@@ -2014,19 +2017,19 @@ struct X86Inst {
   };
 
   //! Supported architectures.
-  ASMJIT_ENUM(ArchMask) {
+  enum ArchMask : uint32_t {
     kArchMaskX86          = 0x01,        //!< X86 mode supported.
     kArchMaskX64          = 0x02         //!< X64 mode supported.
   };
 
-  ASMJIT_ENUM(SingleRegCase) {
+  enum SingleRegCase : uint32_t {
     kSingleRegNone        = 0,           //!< No special handling.
     kSingleRegRO          = 1,           //!< Operands become read-only  - `REG & REG` and similar.
     kSingleRegWO          = 2            //!< Operands become write-only - `REG ^ REG` and similar.
   };
 
   //! Instruction's operand flags.
-  ASMJIT_ENUM(OpFlags) {
+  enum OpFlags : uint32_t {
     kOpNone               = 0x00000000U, //!< No operand.
 
     kOpGpbLo              = 0x00000001U, //!< Operand can be a low 8-bit GPB register.
@@ -2044,7 +2047,6 @@ struct X86Inst {
     kOpXmm                = 0x00001000U, //!< Operand can be a 128-bit XMM register.
     kOpYmm                = 0x00002000U, //!< Operand can be a 256-bit YMM register.
     kOpZmm                = 0x00004000U, //!< Operand can be a 512-bit ZMM register.
-
     kOpAllRegs            = 0x00007FFFU, //!< Combination of all possible registers.
 
     kOpMem                = 0x00010000U, //!< Operand can be a scalar memory pointer.
@@ -2071,7 +2073,7 @@ struct X86Inst {
   };
 
   //! Instruction's memory operand flags.
-  ASMJIT_ENUM(MemOpFlags) {
+  enum MemOpFlags : uint32_t {
     // NOTE: Instruction uses either scalar or vector memory operands, they
     // never collide, this is the reason "M" and "Vm" can share bits here.
 
@@ -2101,6 +2103,17 @@ struct X86Inst {
     kMemOpAny             = 0x8000U      //!< Operand can be any scalar memory pointer.
   };
 
+  //! Operand signature, used by \ref ISignature.
+  //!
+  //! Contains all possible operand combinations, memory size information,
+  //! and register id (or \ref Reg::kIdBad if not mandatory).
+  struct OSignature {
+    uint32_t flags;                      //!< Operand flags.
+    uint16_t memFlags;                   //!< Memory flags.
+    uint8_t extFlags;                    //!< Extra flags.
+    uint8_t regMask;                     //!< Mask of possible register IDs.
+  };
+
   //! Instruction signature.
   //!
   //! Contains a sequence of operands' combinations and other metadata that defines
@@ -2113,86 +2126,74 @@ struct X86Inst {
     uint8_t operands[6];                 //!< Indexes to `OSignature` table.
   };
 
-  //! Operand signature, used by \ref ISignature.
-  //!
-  //! Contains all possible operand combinations, memory size information,
-  //! and register index (or \ref Globals::kInvalidRegId if not mandatory).
-  struct OSignature {
-    uint32_t flags;                      //!< Operand flags.
-    uint16_t memFlags;                   //!< Memory flags.
-    uint8_t extFlags;                    //!< Extra flags.
-    uint8_t regMask;                     //!< Mask of possible register IDs.
-  };
-
   //! Common data - aggregated data that is shared across many instructions.
   struct CommonData {
     //! Get all instruction flags, see \ref X86Inst::Flags.
     ASMJIT_INLINE uint32_t getFlags() const noexcept { return _flags; }
-    //! Get if the instruction has a `flag`, see \ref X86Inst::Flags.
+    //! Get whether the instruction has a `flag`, see \ref X86Inst::Flags.
     ASMJIT_INLINE bool hasFlag(uint32_t flag) const noexcept { return (_flags & flag) != 0; }
 
-    //! Get if 1st operand is read-only.
+    //! Get whether 1st operand is read-only.
     ASMJIT_INLINE bool isUseR() const noexcept { return (getFlags() & kFlagUseX) == kFlagUseR; }
-    //! Get if 1st operand is write-only.
+    //! Get whether 1st operand is write-only.
     ASMJIT_INLINE bool isUseW() const noexcept { return (getFlags() & kFlagUseX) == kFlagUseW; }
-    //! Get if 1st operand is read-write.
+    //! Get whether 1st operand is read-write.
     ASMJIT_INLINE bool isUseX() const noexcept { return (getFlags() & kFlagUseX) == kFlagUseX; }
-    //! Get if 1st and 2nd operands are read-write.
+    //! Get whether 1st and 2nd operands are read-write.
     ASMJIT_INLINE bool isUseXX() const noexcept { return hasFlag(kFlagUseXX); }
 
     ASMJIT_INLINE bool hasFixedReg() const noexcept { return hasFlag(kFlagFixedReg); }
     ASMJIT_INLINE bool hasFixedMem() const noexcept { return hasFlag(kFlagFixedMem); }
     ASMJIT_INLINE bool hasFixedRM() const noexcept { return hasFlag(kFlagFixedRM); }
 
-    //! Get if the instruction is FPU instruction.
+    //! Get whether the instruction is FPU instruction.
     ASMJIT_INLINE bool isFpu() const noexcept { return hasFlag(kFlagFpu); }
-    //! Get if the instruction is MMX|3DNOW instruction that accesses MMX registers (includes EMMS).
+    //! Get whether the instruction is MMX|3DNOW instruction that accesses MMX registers (includes EMMS).
     ASMJIT_INLINE bool isMmx() const noexcept { return hasFlag(kFlagMmx); }
 
-    //! Get if the instruction is SSE|AVX|AVX512 instruction that accesses XMM|YMM|ZMM registers (includes VZEROALL|VZEROUPPER).
+    //! Get whether the instruction is SSE|AVX|AVX512 instruction that accesses XMM|YMM|ZMM registers (includes VZEROALL|VZEROUPPER).
     ASMJIT_INLINE bool isVec() const noexcept { return hasFlag(kFlagVec); }
-    //! Get if the instruction is SSE+ (SSE4.2, AES, SHA included) instruction that accesses XMM registers.
+    //! Get whether the instruction is SSE+ (SSE4.2, AES, SHA included) instruction that accesses XMM registers.
     ASMJIT_INLINE bool isSse() const noexcept { return (getFlags() & (kFlagVec | kFlagVex | kFlagEvex)) == kFlagVec; }
-    //! Get if the instruction is AVX+ (FMA included) instruction that accesses XMM|YMM|ZMM registers.
+    //! Get whether the instruction is AVX+ (FMA included) instruction that accesses XMM|YMM|ZMM registers.
     ASMJIT_INLINE bool isAvx() const noexcept { return isVec() && isVexOrEvex(); }
 
-    //! Get if the instruction can be prefixed by LOCK prefix.
-    ASMJIT_INLINE bool isLockEnabled() const noexcept { return hasFlag(kFlagLock); }
-    //! Get if the instruction can be prefixed by REP prefix.
-    ASMJIT_INLINE bool isRepEnabled() const noexcept { return hasFlag(kFlagRep); }
-    //! Get if the instruction can be prefixed by REPZ prefix.
-    ASMJIT_INLINE bool isRepzEnabled() const noexcept { return hasFlag(kFlagRep); }
-    //! Get if the instruction can be prefixed by REPNZ prefix.
-    ASMJIT_INLINE bool isRepnzEnabled() const noexcept { return hasFlag(kFlagRepnz); }
+    //! Get whether the instruction can be prefixed with LOCK prefix.
+    ASMJIT_INLINE bool hasLockPrefix() const noexcept { return hasFlag(kFlagLock); }
+    //! Get whether the instruction can be prefixed with REP or REPZ prefix.
+    ASMJIT_INLINE bool hasRepPrefix() const noexcept { return hasFlag(kFlagRep); }
+    //! Get whether the instruction can be prefixed with REPNZ prefix.
+    ASMJIT_INLINE bool hasRepnePrefix() const noexcept { return hasFlag(kFlagRepne); }
+    //! Get whether the instruction can be prefixed with XACQUIRE prefix.
+    ASMJIT_INLINE bool hasXAcquirePrefix() const noexcept { return hasFlag(kFlagXAcquire); }
+    //! Get whether the instruction can be prefixed with XRELEASE prefix.
+    ASMJIT_INLINE bool hasXReleasePrefix() const noexcept { return hasFlag(kFlagXRelease); }
 
-    //! Get if the instruction uses MIB.
+    //! Get whether the instruction uses MIB.
     ASMJIT_INLINE bool isMibOp() const noexcept { return hasFlag(kFlagMib); }
-    //! Get if the instruction uses VSIB.
+    //! Get whether the instruction uses VSIB.
     ASMJIT_INLINE bool isVsibOp() const noexcept { return hasFlag(kFlagVsib); }
-    //! Get if the instruction uses VEX (can be set together with EVEX if both are encodable).
+    //! Get whether the instruction uses VEX (can be set together with EVEX if both are encodable).
     ASMJIT_INLINE bool isVex() const noexcept { return hasFlag(kFlagVex); }
-    //! Get if the instruction uses EVEX (can be set together with VEX if both are encodable).
+    //! Get whether the instruction uses EVEX (can be set together with VEX if both are encodable).
     ASMJIT_INLINE bool isEvex() const noexcept { return hasFlag(kFlagEvex); }
-    //! Get if the instruction uses VEX and/or EVEX.
+    //! Get whether the instruction uses VEX and/or EVEX.
     ASMJIT_INLINE bool isVexOrEvex() const noexcept { return hasFlag(kFlagVex | kFlagEvex); }
 
-    //! Get if the instruction supports AVX512 masking {k}.
+    //! Get whether the instruction supports AVX512 masking {k}.
     ASMJIT_INLINE bool hasAvx512K() const noexcept { return hasFlag(kFlagAvx512K); }
-    //! Get if the instruction supports AVX512 zeroing {k}{z}.
+    //! Get whether the instruction supports AVX512 zeroing {k}{z}.
     ASMJIT_INLINE bool hasAvx512Z() const noexcept { return hasFlag(kFlagAvx512Z); }
-    //! Get if the instruction supports AVX512 embedded-rounding {er}.
+    //! Get whether the instruction supports AVX512 embedded-rounding {er}.
     ASMJIT_INLINE bool hasAvx512ER() const noexcept { return hasFlag(kFlagAvx512ER); }
-    //! Get if the instruction supports AVX512 suppress-all-exceptions {sae}.
+    //! Get whether the instruction supports AVX512 suppress-all-exceptions {sae}.
     ASMJIT_INLINE bool hasAvx512SAE() const noexcept { return hasFlag(kFlagAvx512SAE); }
-    //! Get if the instruction supports AVX512 broadcast (either 32-bit or 64-bit).
+    //! Get whether the instruction supports AVX512 broadcast (either 32-bit or 64-bit).
     ASMJIT_INLINE bool hasAvx512B() const noexcept { return hasFlag(kFlagAvx512B32 | kFlagAvx512B64); }
-    //! Get if the instruction supports AVX512 broadcast (32-bit).
+    //! Get whether the instruction supports AVX512 broadcast (32-bit).
     ASMJIT_INLINE bool hasAvx512B32() const noexcept { return hasFlag(kFlagAvx512B32); }
-    //! Get if the instruction supports AVX512 broadcast (64-bit).
+    //! Get whether the instruction supports AVX512 broadcast (64-bit).
     ASMJIT_INLINE bool hasAvx512B64() const noexcept { return hasFlag(kFlagAvx512B64); }
-
-    //! Get if the instruction may or will jump (returns true also for calls and returns).
-    ASMJIT_INLINE bool doesJump() const noexcept { return _jumpType != Inst::kJumpTypeNone; }
 
     //! Get the destination index of WRITE operation.
     ASMJIT_INLINE uint32_t getWriteIndex() const noexcept { return _writeIndex; }
@@ -2206,7 +2207,7 @@ struct X86Inst {
     //! bytes.
     ASMJIT_INLINE uint32_t getWriteSize() const noexcept { return _writeSize; }
 
-    //! Get if the instruction has alternative opcode.
+    //! Get whether the instruction has an alternative opcode.
     ASMJIT_INLINE bool hasAltOpCode() const noexcept { return _altOpCodeIndex != 0; }
     //! Get alternative opcode, see \ref OpCodeBits.
     ASMJIT_INLINE uint32_t getAltOpCode() const noexcept;
@@ -2217,7 +2218,11 @@ struct X86Inst {
     ASMJIT_INLINE const ISignature* getISignatureData() const noexcept;
     ASMJIT_INLINE const ISignature* getISignatureEnd() const noexcept;
 
-    ASMJIT_INLINE uint32_t getJumpType() const noexcept { return _jumpType; }
+    //! Get whether the instruction is a control-flow instruction which may/will jump (returns true also for calls and returns).
+    ASMJIT_INLINE bool isControl() const noexcept { return _controlType != Inst::kControlRegular; }
+    //! Get the control-flow type of the instruction.
+    ASMJIT_INLINE uint32_t getControlType() const noexcept { return _controlType; }
+
     ASMJIT_INLINE uint32_t getSingleRegCase() const noexcept { return _singleRegCase; }
 
     uint32_t _flags;                     //!< Instruction flags.
@@ -2225,11 +2230,11 @@ struct X86Inst {
     uint32_t _writeSize          :24;    //!< Number of bytes to be written in DST.
 
     uint32_t _altOpCodeIndex     : 8;    //!< Index to table with alternative opcodes.
-    uint32_t _iSignatureIndex    :10;    //!< First `ISignature` entry in the database.
-    uint32_t _iSignatureCount    : 4;    //!< Number of relevant `ISignature` entries.
-    uint32_t _jumpType           : 3;    //!< Jump type, see `Inst::JumpType`.
+    uint32_t _iSignatureIndex    :11;    //!< First `ISignature` entry in the database.
+    uint32_t _iSignatureCount    : 5;    //!< Number of relevant `ISignature` entries.
+    uint32_t _controlType        : 3;    //!< Control type, see `Inst::ControlType`.
     uint32_t _singleRegCase      : 2;    //!< Specifies what happens if all source operands share the same register.
-    uint32_t _reserved           : 5;    //!< \internal
+    uint32_t _reserved           : 3;    //!< Reserved.
   };
 
   //! Detailed data about instruction's operation, requirements, and side-effects.
@@ -2264,13 +2269,13 @@ struct X86Inst {
     uint32_t _specialRegsW;              //!< Special registers written.
   };
 
-  //! Contains data that can be used to convert SSE to AVX (or back).
+  //! Contains data that can be used to convert SSE to AVX or vice versa.
   struct SseToAvxData {
     ASMJIT_INLINE uint32_t getMode() const noexcept { return _mode; }
     ASMJIT_INLINE int32_t getDelta() const noexcept { return _delta; }
 
     uint16_t _mode :  3;                 //!< SSE to AVX conversion mode, see \ref AvxConvMode.
-    int16_t _delta : 13;                 //!< Delta to get a corresponding AVX instruction.
+    int16_t _delta : 13;                 //!< Delta to get the counterpart SSE/AVX instruction.
   };
 
   //! Data that is not related to a specific X86 instruction (not referenced by
@@ -2315,64 +2320,65 @@ struct X86Inst {
   //! Get instruction encoding, see \ref EncodingType.
   ASMJIT_INLINE uint32_t getEncodingType() const noexcept { return _encodingType; }
 
-  //! Get if the instruction has main opcode (rare, but it's possible it doesn't have).
+  //! Get whether the instruction has main opcode (rare, but it's possible it doesn't have).
   ASMJIT_INLINE bool hasMainOpCode() const noexcept { return _mainOpCode != 0; }
   //! Get main opcode, see \ref OpCodeBits.
   ASMJIT_INLINE uint32_t getMainOpCode() const noexcept { return _mainOpCode; }
 
-  //! Get if the instruction has alternative opcode.
+  //! Get whether the instruction has alternative opcode.
   ASMJIT_INLINE bool hasAltOpCode() const noexcept { return getCommonData().hasAltOpCode(); }
   //! Get alternative opcode, see \ref OpCodeBits.
   ASMJIT_INLINE uint32_t getAltOpCode() const noexcept { return getCommonData().getAltOpCode(); }
 
-  //! Get if the instruction has flag `flag`, see \ref Flags.
+  //! Get whether the instruction has flag `flag`, see \ref Flags.
   ASMJIT_INLINE bool hasFlag(uint32_t flag) const noexcept { return getCommonData().hasFlag(flag); }
   //! Get instruction flags, see \ref Flags.
   ASMJIT_INLINE uint32_t getFlags() const noexcept { return getCommonData().getFlags(); }
 
-  //! Get if the instruction is FPU instruction.
+  //! Get whether the instruction is FPU instruction.
   ASMJIT_INLINE bool isFpu() const noexcept { return getCommonData().isFpu(); }
-  //! Get if the instruction is MMX instruction that accesses MMX registersm, including EMMS.
+  //! Get whether the instruction is MMX instruction that accesses MMX registers, including EMMS.
   ASMJIT_INLINE bool isMmx() const noexcept { return getCommonData().isMmx(); }
-
-  //! Get if the instruction is SSE|AVX|AVX512 instruction that accesses XMM|YMM|ZMM registers.
+  //! Get whether the instruction is SSE|AVX|AVX512 instruction that accesses XMM|YMM|ZMM registers.
   ASMJIT_INLINE bool isVec() const noexcept { return getCommonData().isVec(); }
-  //! Get if the instruction is SSE+ (SSE4.2, AES, SHA included) instruction that accesses XMM registers.
+  //! Get whether the instruction is SSE+ (SSE4.2, AES, SHA included) instruction that accesses XMM registers.
   ASMJIT_INLINE bool isSse() const noexcept { return getCommonData().isSse(); }
-  //! Get if the instruction is AVX+ (FMA included) instruction that accesses XMM|YMM|ZMM registers.
+  //! Get whether the instruction is AVX+ (FMA included) instruction that accesses XMM|YMM|ZMM registers.
   ASMJIT_INLINE bool isAvx() const noexcept { return getCommonData().isAvx(); }
 
-  //! Get if the instruction can be prefixed by LOCK prefix.
-  ASMJIT_INLINE bool isLockEnabled() const noexcept { return getCommonData().isLockEnabled(); }
-  //! Get if the instruction can be prefixed by REP prefix.
-  ASMJIT_INLINE bool isRepEnabled() const noexcept { return getCommonData().isRepEnabled(); }
-  //! Get if the instruction can be prefixed by REPZ prefix.
-  ASMJIT_INLINE bool isRepzEnabled() const noexcept { return getCommonData().isRepzEnabled(); }
-  //! Get if the instruction can be prefixed by REPNZ prefix.
-  ASMJIT_INLINE bool isRepnzEnabled() const noexcept { return getCommonData().isRepnzEnabled(); }
+  //! Get whether the instruction can be prefixed with LOCK prefix.
+  ASMJIT_INLINE bool hasLockPrefix() const noexcept { return getCommonData().hasLockPrefix(); }
+  //! Get whether the instruction can be prefixed with REP or REPZ prefix.
+  ASMJIT_INLINE bool hasRepPrefix() const noexcept { return getCommonData().hasRepPrefix(); }
+  //! Get whether the instruction can be prefixed with REPNZ prefix.
+  ASMJIT_INLINE bool hasRepnePrefix() const noexcept { return getCommonData().hasRepnePrefix(); }
+  //! Get whether the instruction can be prefixed with XACQUIRE prefix.
+  ASMJIT_INLINE bool hasXAcquirePrefix() const noexcept { return getCommonData().hasXAcquirePrefix(); }
+  //! Get whether the instruction can be prefixed with XRELEASE prefix.
+  ASMJIT_INLINE bool hasXReleasePrefix() const noexcept { return getCommonData().hasXReleasePrefix(); }
 
-  //! Get if the instruction uses MIB.
+  //! Get whether the instruction uses MIB.
   ASMJIT_INLINE bool isMibOp() const noexcept { return getCommonData().isMibOp(); }
-  //! Get if the instruction uses VSIB.
+  //! Get whether the instruction uses VSIB.
   ASMJIT_INLINE bool isVsibOp() const noexcept { return getCommonData().isVsibOp(); }
-  //! Get if the instruction uses VEX (can be set together with EVEX if both are encodable).
+  //! Get whether the instruction uses VEX (can be set together with EVEX if both are encodable).
   ASMJIT_INLINE bool isVex() const noexcept { return getCommonData().isVex(); }
-  //! Get if the instruction uses EVEX (can be set together with VEX if both are encodable).
+  //! Get whether the instruction uses EVEX (can be set together with VEX if both are encodable).
   ASMJIT_INLINE bool isEvex() const noexcept { return getCommonData().isEvex(); }
 
-  //! Get if the instruction supports AVX512 masking {k}.
+  //! Get whether the instruction supports AVX512 masking {k}.
   ASMJIT_INLINE bool hasAvx512K() const noexcept { return getCommonData().hasAvx512K(); }
-  //! Get if the instruction supports AVX512 zeroing {k}{z}.
+  //! Get whether the instruction supports AVX512 zeroing {k}{z}.
   ASMJIT_INLINE bool hasAvx512Z() const noexcept { return getCommonData().hasAvx512Z(); }
-  //! Get if the instruction supports AVX512 embedded-rounding {er}.
+  //! Get whether the instruction supports AVX512 embedded-rounding {er}.
   ASMJIT_INLINE bool hasAvx512ER() const noexcept { return getCommonData().hasAvx512ER(); }
-  //! Get if the instruction supports AVX512 suppress-all-exceptions {sae}.
+  //! Get whether the instruction supports AVX512 suppress-all-exceptions {sae}.
   ASMJIT_INLINE bool hasAvx512SAE() const noexcept { return getCommonData().hasAvx512SAE(); }
-  //! Get if the instruction supports AVX512 broadcast (either 32-bit or 64-bit).
+  //! Get whether the instruction supports AVX512 broadcast (either 32-bit or 64-bit).
   ASMJIT_INLINE bool hasAvx512B() const noexcept { return getCommonData().hasAvx512B(); }
-  //! Get if the instruction supports AVX512 broadcast (32-bit).
+  //! Get whether the instruction supports AVX512 broadcast (32-bit).
   ASMJIT_INLINE bool hasAvx512B32() const noexcept { return getCommonData().hasAvx512B32(); }
-  //! Get if the instruction supports AVX512 broadcast (64-bit).
+  //! Get whether the instruction supports AVX512 broadcast (64-bit).
   ASMJIT_INLINE bool hasAvx512B64() const noexcept { return getCommonData().hasAvx512B64(); }
 
   ASMJIT_INLINE uint32_t getISignatureIndex() const noexcept { return getCommonData().getISignatureIndex(); }
@@ -2385,7 +2391,7 @@ struct X86Inst {
   // [Get]
   // --------------------------------------------------------------------------
 
-  //! Get if the `instId` is defined (counts also Inst::kIdNone, which must be zero).
+  //! Get whether the `instId` is defined (counts also Inst::kIdNone, which must be zero).
   static ASMJIT_INLINE bool isDefinedId(uint32_t instId) noexcept { return instId < _kIdCount; }
 
   //! Get instruction information based on the instruction `instId`.
@@ -2449,11 +2455,11 @@ struct X86Inst {
   //! match. If there is an exact match the instruction id is returned, otherwise
   //! `kInvalidInstId` (zero) is returned instead. The given `name` doesn't have
   //! to be null-terminated if `len` is provided.
-  ASMJIT_API static uint32_t getIdByName(const char* name, size_t len = Globals::kInvalidIndex) noexcept;
+  ASMJIT_API static uint32_t getIdByName(const char* name, size_t len = Globals::kNullTerminated) noexcept;
 
   //! Get an instruction name from a given instruction id `instId`.
   ASMJIT_API static const char* getNameById(uint32_t instId) noexcept;
-#endif // !ASMJIT_DISABLE_TEXT
+#endif
 
   // --------------------------------------------------------------------------
   // [Members]
@@ -2480,10 +2486,10 @@ struct X86InstDB {
   ASMJIT_API static const char nameData[];
   ASMJIT_API static const X86Inst::MiscData miscData;
 
-#if !defined(ASMJIT_DISABLE_VALIDATION)
+#if !defined(ASMJIT_DISABLE_INST_API)
   ASMJIT_API static const X86Inst::ISignature iSignatureData[];
   ASMJIT_API static const X86Inst::OSignature oSignatureData[];
-#endif // ASMJIT_DISABLE_VALIDATION
+#endif
 };
 
 ASMJIT_INLINE const X86Inst& X86Inst::getInst(uint32_t instId) noexcept {
@@ -2498,13 +2504,13 @@ ASMJIT_INLINE const X86Inst::SseToAvxData& X86Inst::getSseToAvxData() const noex
 ASMJIT_INLINE uint32_t X86Inst::CommonData::getAltOpCode() const noexcept { return X86InstDB::altOpCodeData[_altOpCodeIndex]; }
 ASMJIT_INLINE const X86Inst::MiscData& X86Inst::getMiscData() noexcept { return X86InstDB::miscData; }
 
-#if !defined(ASMJIT_DISABLE_VALIDATION)
+#if !defined(ASMJIT_DISABLE_INST_API)
 ASMJIT_INLINE const X86Inst::ISignature* X86Inst::CommonData::getISignatureData() const noexcept { return X86InstDB::iSignatureData + _iSignatureIndex; }
 ASMJIT_INLINE const X86Inst::ISignature* X86Inst::CommonData::getISignatureEnd() const noexcept { return X86InstDB::iSignatureData + _iSignatureIndex + _iSignatureCount; }
 #else
 ASMJIT_INLINE const X86Inst::ISignature* X86Inst::CommonData::getISignatureData() const noexcept { return static_cast<const X86Inst::ISignature*>(nullptr); }
 ASMJIT_INLINE const X86Inst::ISignature* X86Inst::CommonData::getISignatureEnd() const noexcept { return static_cast<const X86Inst::ISignature*>(nullptr); }
-#endif // ASMJIT_DISABLE_VALIDATION
+#endif
 
 //! \}
 

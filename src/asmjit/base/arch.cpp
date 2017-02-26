@@ -9,10 +9,15 @@
 
 // [Dependencies]
 #include "../base/arch.h"
+#include "../base/intutils.h"
 
 #if defined(ASMJIT_BUILD_X86)
-#include "../x86/x86operand.h"
-#endif // ASMJIT_BUILD_X86
+# include "../x86/x86operand.h"
+#endif
+
+#if defined(ASMJIT_BUILD_ARM)
+# include "../arm/armoperand.h"
+#endif
 
 // [Api-Begin]
 #include "../asmjit_apibegin.h"
@@ -30,7 +35,6 @@ static const uint32_t archInfoTable[] = {
   ASMJIT_PACK32_4x8(ArchInfo::kTypeNone  , ArchInfo::kSubTypeNone, 0,  0),
   ASMJIT_PACK32_4x8(ArchInfo::kTypeX86   , ArchInfo::kSubTypeNone, 4,  8),
   ASMJIT_PACK32_4x8(ArchInfo::kTypeX64   , ArchInfo::kSubTypeNone, 8, 16),
-  ASMJIT_PACK32_4x8(ArchInfo::kTypeX32   , ArchInfo::kSubTypeNone, 8, 16),
   ASMJIT_PACK32_4x8(ArchInfo::kTypeA32   , ArchInfo::kSubTypeNone, 4, 16),
   ASMJIT_PACK32_4x8(ArchInfo::kTypeA64   , ArchInfo::kSubTypeNone, 8, 32)
 };
@@ -44,8 +48,8 @@ ASMJIT_FAVOR_SIZE void ArchInfo::init(uint32_t type, uint32_t subType) noexcept 
 
   // Even if the architecture is not known we setup its type and sub-type,
   // however, such architecture is not really useful.
-  _type = type;
-  _subType = subType;
+  _type = uint8_t(type);
+  _subType = uint8_t(subType);
 }
 
 // ============================================================================
@@ -58,6 +62,7 @@ ASMJIT_FAVOR_SIZE Error ArchUtils::typeIdToRegInfo(uint32_t archType, uint32_t& 
   // Zero the signature so it's clear in case that typeId is not invalid.
   regInfo._signature = 0;
 
+  // TODO: Move to X86 backend.
 #if defined(ASMJIT_BUILD_X86)
   if (ArchInfo::isX86Family(archType)) {
     // Passed RegType instead of TypeId?
@@ -75,7 +80,7 @@ ASMJIT_FAVOR_SIZE Error ArchUtils::typeIdToRegInfo(uint32_t archType, uint32_t& 
         typeId = (archType == ArchInfo::kTypeX86) ? TypeId::kU32 : TypeId::kU64;
     }
 
-    // Type size helps to construct all kinds of registers. If the size is zero
+    // Type size helps to construct all groupss of registers. If the size is zero
     // then the TypeId is invalid.
     uint32_t size = TypeId::sizeOf(typeId);
     if (ASMJIT_UNLIKELY(!size))
@@ -150,7 +155,7 @@ ASMJIT_FAVOR_SIZE Error ArchUtils::typeIdToRegInfo(uint32_t archType, uint32_t& 
     regInfo._signature = x86OpData.archRegs.regInfo[regType].getSignature();
     return kErrorOk;
   }
-#endif // ASMJIT_BUILD_X86
+#endif
 
   return DebugUtils::errored(kErrorInvalidArch);
 }

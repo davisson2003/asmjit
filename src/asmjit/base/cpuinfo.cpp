@@ -9,17 +9,16 @@
 
 // [Dependencies]
 #include "../base/cpuinfo.h"
-#include "../base/utils.h"
 
 #if ASMJIT_OS_POSIX
 # include <errno.h>
 # include <sys/utsname.h>
 # include <unistd.h>
-#endif // ASMJIT_OS_POSIX
+#endif
 
 #if ASMJIT_ARCH_X86 || ASMJIT_ARCH_X64
 # if ASMJIT_CC_MSC_GE(14, 0, 0)
- # include <intrin.h>         // Required by `__cpuid()` and `_xgetbv()`.
+#  include <intrin.h>         // Required by `__cpuid[ex]()` and `_xgetbv()`.
 # endif // _MSC_VER >= 1400
 #endif
 
@@ -42,13 +41,13 @@ namespace asmjit {
 #if ASMJIT_ARCH_ARM32 || ASMJIT_ARCH_ARM64
 
 #if ASMJIT_ARCH_ARM32
-static ASMJIT_INLINE void armPopulateBaselineA32Features(CpuInfo* cpuInfo) noexcept {
+static inline void armPopulateBaselineA32Features(CpuInfo* cpuInfo) noexcept {
   cpuInfo->_archInfo.init(ArchInfo::kTypeA32);
 }
-#endif // ASMJIT_ARCH_ARM32
+#endif
 
 #if ASMJIT_ARCH_ARM64
-static ASMJIT_INLINE void armPopulateBaselineA64Features(CpuInfo* cpuInfo) noexcept {
+static inline void armPopulateBaselineA64Features(CpuInfo* cpuInfo) noexcept {
   cpuInfo->_archInfo.init(ArchInfo::kTypeA64);
 
   // Thumb (including all variations) is supported on A64 (but not accessible from A64).
@@ -69,7 +68,7 @@ static ASMJIT_INLINE void armPopulateBaselineA64Features(CpuInfo* cpuInfo) noexc
   cpuInfo->addFeature(CpuInfo::kArmFeatureIDIVA);
   cpuInfo->addFeature(CpuInfo::kArmFeatureIDIVT);
 }
-#endif // ASMJIT_ARCH_ARM64
+#endif
 
 #if ASMJIT_OS_WINDOWS
 //! \internal
@@ -77,20 +76,16 @@ static ASMJIT_INLINE void armPopulateBaselineA64Features(CpuInfo* cpuInfo) noexc
 //! Detect ARM CPU features on Windows.
 //!
 //! The detection is based on `IsProcessorFeaturePresent()` API call.
-static ASMJIT_INLINE void armDetectCpuInfoOnWindows(CpuInfo* cpuInfo) noexcept {
+static inline void armDetectCpuInfoOnWindows(CpuInfo* cpuInfo) noexcept {
 #if ASMJIT_ARCH_ARM32
   armPopulateBaselineA32Features(cpuInfo);
 
-  // Windows for ARM requires at least ARMv7 with DSP extensions.
+  // Windows for ARM requires: ARMv7 with DSP extensions, VFPv3, and uses THUMB2.
   cpuInfo->addFeature(CpuInfo::kArmFeatureV6);
   cpuInfo->addFeature(CpuInfo::kArmFeatureV7);
   cpuInfo->addFeature(CpuInfo::kArmFeatureEDSP);
-
-  // Windows for ARM requires VFPv3.
   cpuInfo->addFeature(CpuInfo::kArmFeatureVFPv2);
   cpuInfo->addFeature(CpuInfo::kArmFeatureVFPv3);
-
-  // Windows for ARM requires and uses THUMB2.
   cpuInfo->addFeature(CpuInfo::kArmFeatureTHUMB);
   cpuInfo->addFeature(CpuInfo::kArmFeatureTHUMB2);
 #else
@@ -107,17 +102,17 @@ static ASMJIT_INLINE void armDetectCpuInfoOnWindows(CpuInfo* cpuInfo) noexcept {
   };
 
   static const WinPFPMapping mapping[] = {
-    { PF_ARM_FMAC_INSTRUCTIONS_AVAILABLE , CpuInfo::kArmFeatureVFPv4     },
-    { PF_ARM_VFP_32_REGISTERS_AVAILABLE  , CpuInfo::kArmFeatureVFP_D32   },
-    { PF_ARM_DIVIDE_INSTRUCTION_AVAILABLE, CpuInfo::kArmFeatureIDIVT     },
-    { PF_ARM_64BIT_LOADSTORE_ATOMIC      , CpuInfo::kArmFeatureAtomics64 }
+    { PF_ARM_FMAC_INSTRUCTIONS_AVAILABLE , CpuInfo::kArmFeatureVFPv4    },
+    { PF_ARM_VFP_32_REGISTERS_AVAILABLE  , CpuInfo::kArmFeatureVFP_D32  },
+    { PF_ARM_DIVIDE_INSTRUCTION_AVAILABLE, CpuInfo::kArmFeatureIDIVT    },
+    { PF_ARM_64BIT_LOADSTORE_ATOMIC      , CpuInfo::kArmFeatureATOMIC64 }
   };
 
   for (uint32_t i = 0; i < ASMJIT_ARRAY_SIZE(mapping); i++)
     if (::IsProcessorFeaturePresent(mapping[i].pfpId))
       cpuInfo->addFeature(mapping[i].featureId);
 }
-#endif // ASMJIT_OS_WINDOWS
+#endif
 
 #if ASMJIT_OS_LINUX
 struct LinuxHWCapMapping {
@@ -144,40 +139,36 @@ ASMJIT_FAVOR_SIZE static void armDetectCpuInfoOnLinux(CpuInfo* cpuInfo) noexcept
 
   // `AT_HWCAP` provides ARMv7 (and less) related flags.
   static const LinuxHWCapMapping hwCapMapping[] = {
-    { /* HWCAP_VFP     */ (1 <<  6), CpuInfo::kArmFeatureVFPv2     },
-    { /* HWCAP_EDSP    */ (1 <<  7), CpuInfo::kArmFeatureEDSP      },
-    { /* HWCAP_NEON    */ (1 << 12), CpuInfo::kArmFeatureASIMD     },
-    { /* HWCAP_VFPv3   */ (1 << 13), CpuInfo::kArmFeatureVFPv3     },
-    { /* HWCAP_VFPv4   */ (1 << 16), CpuInfo::kArmFeatureVFPv4     },
-    { /* HWCAP_IDIVA   */ (1 << 17), CpuInfo::kArmFeatureIDIVA     },
-    { /* HWCAP_IDIVT   */ (1 << 18), CpuInfo::kArmFeatureIDIVT     },
-    { /* HWCAP_VFPD32  */ (1 << 19), CpuInfo::kArmFeatureVFP_D32   }
+    { /* HWCAP_VFP     */ (1 <<  6), CpuInfo::kArmFeatureVFPv2    },
+    { /* HWCAP_EDSP    */ (1 <<  7), CpuInfo::kArmFeatureEDSP     },
+    { /* HWCAP_NEON    */ (1 << 12), CpuInfo::kArmFeatureASIMD    },
+    { /* HWCAP_VFPv3   */ (1 << 13), CpuInfo::kArmFeatureVFPv3    },
+    { /* HWCAP_VFPv4   */ (1 << 16), CpuInfo::kArmFeatureVFPv4    },
+    { /* HWCAP_IDIVA   */ (1 << 17), CpuInfo::kArmFeatureIDIVA    },
+    { /* HWCAP_IDIVT   */ (1 << 18), CpuInfo::kArmFeatureIDIVT    },
+    { /* HWCAP_VFPD32  */ (1 << 19), CpuInfo::kArmFeatureVFP_D32  }
   };
   armDetectHWCaps(cpuInfo, AT_HWCAP, hwCapMapping, ASMJIT_ARRAY_SIZE(hwCapMapping));
 
   // VFPv3 implies VFPv2.
-  if (cpuInfo->hasFeature(CpuInfo::kArmFeatureVFPv3)) {
+  if (cpuInfo->hasFeature(CpuInfo::kArmFeatureVFPv3))
     cpuInfo->addFeature(CpuInfo::kArmFeatureVFPv2);
-  }
 
   // VFPv2 implies ARMv6.
-  if (cpuInfo->hasFeature(CpuInfo::kArmFeatureVFPv2)) {
+  if (cpuInfo->hasFeature(CpuInfo::kArmFeatureVFPv2))
     cpuInfo->addFeature(CpuInfo::kArmFeatureV6);
-  }
 
-  // VFPv3 or ASIMD implies ARMv7.
-  if (cpuInfo->hasFeature(CpuInfo::kArmFeatureVFPv3) ||
-      cpuInfo->hasFeature(CpuInfo::kArmFeatureASIMD)) {
+  // VFPv3|ASIMD implies ARMv7.
+  if (cpuInfo->hasFeature(CpuInfo::kArmFeatureVFPv3) || cpuInfo->hasFeature(CpuInfo::kArmFeatureASIMD))
     cpuInfo->addFeature(CpuInfo::kArmFeatureV7);
-  }
 
   // `AT_HWCAP2` provides ARMv8+ related flags.
   static const LinuxHWCapMapping hwCap2Mapping[] = {
-    { /* HWCAP2_AES    */ (1 <<  0), CpuInfo::kArmFeatureAES       },
-    { /* HWCAP2_PMULL  */ (1 <<  1), CpuInfo::kArmFeaturePMULL     },
-    { /* HWCAP2_SHA1   */ (1 <<  2), CpuInfo::kArmFeatureSHA1      },
-    { /* HWCAP2_SHA2   */ (1 <<  3), CpuInfo::kArmFeatureSHA256    },
-    { /* HWCAP2_CRC32  */ (1 <<  4), CpuInfo::kArmFeatureCRC32     }
+    { /* HWCAP2_AES    */ (1 <<  0), CpuInfo::kArmFeatureAES      },
+    { /* HWCAP2_PMULL  */ (1 <<  1), CpuInfo::kArmFeaturePMULL    },
+    { /* HWCAP2_SHA1   */ (1 <<  2), CpuInfo::kArmFeatureSHA1     },
+    { /* HWCAP2_SHA2   */ (1 <<  3), CpuInfo::kArmFeatureSHA256   },
+    { /* HWCAP2_CRC32  */ (1 <<  4), CpuInfo::kArmFeatureCRC32    }
   };
   armDetectHWCaps(cpuInfo, AT_HWCAP2, hwCap2Mapping, ASMJIT_ARRAY_SIZE(hwCap2Mapping));
 
@@ -193,20 +184,20 @@ ASMJIT_FAVOR_SIZE static void armDetectCpuInfoOnLinux(CpuInfo* cpuInfo) noexcept
 
   // `AT_HWCAP` provides ARMv8+ related flags.
   static const LinuxHWCapMapping hwCapMapping[] = {
-    { /* HWCAP_ASIMD   */ (1 <<  1), CpuInfo::kArmFeatureASIMD     },
-    { /* HWCAP_AES     */ (1 <<  3), CpuInfo::kArmFeatureAES       },
-    { /* HWCAP_CRC32   */ (1 <<  7), CpuInfo::kArmFeatureCRC32     },
-    { /* HWCAP_PMULL   */ (1 <<  4), CpuInfo::kArmFeaturePMULL     },
-    { /* HWCAP_SHA1    */ (1 <<  5), CpuInfo::kArmFeatureSHA1      },
-    { /* HWCAP_SHA2    */ (1 <<  6), CpuInfo::kArmFeatureSHA256    },
-    { /* HWCAP_ATOMICS */ (1 <<  8), CpuInfo::kArmFeatureAtomics64 }
+    { /* HWCAP_ASIMD   */ (1 <<  1), CpuInfo::kArmFeatureASIMD    },
+    { /* HWCAP_AES     */ (1 <<  3), CpuInfo::kArmFeatureAES      },
+    { /* HWCAP_CRC32   */ (1 <<  7), CpuInfo::kArmFeatureCRC32    },
+    { /* HWCAP_PMULL   */ (1 <<  4), CpuInfo::kArmFeaturePMULL    },
+    { /* HWCAP_SHA1    */ (1 <<  5), CpuInfo::kArmFeatureSHA1     },
+    { /* HWCAP_SHA2    */ (1 <<  6), CpuInfo::kArmFeatureSHA256   },
+    { /* HWCAP_ATOMICS */ (1 <<  8), CpuInfo::kArmFeatureATOMIC64 }
   };
   armDetectHWCaps(cpuInfo, AT_HWCAP, hwCapMapping, ASMJIT_ARRAY_SIZE(hwCapMapping));
 
   // `AT_HWCAP2` is not used at the moment.
 #endif
 }
-#endif // ASMJIT_OS_LINUX
+#endif
 
 ASMJIT_FAVOR_SIZE static void armDetectCpuInfo(CpuInfo* cpuInfo) noexcept {
 #if ASMJIT_OS_WINDOWS
@@ -217,7 +208,7 @@ ASMJIT_FAVOR_SIZE static void armDetectCpuInfo(CpuInfo* cpuInfo) noexcept {
 # error "[asmjit] armDetectCpuInfo() - Unsupported OS."
 #endif
 }
-#endif // ASMJIT_ARCH_ARM32 || ASMJIT_ARCH_ARM64
+#endif
 
 // ============================================================================
 // [asmjit::CpuInfo - Detect X86]
@@ -254,7 +245,7 @@ static void ASMJIT_NOINLINE void x86CallCpuIdWorkaround(uint32_t inEcx, uint32_t
 //! \internal
 //!
 //! Wrapper to call `cpuid` instruction.
-static void ASMJIT_INLINE x86CallCpuId(CpuIdResult* result, uint32_t inEax, uint32_t inEcx = 0) noexcept {
+static void inline x86CallCpuId(CpuIdResult* result, uint32_t inEax, uint32_t inEcx = 0) noexcept {
 #if ASMJIT_CC_MSC && ASMJIT_CC_MSC_GE(15, 0, 30729)
   __cpuidex(reinterpret_cast<int*>(result), inEax, inEcx);
 #elif ASMJIT_CC_MSC && ASMJIT_ARCH_X64
@@ -304,11 +295,11 @@ static void ASMJIT_INLINE x86CallCpuId(CpuIdResult* result, uint32_t inEax, uint
 //! \internal
 //!
 //! Wrapper to call `xgetbv` instruction.
-static ASMJIT_INLINE void x86CallXGetBV(XGetBVResult* result, uint32_t inEcx) noexcept {
+static inline void x86CallXGetBV(XGetBVResult* result, uint32_t inEcx) noexcept {
 #if ASMJIT_CC_MSC_GE(16, 0, 40219) // 2010SP1+
   uint64_t value = _xgetbv(inEcx);
-  result->eax = static_cast<uint32_t>(value & 0xFFFFFFFFU);
-  result->edx = static_cast<uint32_t>(value >> 32);
+  result->eax = uint32_t(value & 0xFFFFFFFFU);
+  result->edx = uint32_t(value >> 32);
 #elif ASMJIT_CC_GCC || ASMJIT_CC_CLANG
   uint32_t outEax;
   uint32_t outEdx;
@@ -328,34 +319,31 @@ static ASMJIT_INLINE void x86CallXGetBV(XGetBVResult* result, uint32_t inEcx) no
 //! \internal
 //!
 //! Map a 12-byte vendor string returned by `cpuid` into a `CpuInfo::Vendor` ID.
-static ASMJIT_INLINE uint32_t x86GetCpuVendorID(const char* vendorString) noexcept {
+static inline uint32_t x86GetCpuVendorID(uint32_t dw0, uint32_t dw1, uint32_t dw2) noexcept {
   struct VendorData {
     uint32_t id;
-    char text[12];
+    union {
+      char text[12];
+      uint32_t dw[3];
+    };
   };
 
-  static const VendorData vendorList[] = {
-    { CpuInfo::kVendorIntel , { 'G', 'e', 'n', 'u', 'i', 'n', 'e', 'I', 'n', 't', 'e', 'l' } },
-    { CpuInfo::kVendorAMD   , { 'A', 'u', 't', 'h', 'e', 'n', 't', 'i', 'c', 'A', 'M', 'D' } },
-    { CpuInfo::kVendorVIA   , { 'V', 'I', 'A',  0 , 'V', 'I', 'A',  0 , 'V', 'I', 'A',  0  } },
-    { CpuInfo::kVendorVIA   , { 'C', 'e', 'n', 't', 'a', 'u', 'r', 'H', 'a', 'u', 'l', 's' } }
+  static const VendorData vendors[] = {
+    { CpuInfo::kVendorIntel , {{ 'G', 'e', 'n', 'u', 'i', 'n', 'e', 'I', 'n', 't', 'e', 'l' }} },
+    { CpuInfo::kVendorAMD   , {{ 'A', 'u', 't', 'h', 'e', 'n', 't', 'i', 'c', 'A', 'M', 'D' }} },
+    { CpuInfo::kVendorVIA   , {{ 'V', 'I', 'A',  0 , 'V', 'I', 'A',  0 , 'V', 'I', 'A',  0  }} },
+    { CpuInfo::kVendorVIA   , {{ 'C', 'e', 'n', 't', 'a', 'u', 'r', 'H', 'a', 'u', 'l', 's' }} }
   };
 
-  uint32_t dw0 = reinterpret_cast<const uint32_t*>(vendorString)[0];
-  uint32_t dw1 = reinterpret_cast<const uint32_t*>(vendorString)[1];
-  uint32_t dw2 = reinterpret_cast<const uint32_t*>(vendorString)[2];
-
-  for (uint32_t i = 0; i < ASMJIT_ARRAY_SIZE(vendorList); i++) {
-    if (dw0 == reinterpret_cast<const uint32_t*>(vendorList[i].text)[0] &&
-        dw1 == reinterpret_cast<const uint32_t*>(vendorList[i].text)[1] &&
-        dw2 == reinterpret_cast<const uint32_t*>(vendorList[i].text)[2])
-      return vendorList[i].id;
+  for (uint32_t i = 0; i < ASMJIT_ARRAY_SIZE(vendors); i++) {
+    if (dw0 == vendors[i].dw[0] && dw1 == vendors[i].dw[1] && dw2 == vendors[i].dw[2])
+      return vendors[i].id;
   }
 
   return CpuInfo::kVendorNone;
 }
 
-static ASMJIT_INLINE void x86SimplifyBrandString(char* s) noexcept {
+static inline void x86SimplifyBrandString(char* s) noexcept {
   // Used to always clear the current character to ensure that the result
   // doesn't contain garbage after the new zero terminator.
   char* d = s;
@@ -405,7 +393,7 @@ ASMJIT_FAVOR_SIZE static void x86DetectCpuInfo(CpuInfo* cpuInfo) noexcept {
   ::memcpy(cpuInfo->_vendorString + 0, &regs.ebx, 4);
   ::memcpy(cpuInfo->_vendorString + 4, &regs.edx, 4);
   ::memcpy(cpuInfo->_vendorString + 8, &regs.ecx, 4);
-  cpuInfo->_vendorId = x86GetCpuVendorID(cpuInfo->_vendorString);
+  cpuInfo->_vendorId = x86GetCpuVendorID(regs.ebx, regs.edx, regs.ecx);
 
   // --------------------------------------------------------------------------
   // [CPUID EAX=0x1]
@@ -416,15 +404,19 @@ ASMJIT_FAVOR_SIZE static void x86DetectCpuInfo(CpuInfo* cpuInfo) noexcept {
     x86CallCpuId(&regs, 0x1);
 
     // Fill family and model fields.
-    cpuInfo->_family   = (regs.eax >> 8) & 0x0F;
-    cpuInfo->_model    = (regs.eax >> 4) & 0x0F;
-    cpuInfo->_stepping = (regs.eax     ) & 0x0F;
+    uint32_t modelId  = (regs.eax >> 4) & 0x0F;
+    uint32_t familyId = (regs.eax >> 8) & 0x0F;
 
     // Use extended family and model fields.
-    if (cpuInfo->_family == 0x0F) {
-      cpuInfo->_family += ((regs.eax >> 20) & 0xFF);
-      cpuInfo->_model  += ((regs.eax >> 16) & 0x0F) << 4;
-    }
+    if (familyId == 0x06U || familyId == 0x0FU)
+      modelId += (((regs.eax >> 16) & 0x0FU) << 4);
+
+    if (familyId == 0x0FU)
+      familyId += (((regs.eax >> 20) & 0xFFU) << 4);
+
+    cpuInfo->_modelId  = modelId;
+    cpuInfo->_familyId = familyId;
+    cpuInfo->_stepping = regs.eax & 0x0F;
 
     cpuInfo->_x86Data._processorType        = ((regs.eax >> 12) & 0x03);
     cpuInfo->_x86Data._brandIndex           = ((regs.ebx      ) & 0xFF);
@@ -577,6 +569,8 @@ ASMJIT_FAVOR_SIZE static void x86DetectCpuInfo(CpuInfo* cpuInfo) noexcept {
         if (regs.ecx & 0x00000080U) cpuInfo->addFeature(CpuInfo::kX86FeatureMSSE);
         if (regs.ecx & 0x00000100U) cpuInfo->addFeature(CpuInfo::kX86FeaturePREFETCHW);
         if (regs.ecx & 0x00200000U) cpuInfo->addFeature(CpuInfo::kX86FeatureTBM);
+        if (regs.ecx & 0x20000000U) cpuInfo->addFeature(CpuInfo::kX86FeatureMONITORX);
+
         if (regs.edx & 0x00100000U) cpuInfo->addFeature(CpuInfo::kX86FeatureNX);
         if (regs.edx & 0x00200000U) cpuInfo->addFeature(CpuInfo::kX86FeatureFXSROPT);
         if (regs.edx & 0x00400000U) cpuInfo->addFeature(CpuInfo::kX86FeatureMMX2);
@@ -617,21 +611,20 @@ ASMJIT_FAVOR_SIZE static void x86DetectCpuInfo(CpuInfo* cpuInfo) noexcept {
   // Simplify CPU brand string by removing unnecessary spaces.
   x86SimplifyBrandString(cpuInfo->_brandString);
 }
-#endif // ASMJIT_ARCH_X86 || ASMJIT_ARCH_X64
+#endif
 
 // ============================================================================
 // [asmjit::CpuInfo - Detect - HWThreadsCount]
 // ============================================================================
 
-static ASMJIT_INLINE uint32_t cpuDetectHWThreadsCount() noexcept {
+static inline uint32_t cpuDetectHWThreadsCount() noexcept {
 #if ASMJIT_OS_WINDOWS
   SYSTEM_INFO info;
   ::GetSystemInfo(&info);
   return info.dwNumberOfProcessors;
 #elif ASMJIT_OS_POSIX && defined(_SC_NPROCESSORS_ONLN)
   long res = ::sysconf(_SC_NPROCESSORS_ONLN);
-  if (res <= 0) return 1;
-  return static_cast<uint32_t>(res);
+  return res <= 0 ? uint32_t(1) : uint32_t(res);
 #else
   return 1;
 #endif
@@ -646,11 +639,11 @@ ASMJIT_FAVOR_SIZE void CpuInfo::detect() noexcept {
 
 #if ASMJIT_ARCH_ARM32 || ASMJIT_ARCH_ARM64
   armDetectCpuInfo(this);
-#endif // ASMJIT_ARCH_ARM32 || ASMJIT_ARCH_ARM64
+#endif
 
 #if ASMJIT_ARCH_X86 || ASMJIT_ARCH_X64
   x86DetectCpuInfo(this);
-#endif // ASMJIT_ARCH_X86 || ASMJIT_ARCH_X64
+#endif
 
   _hwThreadsCount = cpuDetectHWThreadsCount();
 }
@@ -660,7 +653,7 @@ ASMJIT_FAVOR_SIZE void CpuInfo::detect() noexcept {
 // ============================================================================
 
 struct HostCpuInfo : public CpuInfo {
-  ASMJIT_INLINE HostCpuInfo() noexcept : CpuInfo() { detect(); }
+  inline HostCpuInfo() noexcept : CpuInfo() { detect(); }
 };
 
 const CpuInfo& CpuInfo::getHost() noexcept {

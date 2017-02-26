@@ -32,50 +32,69 @@ static void makeFunc(X86Emitter* emitter) {
   X86Xmm vec0 = x86::xmm0;
   X86Xmm vec1 = x86::xmm1;
 
-  // Create and initialize `FuncDetail` and `FuncFrameInfo`. Both are
-  // needed to create a function and they hold different kind of data.
+  // Create and initialize `FuncDetail` and `FuncFrame`.
   FuncDetail func;
   func.init(FuncSignature3<void, int*, const int*, const int*>(CallConv::kIdHost));
 
-  FuncFrameInfo ffi;
-  ffi.setDirtyRegs(X86Reg::kKindVec,      // Make XMM0 and XMM1 dirty. VEC kind
-                   Utils::mask(0, 1));    // describes XMM|YMM|ZMM registers.
+  FuncFrame frame;
+  frame.init(func);
 
-  FuncArgsMapper args(&func);             // Create function arguments mapper.
+  // Make XMM0 and XMM1 dirty. VEC group includes XMM|YMM|ZMM registers.
+  frame.setDirtyRegs(X86Reg::kGroupVec, IntUtils::mask(0,1));
+
+  FuncArgsAssignment args(&func);         // Create arguments assignment context.
   args.assignAll(dst, src_a, src_b);      // Assign our registers to arguments.
-  args.updateFrameInfo(ffi);              // Reflect our args in FuncFrameInfo.
+  args.updateFuncFrame(frame);            // Reflect our args in FuncFrame.
+  frame.finalize();
 
-  FuncFrameLayout layout;                 // Create the FuncFrameLayout, which
-  layout.init(func, ffi);                 // contains metadata of prolog/epilog.
-
-  // Emit function prolog and allocate arguments to registers.
-  FuncUtils::emitProlog(emitter, layout);
-  FuncUtils::allocArgs(emitter, layout, args);
+  // Emit prolog and allocate arguments to registers.
+  emitter->emitProlog(frame);
+  emitter->emitArgsAssignment(frame, args);
 
   emitter->movdqu(vec0, x86::ptr(src_a)); // Load 4 ints from [src_a] to XMM0.
   emitter->movdqu(vec1, x86::ptr(src_b)); // Load 4 ints from [src_b] to XMM1.
   emitter->paddd(vec0, vec1);             // Add 4 ints in XMM1 to XMM0.
   emitter->movdqu(x86::ptr(dst), vec0);   // Store the result to [dst].
 
-  // Emit function epilog and return.
-  FuncUtils::emitEpilog(emitter, layout);
+  // Emit epilog and return.
+  emitter->emitEpilog(frame);
 }
 
-int main(int argc, char* argv[]) {
+static int testFunc(uint32_t emitterType) {
   JitRuntime rt;                          // Create JIT Runtime
+  FileLogger logger(stdout);              // Create logger that logs to stdout.
 
   CodeHolder code;                        // Create a CodeHolder.
   code.init(rt.getCodeInfo());            // Initialize it to match `rt`.
-  X86Assembler a(&code);                  // Create and attach X86Assembler to `code`.
+  code.setLogger(&logger);                // Attach logger to the code.
 
-  FileLogger logger(stderr);
-  code.setLogger(&logger);
+  Error err;
+  if (emitterType == CodeEmitter::kTypeAssembler) {
+    // Create the function by using X86Assembler.
+    printf("Using X86Assembler:\n");
+    X86Assembler a(&code);
+    makeFunc(a.as<X86Emitter>());
+  }
+  else {
+    // Create the function by using X86Builder.
+    printf("Using X86Builder:\n");
+    X86Builder cb(&code);
+    makeFunc(cb.as<X86Emitter>());
+    err = cb.finalize();
+    if (err) {
+      printf("X86Builder::finalize() failed: %s\n", DebugUtils::errorAsString(err));
+      return 1;
+    }
+  }
 
-  makeFunc(a.asEmitter());
-
+  // Add the code generated to the runtime.
   SumIntsFunc fn;
-  Error err = rt.add(&fn, &code);         // Add the code generated to the runtime.
-  if (err) return 1;                      // Handle a possible error case.
+  err = rt.add(&fn, &code);
+
+  if (err) {
+    printf("JitRuntime::add() failed: %s\n", DebugUtils::errorAsString(err));
+    return 1;
+  }
 
   // Execute the generated function.
   int inA[4] = { 4, 3, 2, 1 };
@@ -83,13 +102,14 @@ int main(int argc, char* argv[]) {
   int out[4];
   fn(out, inA, inB);
 
-  // Prints {5 8 4 9}
-  printf("{%d %d %d %d}\n", out[0], out[1], out[2], out[3]);
+  // Should print {5 8 4 9}.
+  printf("Result = { %d %d %d %d }\n\n", out[0], out[1], out[2], out[3]);
 
   rt.release(fn);
+  return !(out[0] == 5 && out[1] == 8 && out[2] == 4 && out[3] == 9);
+}
 
-  if (out[0] == 5 && out[1] == 8 && out[2] == 4 && out[3] == 9)
-    return 0;
-  else
-    return 1;
+int main(int argc, char* argv[]) {
+  return testFunc(CodeEmitter::kTypeAssembler) |
+         testFunc(CodeEmitter::kTypeBuilder);
 }

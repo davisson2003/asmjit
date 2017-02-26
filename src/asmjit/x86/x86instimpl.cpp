@@ -8,8 +8,8 @@
 #define ASMJIT_EXPORTS
 
 // [Dependencies]
+#include "../base/intutils.h"
 #include "../base/misc_p.h"
-#include "../base/utils.h"
 #include "../x86/x86instimpl_p.h"
 #include "../x86/x86operand.h"
 
@@ -22,7 +22,7 @@ namespace asmjit {
 // [asmjit::X86InstImpl - Validate]
 // ============================================================================
 
-#if !defined(ASMJIT_DISABLE_VALIDATION)
+#if !defined(ASMJIT_DISABLE_INST_API)
 template<uint32_t RegType>
 struct X86OpTypeFromRegTypeT {
   enum {
@@ -112,11 +112,15 @@ static const X86ValidationData _x64ValidationData = {
   (1U << X86Reg::kRegGpd) | (1U << X86Reg::kRegGpq) | (1U << X86Reg::kRegXmm) | (1U << X86Reg::kRegYmm) | (1U << X86Reg::kRegZmm)
 };
 
+static ASMJIT_INLINE bool x86IsZmmOrM512(const Operand_& op) noexcept {
+  return X86Reg::isZmm(op) || (op.isMem() && op.getSize() == 64);
+}
+
 static ASMJIT_INLINE bool x86CheckOSig(const X86Inst::OSignature& op, const X86Inst::OSignature& ref, bool& immOutOfRange) noexcept {
   // Fail if operand types are incompatible.
   uint32_t opFlags = op.flags;
   if ((opFlags & ref.flags) == 0) {
-    // Mark temporarily `immOutOfRange` so we can return a more descriptive error.
+    // Mark temporarily `immOutOfRange` so we can return a more descriptive error later.
     if ((opFlags & X86Inst::kOpAllImm) && (ref.flags & X86Inst::kOpAllImm)) {
       immOutOfRange = true;
       return true;
@@ -125,14 +129,14 @@ static ASMJIT_INLINE bool x86CheckOSig(const X86Inst::OSignature& op, const X86I
     return false;
   }
 
-  // Fail if memory specific flags and sizes are incompatibles.
+  // Fail if memory specific flags and sizes do not match the signature.
   uint32_t opMemFlags = op.memFlags;
   if (opMemFlags != 0) {
     uint32_t refMemFlags = ref.memFlags;
     if ((refMemFlags & opMemFlags) == 0)
       return false;
 
-    if ((refMemFlags & X86Inst::kMemOpBaseOnly) && !(opMemFlags && X86Inst::kMemOpBaseOnly))
+    if ((refMemFlags & X86Inst::kMemOpBaseOnly) && !(opMemFlags & X86Inst::kMemOpBaseOnly))
       return false;
   }
 
@@ -147,12 +151,12 @@ static ASMJIT_INLINE bool x86CheckOSig(const X86Inst::OSignature& op, const X86I
 }
 
 ASMJIT_FAVOR_SIZE Error X86InstImpl::validate(uint32_t archType, const Inst::Detail& detail, const Operand_* operands, uint32_t count) noexcept {
+  // Only called when `archType` matches X86 family.
+  ASMJIT_ASSERT(ArchInfo::isX86Family(archType));
+
   uint32_t i;
   uint32_t archMask;
   const X86ValidationData* vd;
-
-  if (!ArchInfo::isX86Family(archType))
-    return DebugUtils::errored(kErrorInvalidArch);
 
   if (archType == ArchInfo::kTypeX86) {
     vd = &_x86ValidationData;
@@ -168,12 +172,15 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::validate(uint32_t archType, const Inst::Det
   uint32_t options = detail.options;
 
   if (ASMJIT_UNLIKELY(instId >= X86Inst::_kIdCount))
-    return DebugUtils::errored(kErrorInvalidArgument);
+    return DebugUtils::errored(kErrorInvalidInstruction);
 
   const X86Inst* iData = &X86InstDB::instData[instId];
   uint32_t iFlags = iData->getFlags();
 
-  // Validate LOCK, XACQUIRE, and XRELEASE prefixes.
+  // --------------------------------------------------------------------------
+  // [Validate LOCK|XACQUIRE|XRELEASE]
+  // --------------------------------------------------------------------------
+
   const uint32_t kLockXAcqRel = X86Inst::kOptionXAcquire | X86Inst::kOptionXRelease;
   if (options & (X86Inst::kOptionLock | kLockXAcqRel)) {
     if (options & X86Inst::kOptionLock) {
@@ -197,25 +204,27 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::validate(uint32_t archType, const Inst::Det
   }
 
   // Validate REP and REPNZ prefixes.
-  const uint32_t kRepRepRepnz = X86Inst::kOptionRep | X86Inst::kOptionRepnz;
-  if (options & kRepRepRepnz) {
-    if (ASMJIT_UNLIKELY((options & kRepRepRepnz) == kRepRepRepnz))
+  const uint32_t kRepAny = X86Inst::kOptionRep | X86Inst::kOptionRepne;
+  if (options & kRepAny) {
+    if (ASMJIT_UNLIKELY((options & kRepAny) == kRepAny))
       return DebugUtils::errored(kErrorInvalidPrefixCombination);
 
     if (ASMJIT_UNLIKELY((options & X86Inst::kOptionRep) && !(iFlags & X86Inst::kFlagRep)))
       return DebugUtils::errored(kErrorInvalidRepPrefix);
 
-    if (ASMJIT_UNLIKELY((options & X86Inst::kOptionRepnz) && !(iFlags & X86Inst::kFlagRepnz)))
+    if (ASMJIT_UNLIKELY((options & X86Inst::kOptionRepne) && !(iFlags & X86Inst::kFlagRepne)))
       return DebugUtils::errored(kErrorInvalidRepPrefix);
 
     // TODO: Validate extraReg {cx|ecx|rcx}.
   }
 
-  // Translate the given operands to `X86Inst::OSignature`.
+  // --------------------------------------------------------------------------
+  // [Translate Each Operand to OSignature]
+  // --------------------------------------------------------------------------
+
   X86Inst::OSignature oSigTranslated[6];
   uint32_t combinedOpFlags = 0;
   uint32_t combinedRegMask = 0;
-
   const X86Mem* memOp = nullptr;
 
   for (i = 0; i < count; i++) {
@@ -246,7 +255,7 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::validate(uint32_t archType, const Inst::Det
           if (ASMJIT_UNLIKELY(regId >= 32))
             return DebugUtils::errored(kErrorInvalidPhysId);
 
-          regMask = Utils::mask(regId);
+          regMask = IntUtils::mask(regId);
           if (ASMJIT_UNLIKELY((vd->allowedRegMask[regType] & regMask) == 0))
             return DebugUtils::errored(kErrorInvalidPhysId);
 
@@ -288,7 +297,7 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::validate(uint32_t archType, const Inst::Det
           // instructions where memory operand is implicit and has 'seg:[reg]' form.
           if (baseId < Operand::kPackedIdMin) {
             // Physical base id.
-            regMask = Utils::mask(baseId);
+            regMask = IntUtils::mask(baseId);
             combinedRegMask |= regMask;
           }
           else {
@@ -304,7 +313,7 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::validate(uint32_t archType, const Inst::Det
           // Base is an address, make sure that the address doesn't overflow 32-bit
           // integer (either int32_t or uint32_t) in 32-bit targets.
           int64_t offset = m.getOffset();
-          if (archMask == X86Inst::kArchMaskX86 && !Utils::isInt32(offset) && !Utils::isUInt32(offset))
+          if (archMask == X86Inst::kArchMaskX86 && !IntUtils::isInt32(offset) && !IntUtils::isUInt32(offset))
             return DebugUtils::errored(kErrorInvalidAddress);
         }
 
@@ -336,7 +345,7 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::validate(uint32_t archType, const Inst::Det
 
           uint32_t indexId = m.getIndexId();
           if (indexId < Operand::kPackedIdMin)
-            combinedRegMask |= Utils::mask(indexId);
+            combinedRegMask |= IntUtils::mask(indexId);
 
           // Only used for implicit memory operands having 'seg:[reg]' form, so clear it.
           regMask = 0;
@@ -367,7 +376,7 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::validate(uint32_t archType, const Inst::Det
         uint64_t immValue = op.as<Imm>().getUInt64();
         uint32_t immFlags = 0;
 
-        if (static_cast<int64_t>(immValue) >= 0) {
+        if (int64_t(immValue) >= 0) {
           const uint32_t k32AndMore = X86Inst::kOpI32 | X86Inst::kOpU32 |
                                       X86Inst::kOpI64 | X86Inst::kOpU64 ;
 
@@ -391,7 +400,7 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::validate(uint32_t archType, const Inst::Det
             immFlags = X86Inst::kOpU64;
         }
         else {
-          // 2s complement negation, as our number is unsigned...
+          // 2's complement negation, as our number is unsigned...
           immValue = (~immValue + 1);
 
           if (immValue <= 0x80U)
@@ -418,8 +427,8 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::validate(uint32_t archType, const Inst::Det
 
     X86Inst::OSignature& tod = oSigTranslated[i];
     tod.flags = opFlags;
-    tod.memFlags = static_cast<uint16_t>(memFlags);
-    tod.regMask = static_cast<uint8_t>(regMask & 0xFFU);
+    tod.memFlags = uint16_t(memFlags);
+    tod.regMask = uint8_t(regMask & 0xFFU);
     combinedOpFlags |= opFlags;
   }
 
@@ -430,7 +439,7 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::validate(uint32_t archType, const Inst::Det
   if (i < count) {
     while (--count > i)
       if (ASMJIT_UNLIKELY(!operands[count].isNone()))
-        return DebugUtils::errored(kErrorInvalidState);
+        return DebugUtils::errored(kErrorInvalidInstruction);
   }
 
   // Validate X86 and X64 specific cases.
@@ -445,7 +454,10 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::validate(uint32_t archType, const Inst::Det
       return DebugUtils::errored(kErrorInvalidUseOfGpbHi);
   }
 
-  // Validate instruction operands.
+  // --------------------------------------------------------------------------
+  // [Validate Instruction Signature by Comparing Against All `iSig` Rows]
+  // --------------------------------------------------------------------------
+
   const X86Inst::CommonData* commonData = &iData->getCommonData();
   const X86Inst::ISignature* iSig = X86InstDB::iSignatureData + commonData->_iSignatureIndex;
   const X86Inst::ISignature* iEnd = iSig                      + commonData->_iSignatureCount;
@@ -509,7 +521,10 @@ Next:
     }
   }
 
-  // Validate AVX-512 options:
+  // --------------------------------------------------------------------------
+  // [Validate AVX512 Options]
+  // --------------------------------------------------------------------------
+
   const RegOnly& extraReg = detail.extraReg;
   const uint32_t kAvx512Options = X86Inst::kOptionZMask   |
                                   X86Inst::kOption1ToX    |
@@ -524,7 +539,7 @@ Next:
         if (ASMJIT_UNLIKELY(extraReg.getType() != X86Reg::kRegK))
           return DebugUtils::errored(kErrorInvalidKMaskReg);
 
-        if (ASMJIT_UNLIKELY(!commonData->hasAvx512K()))
+        if (ASMJIT_UNLIKELY(extraReg.getId() == 0 || !commonData->hasAvx512K()))
           return DebugUtils::errored(kErrorInvalidKMaskUse);
       }
 
@@ -560,33 +575,33 @@ Next:
           // NOTE: if both {sae} and {er} are set, we don't care, as {sae} is implied.
           if (ASMJIT_UNLIKELY(!commonData->hasAvx512ER()))
             return DebugUtils::errored(kErrorInvalidEROrSAE);
-
-          // {er} is defined for scalar ops or vector ops using zmm (LL = 10). We
-          // don't need any more bits in the instruction database to be able to
-          // validate this, as each AVX512 instruction that has broadcast is vector
-          // instruction (in this case we require zmm registers), otherwise it's a
-          // scalar instruction, which is valid.
-          if (commonData->hasAvx512B()) {
-            // Supports broadcast, thus we require LL to be '10', which means there
-            // have to be zmm registers used. We don't calculate LL here, but we know
-            // that it would be '10' if there is at least one ZMM register used.
-
-            // There is no 'ER' enabled instruction with less than two operands.
-            ASMJIT_ASSERT(count >= 2);
-            if (ASMJIT_UNLIKELY(!X86Reg::isZmm(operands[0]) && !X86Reg::isZmm(operands[1])))
-              return DebugUtils::errored(kErrorInvalidEROrSAE);
-          }
         }
         else {
-          // {sae} doesn't have the same limitations as {er}, this is enough.
           if (ASMJIT_UNLIKELY(!commonData->hasAvx512SAE()))
+            return DebugUtils::errored(kErrorInvalidEROrSAE);
+        }
+
+        // {sae} and {er} are defined for either scalar ops or vector ops that
+        // require LL to be 10 (512-bit vector operations). We don't need any
+        // more bits in the instruction database to be able to validate this, as
+        // each AVX512 instruction that has broadcast is vector instruction (in
+        // this case we require zmm registers), otherwise it's a scalar instruction,
+        // which is valid.
+        if (commonData->hasAvx512B()) {
+          // Supports broadcast, thus we require LL to be '10', which means there
+          // have to be ZMM registers used. We don't calculate LL here, but we know
+          // that it would be '10' if there is at least one ZMM register used.
+
+          // There is no {er}/{sae}-enabled instruction with less than two operands.
+          ASMJIT_ASSERT(count >= 2);
+          if (ASMJIT_UNLIKELY(!x86IsZmmOrM512(operands[0]) && !x86IsZmmOrM512(operands[1])))
             return DebugUtils::errored(kErrorInvalidEROrSAE);
         }
       }
     }
     else {
       // Not AVX512 instruction - maybe OpExtra is xCX register used by REP/REPNZ prefix. Otherwise the instruction is invalid.
-      if ((options & kAvx512Options) || (options & (X86Inst::kOptionRep | X86Inst::kOptionRepnz)) == 0)
+      if ((options & kAvx512Options) || (options & (X86Inst::kOptionRep | X86Inst::kOptionRepne)) == 0)
         return DebugUtils::errored(kErrorInvalidInstruction);
     }
   }
@@ -596,35 +611,56 @@ Next:
 #endif
 
 // ============================================================================
-// [asmjit::X86InstImpl - CheckFeatures]
+// [asmjit::X86InstImpl - QueryRWInfo]
 // ============================================================================
 
-#if !defined(ASMJIT_DISABLE_EXTENSIONS)
+#if !defined(ASMJIT_DISABLE_INST_API)
+ASMJIT_FAVOR_SIZE Error X86InstImpl::queryRWInfo(uint32_t archType, const Inst::Detail& detail, const Operand_* operands, uint32_t count, Inst::IRWInfo& out) noexcept {
+  // Only called when `archType` matches X86 family.
+  ASMJIT_ASSERT(ArchInfo::isX86Family(archType));
+
+  // Get the instruction data.
+  uint32_t instId = detail.instId;
+  if (ASMJIT_UNLIKELY(instId >= X86Inst::_kIdCount))
+    return DebugUtils::errored(kErrorInvalidInstruction);
+
+  // TODO:
+
+
+  return kErrorInvalidInstruction;
+}
+#endif // ASMJIT_DISABLE_INST_API
+
+// ============================================================================
+// [asmjit::X86InstImpl - QueryCpuFeatures]
+// ============================================================================
+
+#if !defined(ASMJIT_DISABLE_INST_API)
 ASMJIT_FAVOR_SIZE static uint32_t x86GetRegTypesMask(const Operand_* operands, uint32_t count) noexcept {
   uint32_t mask = 0;
   for (uint32_t i = 0; i < count; i++) {
     const Operand_& op = operands[i];
     if (op.isReg()) {
       const Reg& reg = op.as<Reg>();
-      mask |= Utils::mask(reg.getType());
+      mask |= IntUtils::mask(reg.getType());
     }
     else if (op.isMem()) {
       const Mem& mem = op.as<Mem>();
-      if (mem.hasBaseReg()) mask |= Utils::mask(mem.getBaseType());
-      if (mem.hasIndexReg()) mask |= Utils::mask(mem.getIndexType());
+      if (mem.hasBaseReg()) mask |= IntUtils::mask(mem.getBaseType());
+      if (mem.hasIndexReg()) mask |= IntUtils::mask(mem.getIndexType());
     }
   }
   return mask;
 }
 
-ASMJIT_FAVOR_SIZE Error X86InstImpl::checkFeatures(uint32_t archType, const Inst::Detail& detail, const Operand_* operands, uint32_t count, CpuFeatures& out) noexcept {
-  if (!ArchInfo::isX86Family(archType))
-    return DebugUtils::errored(kErrorInvalidArch);
+ASMJIT_FAVOR_SIZE Error X86InstImpl::queryCpuFeatures(uint32_t archType, const Inst::Detail& detail, const Operand_* operands, uint32_t count, CpuFeatures& out) noexcept {
+  // Only called when `archType` matches X86 family.
+  ASMJIT_ASSERT(ArchInfo::isX86Family(archType));
 
   // Get the instruction data.
   uint32_t instId = detail.instId;
   if (ASMJIT_UNLIKELY(instId >= X86Inst::_kIdCount))
-    return DebugUtils::errored(kErrorInvalidArgument);
+    return DebugUtils::errored(kErrorInvalidInstruction);
 
   const X86Inst* iData = &X86InstDB::instData[instId];
   const X86Inst::OperationData& od = iData->getOperationData();
@@ -643,8 +679,6 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::checkFeatures(uint32_t archType, const Inst
 
   // Since AsmJit merges all instructions that share the same name we have to
   // deal with some special cases and also with MMX/SSE and AVX/AVX2 overlaps.
-
-  // Only proceed if there were some CPU flags set.
   if (fData != od.getFeaturesData()) {
     uint32_t mask = x86GetRegTypesMask(operands, count);
 
@@ -653,7 +687,7 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::checkFeatures(uint32_t archType, const Inst
       // Only instructions defined by SSE and SSE2 overlap. Instructions introduced
       // by newer instruction sets like SSE3+ don't state MMX as they require SSE3+.
       if (out.has(CpuInfo::kX86FeatureSSE) || out.has(CpuInfo::kX86FeatureSSE2)) {
-        if (!(mask & Utils::mask(X86Reg::kRegXmm))) {
+        if (!(mask & IntUtils::mask(X86Reg::kRegXmm))) {
           // The instruction doesn't use XMM register(s), thus it's MMX/MMX2 only.
           out.remove(CpuInfo::kX86FeatureSSE);
           out.remove(CpuInfo::kX86FeatureSSE2);
@@ -668,8 +702,14 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::checkFeatures(uint32_t archType, const Inst
         // when SSE4.1 introduced the whole family of PEXTR/PINSR instructions they
         // also introduced PEXTRW with a new opcode 0x15 that can extract directly to
         // memory. This instruction is, of course, not compatible with MMX/SSE2 one.
-        if (instId == X86Inst::kIdPextrw && count > 0 && !operands[0].isMem()) {
-          out.remove(CpuInfo::kX86FeatureSSE4_1);
+        if (instId == X86Inst::kIdPextrw) {
+          ASMJIT_ASSERT(out.has(CpuInfo::kX86FeatureSSE2));
+          ASMJIT_ASSERT(out.has(CpuInfo::kX86FeatureSSE4_1));
+
+          if (count > 0 && operands[0].isMem())
+            out.remove(CpuInfo::kX86FeatureSSE2);
+          else
+            out.remove(CpuInfo::kX86FeatureSSE4_1);
         }
       }
     }
@@ -688,7 +728,7 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::checkFeatures(uint32_t archType, const Inst
         // AVX instruction set doesn't support integer operations on YMM registers
         // as these were later introcuced by AVX2. In our case we have to check if
         // YMM register(s) are in use and if that is the case this is an AVX2 instruction.
-        if (!(mask & Utils::mask(X86Reg::kRegYmm, X86Reg::kRegZmm)))
+        if (!(mask & IntUtils::mask(X86Reg::kRegYmm, X86Reg::kRegZmm)))
           isAVX2 = false;
       }
 
@@ -705,7 +745,7 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::checkFeatures(uint32_t archType, const Inst
         uint32_t options = detail.options;
         uint32_t kAvx512Options = X86Inst::kOptionEvex | X86Inst::_kOptionAvx512Mask;
 
-        if (!(mask & Utils::mask(X86Reg::kRegZmm, X86Reg::kRegK)) && !(options & (kAvx512Options)) && detail.extraReg.getType() != X86Reg::kRegK) {
+        if (!(mask & IntUtils::mask(X86Reg::kRegZmm, X86Reg::kRegK)) && !(options & (kAvx512Options)) && detail.extraReg.getType() != X86Reg::kRegK) {
           out.remove(CpuInfo::kX86FeatureAVX512_F)
              .remove(CpuInfo::kX86FeatureAVX512_BW)
              .remove(CpuInfo::kX86FeatureAVX512_DQ)
@@ -714,11 +754,9 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::checkFeatures(uint32_t archType, const Inst
       }
     }
 
-    // Remove or keep AVX512_VL feature.
-    if (out.has(CpuInfo::kX86FeatureAVX512_VL)) {
-      if (!(mask & Utils::mask(X86Reg::kRegZmm)))
-        out.remove(CpuInfo::kX86FeatureAVX512_VL);
-    }
+    // Clear AVX512_VL if ZMM register is used.
+    if (mask & IntUtils::mask(X86Reg::kRegZmm))
+      out.remove(CpuInfo::kX86FeatureAVX512_VL);
   }
 
   return kErrorOk;

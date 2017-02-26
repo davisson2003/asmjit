@@ -59,7 +59,7 @@ public:
   //!
   //! Zone-allocated const-pool node.
   struct Node {
-    ASMJIT_INLINE void* getData() const noexcept {
+    inline void* getData() const noexcept {
       return static_cast<void*>(const_cast<ConstPool::Node*>(this) + 1);
     }
 
@@ -86,17 +86,16 @@ public:
     // [Construction / Destruction]
     // --------------------------------------------------------------------------
 
-    ASMJIT_INLINE Tree(size_t dataSize = 0) noexcept
+    inline Tree(size_t dataSize = 0) noexcept
       : _root(nullptr),
         _length(0),
         _dataSize(dataSize) {}
-    ASMJIT_INLINE ~Tree() {}
 
     // --------------------------------------------------------------------------
     // [Reset]
     // --------------------------------------------------------------------------
 
-    ASMJIT_INLINE void reset() noexcept {
+    inline void reset() noexcept {
       _root = nullptr;
       _length = 0;
     }
@@ -105,10 +104,10 @@ public:
     // [Accessors]
     // --------------------------------------------------------------------------
 
-    ASMJIT_INLINE bool isEmpty() const noexcept { return _length == 0; }
-    ASMJIT_INLINE size_t getLength() const noexcept { return _length; }
+    inline bool isEmpty() const noexcept { return _length == 0; }
+    inline size_t getLength() const noexcept { return _length; }
 
-    ASMJIT_INLINE void setDataSize(size_t dataSize) noexcept {
+    inline void setDataSize(size_t dataSize) noexcept {
       ASMJIT_ASSERT(isEmpty());
       _dataSize = dataSize;
     }
@@ -125,7 +124,7 @@ public:
     // --------------------------------------------------------------------------
 
     template<typename Visitor>
-    ASMJIT_INLINE void iterate(Visitor& visitor) const noexcept {
+    inline void iterate(Visitor& visitor) const noexcept {
       Node* node = const_cast<Node*>(_root);
       if (!node) return;
 
@@ -160,15 +159,15 @@ Visit:
     // [Helpers]
     // --------------------------------------------------------------------------
 
-    static ASMJIT_INLINE Node* _newNode(Zone* zone, const void* data, size_t size, size_t offset, bool shared) noexcept {
-      Node* node = zone->allocT<Node>(sizeof(Node) + size);
+    static inline Node* _newNode(Zone* zone, const void* data, size_t size, size_t offset, bool shared) noexcept {
+      Node* node = zone->allocAlignedT<Node>(sizeof(Node) + size, sizeof(intptr_t));
       if (ASMJIT_UNLIKELY(!node)) return nullptr;
 
       node->_link[0] = nullptr;
       node->_link[1] = nullptr;
       node->_level = 1;
       node->_shared = shared;
-      node->_offset = static_cast<uint32_t>(offset);
+      node->_offset = uint32_t(offset);
 
       ::memcpy(node->getData(), data, size);
       return node;
@@ -201,11 +200,11 @@ Visit:
   // --------------------------------------------------------------------------
 
   //! Get whether the constant-pool is empty.
-  ASMJIT_INLINE bool isEmpty() const noexcept { return _size == 0; }
+  inline bool isEmpty() const noexcept { return _size == 0; }
   //! Get the size of the constant-pool in bytes.
-  ASMJIT_INLINE size_t getSize() const noexcept { return _size; }
+  inline size_t getSize() const noexcept { return _size; }
   //! Get minimum alignment.
-  ASMJIT_INLINE size_t getAlignment() const noexcept { return _alignment; }
+  inline size_t getAlignment() const noexcept { return _alignment; }
 
   //! Add a constant to the constant pool.
   //!

@@ -9,9 +9,7 @@
 
 // [Dependencies]
 #include "../base/constpool.h"
-#include "../base/utils.h"
-
-#include <algorithm>
+#include "../base/intutils.h"
 
 // [Api-Begin]
 #include "../asmjit_apibegin.h"
@@ -19,8 +17,7 @@
 namespace asmjit {
 
 // Binary tree code is based on Julienne Walker's "Andersson Binary Trees"
-// article and implementation. However, only three operations are implemented -
-// get, insert and traverse.
+// article and implementation. However, only GET, INSERT and TRAVERSE are provided.
 
 // ============================================================================
 // [asmjit::ConstPool::Tree - Ops]
@@ -156,7 +153,8 @@ void ConstPool::reset(Zone* zone) noexcept {
 
 static ASMJIT_INLINE ConstPool::Gap* ConstPool_allocGap(ConstPool* self) noexcept {
   ConstPool::Gap* gap = self->_gapPool;
-  if (!gap) return self->_zone->allocT<ConstPool::Gap>();
+  if (!gap)
+    return self->_zone->allocAlignedT<ConstPool::Gap>(sizeof(ConstPool::Gap), sizeof(intptr_t));
 
   self->_gapPool = gap->_next;
   return gap;
@@ -175,18 +173,18 @@ static void ConstPool_addGap(ConstPool* self, size_t offset, size_t length) noex
     size_t gapLength;
 
       gapIndex = ConstPool::kIndex16;
-    if (length >= 16 && Utils::isAligned<size_t>(offset, 16)) {
+    if (length >= 16 && IntUtils::isAligned<size_t>(offset, 16)) {
       gapLength = 16;
     }
-    else if (length >= 8 && Utils::isAligned<size_t>(offset, 8)) {
+    else if (length >= 8 && IntUtils::isAligned<size_t>(offset, 8)) {
       gapIndex = ConstPool::kIndex8;
       gapLength = 8;
     }
-    else if (length >= 4 && Utils::isAligned<size_t>(offset, 4)) {
+    else if (length >= 4 && IntUtils::isAligned<size_t>(offset, 4)) {
       gapIndex = ConstPool::kIndex4;
       gapLength = 4;
     }
-    else if (length >= 2 && Utils::isAligned<size_t>(offset, 2)) {
+    else if (length >= 2 && IntUtils::isAligned<size_t>(offset, 2)) {
       gapIndex = ConstPool::kIndex2;
       gapLength = 2;
     }
@@ -199,7 +197,8 @@ static void ConstPool_addGap(ConstPool* self, size_t offset, size_t length) noex
     // happened (just the gap won't be visible) and it will fail again at
     // place where checking will cause kErrorNoHeapMemory.
     ConstPool::Gap* gap = ConstPool_allocGap(self);
-    if (!gap) return;
+    if (!gap)
+      return;
 
     gap->_next = self->_gaps[gapIndex];
     self->_gaps[gapIndex] = gap;
@@ -238,7 +237,7 @@ Error ConstPool::add(const void* data, size_t size, size_t& dstOffset) noexcept 
 
   // Before incrementing the current offset try if there is a gap that can
   // be used for the requested data.
-  size_t offset = ~static_cast<size_t>(0);
+  size_t offset = ~size_t(0);
   size_t gapIndex = treeIndex;
 
   while (gapIndex != kIndexCount - 1) {
@@ -254,7 +253,7 @@ Error ConstPool::add(const void* data, size_t size, size_t& dstOffset) noexcept 
       ConstPool_freeGap(this, gap);
 
       offset = gapOffset;
-      ASMJIT_ASSERT(Utils::isAligned<size_t>(offset, size));
+      ASMJIT_ASSERT(IntUtils::isAligned<size_t>(offset, size));
 
       gapLength -= size;
       if (gapLength > 0)
@@ -264,10 +263,10 @@ Error ConstPool::add(const void* data, size_t size, size_t& dstOffset) noexcept 
     gapIndex++;
   }
 
-  if (offset == ~static_cast<size_t>(0)) {
+  if (offset == ~size_t(0)) {
     // Get how many bytes have to be skipped so the address is aligned accordingly
     // to the 'size'.
-    size_t diff = Utils::alignDiff<size_t>(_size, size);
+    size_t diff = IntUtils::alignDiff<size_t>(_size, size);
 
     if (diff != 0) {
       ConstPool_addGap(this, _size, diff);
@@ -358,24 +357,18 @@ UNIT(base_constpool) {
     size_t curOffset;
     uint64_t c = ASMJIT_UINT64_C(0x0101010101010101);
 
-    EXPECT(pool.add(&c, 8, prevOffset) == kErrorOk,
-      "pool.add() - Returned error");
-    EXPECT(prevOffset == 0,
-      "pool.add() - First constant should have zero offset");
+    EXPECT(pool.add(&c, 8, prevOffset) == kErrorOk);
+    EXPECT(prevOffset == 0);
 
     for (i = 1; i < kCount; i++) {
       c++;
-      EXPECT(pool.add(&c, 8, curOffset) == kErrorOk,
-        "pool.add() - Returned error");
-      EXPECT(prevOffset + 8 == curOffset,
-        "pool.add() - Returned incorrect curOffset");
-      EXPECT(pool.getSize() == (i + 1) * 8,
-        "pool.getSize() - Reported incorrect size");
+      EXPECT(pool.add(&c, 8, curOffset) == kErrorOk);
+      EXPECT(prevOffset + 8 == curOffset);
+      EXPECT(pool.getSize() == (i + 1) * 8);
       prevOffset = curOffset;
     }
 
-    EXPECT(pool.getAlignment() == 8,
-      "pool.getAlignment() - Expected 8-byte alignment");
+    EXPECT(pool.getAlignment() == 8);
   }
 
   INFO("Retrieving %u constants from the pool.", kCount);
@@ -384,10 +377,8 @@ UNIT(base_constpool) {
 
     for (i = 0; i < kCount; i++) {
       size_t offset;
-      EXPECT(pool.add(&c, 8, offset) == kErrorOk,
-        "pool.add() - Returned error");
-      EXPECT(offset == i * 8,
-        "pool.add() - Should have reused constant");
+      EXPECT(pool.add(&c, 8, offset) == kErrorOk);
+      EXPECT(offset == i * 8);
       c++;
     }
   }
@@ -397,10 +388,8 @@ UNIT(base_constpool) {
     uint32_t c = 0x01010101;
     for (i = 0; i < kCount; i++) {
       size_t offset;
-      EXPECT(pool.add(&c, 4, offset) == kErrorOk,
-        "pool.add() - Returned error");
-      EXPECT(offset == i * 8,
-        "pool.add() - Should reuse existing constant");
+      EXPECT(pool.add(&c, 4, offset) == kErrorOk);
+      EXPECT(offset == i * 8);
       c++;
     }
   }
@@ -410,12 +399,9 @@ UNIT(base_constpool) {
     uint16_t c = 0xFFFF;
     size_t offset;
 
-    EXPECT(pool.add(&c, 2, offset) == kErrorOk,
-      "pool.add() - Returned error");
-    EXPECT(offset == kCount * 8,
-      "pool.add() - Didn't return expected position");
-    EXPECT(pool.getAlignment() == 8,
-      "pool.getAlignment() - Expected 8-byte alignment");
+    EXPECT(pool.add(&c, 2, offset) == kErrorOk);
+    EXPECT(offset == kCount * 8);
+    EXPECT(pool.getAlignment() == 8);
   }
 
   INFO("Adding 8 byte constant to check if pool gets aligned again");
@@ -423,10 +409,8 @@ UNIT(base_constpool) {
     uint64_t c = ASMJIT_UINT64_C(0xFFFFFFFFFFFFFFFF);
     size_t offset;
 
-    EXPECT(pool.add(&c, 8, offset) == kErrorOk,
-      "pool.add() - Returned error");
-    EXPECT(offset == kCount * 8 + 8,
-      "pool.add() - Didn't return aligned offset");
+    EXPECT(pool.add(&c, 8, offset) == kErrorOk);
+    EXPECT(offset == kCount * 8 + 8);
   }
 
   INFO("Adding 2 byte constant to verify the gap is filled");
@@ -434,12 +418,9 @@ UNIT(base_constpool) {
     uint16_t c = 0xFFFE;
     size_t offset;
 
-    EXPECT(pool.add(&c, 2, offset) == kErrorOk,
-      "pool.add() - Returned error");
-    EXPECT(offset == kCount * 8 + 2,
-      "pool.add() - Didn't fill the gap");
-    EXPECT(pool.getAlignment() == 8,
-      "pool.getAlignment() - Expected 8-byte alignment");
+    EXPECT(pool.add(&c, 2, offset) == kErrorOk);
+    EXPECT(offset == kCount * 8 + 2);
+    EXPECT(pool.getAlignment() == 8);
   }
 
   INFO("Checking reset functionality");
@@ -447,10 +428,8 @@ UNIT(base_constpool) {
     pool.reset(&zone);
     zone.reset();
 
-    EXPECT(pool.getSize() == 0,
-      "pool.getSize() - Expected pool size to be zero");
-    EXPECT(pool.getAlignment() == 0,
-      "pool.getSize() - Expected pool alignment to be zero");
+    EXPECT(pool.getSize() == 0);
+    EXPECT(pool.getAlignment() == 0);
   }
 
   INFO("Checking pool alignment when combined constants are added");
@@ -459,51 +438,32 @@ UNIT(base_constpool) {
     size_t offset;
 
     pool.add(bytes, 1, offset);
-
-    EXPECT(pool.getSize() == 1,
-      "pool.getSize() - Expected pool size to be 1 byte");
-    EXPECT(pool.getAlignment() == 1,
-      "pool.getSize() - Expected pool alignment to be 1 byte");
-    EXPECT(offset == 0,
-      "pool.getSize() - Expected offset returned to be zero");
+    EXPECT(pool.getSize() == 1);
+    EXPECT(pool.getAlignment() == 1);
+    EXPECT(offset == 0);
 
     pool.add(bytes, 2, offset);
-
-    EXPECT(pool.getSize() == 4,
-      "pool.getSize() - Expected pool size to be 4 bytes");
-    EXPECT(pool.getAlignment() == 2,
-      "pool.getSize() - Expected pool alignment to be 2 bytes");
-    EXPECT(offset == 2,
-      "pool.getSize() - Expected offset returned to be 2");
+    EXPECT(pool.getSize() == 4);
+    EXPECT(pool.getAlignment() == 2);
+    EXPECT(offset == 2);
 
     pool.add(bytes, 4, offset);
-
-    EXPECT(pool.getSize() == 8,
-      "pool.getSize() - Expected pool size to be 8 bytes");
-    EXPECT(pool.getAlignment() == 4,
-      "pool.getSize() - Expected pool alignment to be 4 bytes");
-    EXPECT(offset == 4,
-      "pool.getSize() - Expected offset returned to be 4");
+    EXPECT(pool.getSize() == 8);
+    EXPECT(pool.getAlignment() == 4);
+    EXPECT(offset == 4);
 
     pool.add(bytes, 4, offset);
-
-    EXPECT(pool.getSize() == 8,
-      "pool.getSize() - Expected pool size to be 8 bytes");
-    EXPECT(pool.getAlignment() == 4,
-      "pool.getSize() - Expected pool alignment to be 4 bytes");
-    EXPECT(offset == 4,
-      "pool.getSize() - Expected offset returned to be 8");
+    EXPECT(pool.getSize() == 8);
+    EXPECT(pool.getAlignment() == 4);
+    EXPECT(offset == 4);
 
     pool.add(bytes, 32, offset);
-    EXPECT(pool.getSize() == 64,
-      "pool.getSize() - Expected pool size to be 64 bytes");
-    EXPECT(pool.getAlignment() == 32,
-      "pool.getSize() - Expected pool alignment to be 32 bytes");
-    EXPECT(offset == 32,
-      "pool.getSize() - Expected offset returned to be 32");
+    EXPECT(pool.getSize() == 64);
+    EXPECT(pool.getAlignment() == 32);
+    EXPECT(offset == 32);
   }
 }
-#endif // ASMJIT_TEST
+#endif
 
 } // asmjit namespace
 

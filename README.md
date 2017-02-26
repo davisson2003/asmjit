@@ -91,7 +91,6 @@ Breaking the official API is sometimes inevitable, what to do?
 
 TODOs:
   * [ ] AsmJit added support for code sections, but only the first section (executable code) works atm.
-  * [ ] AsmJit supports AVX512, but {sae} and {er} are not handled properly yet.
   * [ ] AsmJit next-wip branch implements a brand-new register allocator (and contains reworked CodeBuilder and CodeCompiler), but it's not complete yet.
 
 Supported Environments
@@ -167,10 +166,10 @@ If none of **ASMJIT_BUILD_...** is defined AsmJit bails to **ASMJIT_BUILD_HOST**
 ### Disabling Features:
 
   * **ASMJIT_DISABLE_BUILDER** - Disables both **CodeBuilder** and **CodeCompiler** emitters (only **Assembler** will be available). Ideal for users that don't use **CodeBuilder** concept and want to create smaller AsmJit.
-  * **ASMJIT_DISABLE_COMPILER** - Disables **CodeCompiler** emitter. For users that use **CodeBuilder**, but not **CodeCompiler**
-  * **ASMJIT_DISABLE_LOGGING** - Disables logging (**Logger** and all classes that inherit it) and formatting features.
+  * **ASMJIT_DISABLE_COMPILER** - Disables **CodeCompiler** emitter. For users that use **CodeBuilder**, but not **CodeCompiler**.
+  * **ASMJIT_DISABLE_LOGGING** - Disables logging (**Logger** and all classes that inherit it) and instruction formatting.
   * **ASMJIT_DISABLE_TEXT** - Disables everything that uses text-representation and that causes certain strings to be stored in the resulting binary. For example when this flag is enabled all instruction and error names (and related APIs) will not be available. This flag has to be disabled together with **ASMJIT_DISABLE_LOGGING**. This option is suitable for deployment builds or builds that don't want to reveal the use of AsmJit.
-  * **ASMJIT_DISABLE_VALIDATION** - Disables instruction validation feature. Saves around 5kB of space when used.
+  * **ASMJIT_DISABLE_INST_API** - Disables strict validation, read/write information, and all additional data and APIs that can output information about instructions.
 
 NOTE: Please don't disable any features if you plan to build AsmJit as a shared library that will be used by multiple projects that you don't control (for example asmjit in a Linux distribution). The possibility to disable certain features exists mainly for static builds of AsmJit.
 
@@ -210,7 +209,7 @@ AsmJit's operands all inherit from a base class called **Operand** and then spec
   * **None** (not used or uninitialized operand).
   * **Register** (**Reg**) - Describes either physical or virtual register. Physical registers have id that matches the target's machine id directly, whereas virtual registers must be allocated into physical registers by a register allocator pass. Each **Reg** provides:
     * **Register Type** - Unique id that describes each possible register provided by the target architecture - for example X86 backend provides **X86Reg::RegType**, which defines all variations of general purpose registers (GPB-LO, GPB-HI, GPW, GPD, and GPQ) and all types of other registers like K, MM, BND, XMM, YMM, and ZMM.
-    * **Register Kind** - Groups multiple register types under a single kind - for example all general-purpose registers (of all sizes) on X86 are **X86Reg::kKindGp**, all SIMD registers (XMM, YMM, ZMM) are **X86Reg::kKindVec**, etc.
+    * **Register Group** - Groups multiple register types under a single group - for example all general-purpose registers (of all sizes) on X86 are **X86Reg::kGroupGp**, all SIMD registers (XMM, YMM, ZMM) are **X86Reg::kGroupVec**, etc.
     * **Register Size** - Contains the size of the register in bytes. If the size depends on the mode (32-bit vs 64-bit) then generally the higher size is used (for example RIP register has size 8 by default).
     * **Register ID** - Contains physical or virtual id of the register.
   * **Memory Address** (**Mem**) - Used to reference a memory location. Each **Mem** provides:
@@ -462,12 +461,12 @@ int main(int argc, char* argv[]) {
   a.movups(ptr(eax), xmm0);               // Store the result to [eax].
   a.ret();                                // Return from function.
 
-  // Now we have two options if we want to do something with the code hold
+  // Now we have two options if we want to do something with the code held
   // by CodeHolder. In order to use it we must first sync X86Assembler with
-  // the CodeHolder as it doesn't do it for every instruction it generates for
-  // performance reasons. The options are:
+  // CodeHolder as it doesn't do it for every instruction it generates (for
+  // performance reasons). The options are:
   //
-  //   1. Detach X86Assembler from CodeHolder (will automatically sync).
+  //   1. Detach X86Assembler from CodeHolder (it will sync automatically).
   //   2. Sync explicitly, allows to use X86Assembler again if needed.
   //
   // NOTE: AsmJit always syncs internally when CodeHolder needs to access these
@@ -541,6 +540,9 @@ int main(int argc, char* argv[]) {
   a.paddd(x86::xmm0, x86::xmm1);          // Add 4 ints in XMM1 to XMM0.
   a.movdqu(x86::ptr(dst), x86::xmm0);     // Store the result to [dst].
   a.ret();                                // Return from function.
+
+  // Sync X86Assembler and CodeHolder.
+  code.sync();
 
   // After the code was generated it can be relocated manually to any memory
   // location, however, we need to know it's size before we perform memory
@@ -752,28 +754,26 @@ AsmJit contains another instruction option that controls (forces) REX prefix - `
 
 So far all examples shown above handled creating function prologs and epilogs manually. While it's possible to do it that way it's much better to automate such process as function calling conventions vary across architectures and also across operating systems.
 
-AsmJit contains a functionality that can be used to define function signatures and to calculate automatically optimal frame layout that can be used directly by a prolog and epilog inserter. This feature was exclusive to AsmJit's CodeCompiler for a very long time, but was abstracted out and is now available for all users regardless of CodeEmitter they use. The design of handling functions prologs and epilogs allows generally two use cases:
+AsmJit contains a functionality that can be used to define function signatures and to calculate automatically optimal function frame that can be used directly by a prolog and epilog inserter. This feature was exclusive to AsmJit's CodeCompiler for a very long time, but was abstracted out and is now available for all users regardless of CodeEmitter they use. The design of handling functions prologs and epilogs allows generally two use cases:
 
-  * Calculate function layout before the function is generated - this is the only way if you use pure `Assembler` emitter and shown in the next example.
-  * Calculate function layout after the function is generated - this way is generally used by `CodeBuilder` and `CodeCompiler` (will be described together with `X86Compiler`).
+  * Calculate function frame before the function is generated - this is the only way if you use pure `Assembler` emitter and shown in the next example.
+  * Calculate function frame after the function is generated - this way is generally used by `CodeBuilder` and `CodeCompiler` (will be described together with `X86Compiler`).
 
 The following concepts are used to describe and create functions in AsmJit:
 
-  * **CallConv** - Describes a calling convention - this class contains instructions to assign registers and stack addresses to function arguments and return value(s), but doesn't specify any function signature. Calling conventions are architecture and OS dependent.
-
   * **TypeId** - TypeId is an 8-bit value that describes a platform independent type. It provides abstractions for most common types like `int8_t`, `uint32_t`, `uintptr_t`, `float`, `double`, and all possible vector types to match ISAs up to AVX512. **TypeId** was introduced originally to be used with **CodeCompiler**, but is now used by **FuncSignature** as well.
+
+  * **CallConv** - Describes a calling convention - this class contains instructions to assign registers and stack addresses to function arguments and return value(s), but doesn't specify any function signature. Calling conventions are architecture and OS dependent.
 
   * **FuncSignature** - Describes a function signature, for example `int func(int, int)`. **FuncSignature** contains a function calling convention id, return value type, and function arguments. The signature itself is platform independent and uses **TypeId** to describe types of function arguments and its return value(s).
 
-  * **FuncDetail** - Architecture and ABI dependent information that describes **CallConv** and expanded **FuncSignature**. Each function argument and return value is represented as **FuncDetail::Value** that contains the original **TypeId** enriched by additional information that specifies if the value is passed/returned by register (and which register) or by stack. Each value also contains some other metadata that provide additional information required to handle it properly (for example if a vector value is passed indirectly by a pointer as required by WIN64 calling convention, etc...).
+  * **FuncDetail** - Architecture and ABI dependent information that describes **CallConv** and expanded **FuncSignature**. Each function argument and return value is represented as **FuncValue** that contains the original **TypeId** enriched by additional information that specifies if the value is passed/returned by register (and which register) or by stack. Each value also contains some other metadata that provide additional information required to handle it properly (for example if a vector value is passed indirectly by a pointer as required by WIN64 calling convention, etc...).
 
-  * **FuncArgsMapper** - A helper that can be used to define where each function argument is expected to be. It's architecture and ABI dependent mapping from function arguments described by CallConv and FuncDetail into registers specified by the user.
+  * **FuncFrame** - Contains information about the function frame that can be used by prolog/epilog inserter (PEI). Holds call stack size size and alignment, local stack size and alignment, and various attributes that describe how prolog and epilog should be constructed. **FuncFrame** doesn't know anything about function's arguments or return values, it hold only information necessary to create a valid and ABI conforming function prologs and epilogs.
 
-  * **FuncFrameInfo** - Contains information about a function-frame. Holds callout-stack size and alignment (i.e. stack used to call functions), stack-frame size and alignment (the stack required by the function itself), and various attributes that describe how prolog and epilog should be constructed. FuncFrameInfo doesn't know anything about function arguments or returns, it should be seen as a class that describes minimum requirements of the function frame and its attributes before the final `FuncFrameLayout` is calculated.
+  * **FuncArgsAssignment** - A helper class that can be used to reassign function arguments into user specified registers. It's architecture and ABI dependent mapping from function arguments described by CallConv and FuncDetail into registers specified by the user.
 
-  * **FuncFrameLayout** - Contains the final function layout that can be passed to `FuncUtils::emitProlog()` and `FuncUtils::emitEpilog()`. The content of this class should always be calculated by AsmJit by calling `FuncFrameLayout::init(const FuncDetail& detail, const FuncFrameInfo& ffi)`.
-
-It's a lot of concepts where each represents one step in the function layout calculation. In addition, the whole machinery can also be used to create function calls, instead of function prologs and epilogs. The next example shows how AsmJit can be used to create functions for both 32-bit and 64-bit targets and various calling conventions:
+It's a lot of concepts where each represents one step in the function frame calculation. In addition, the whole machinery can also be used to create function calls, instead of function prologs and epilogs. The next example shows how AsmJit can be used to create functions for both 32-bit and 64-bit targets and various calling conventions:
 
 ```c++
 using namespace asmjit;
@@ -797,29 +797,28 @@ int main(int argc, char* argv[]) {
   X86Xmm vec0 = x86::xmm0;
   X86Xmm vec1 = x86::xmm1;
 
-  // Create and initialize `FuncDetail` and `FuncFrameInfo`. Both are
-  // needed to create a function and they hold different kind of data.
+  // Create and initialize `FuncDetail` and `FuncFrame`.
   FuncDetail func;
   func.init(FuncSignature3<void, int*, const int*, const int*>(CallConv::kIdHost));
 
-  FuncFrameInfo ffi;
-  ffi.setDirtyRegs(X86Reg::kKindVec,      // Make XMM0 and XMM1 dirty. VEC kind
-                   Utils::mask(0, 1));    // describes XMM|YMM|ZMM registers.
+  FuncFrame frame;
+  frame.init(func);
 
-  FuncArgsMapper args(&func);             // Create function arguments mapper.
+  // Make XMM0 and XMM1 dirty; `kGroupVec` describes XMM|YMM|ZMM registers.
+  frame.setDirtyRegs(X86Reg::kGroupVec, IntUtils::mask(0, 1));
+
+  FuncArgsAssignment args(&func);         // Create arguments assignment context.
   args.assignAll(dst, src_a, src_b);      // Assign our registers to arguments.
-  args.updateFrameInfo(ffi);              // Reflect our args in FuncFrameInfo.
+  args.updateFrameInfo(frame);            // Reflect our args in FuncFrame.
+  frame.finalize();                       // Finalize the FuncFrame (updates it).
 
-  FuncFrameLayout layout;                 // Create the FuncFrameLayout, which
-  layout.init(func, ffi);                 // contains metadata of prolog/epilog.
-
-  FuncUtils::emitProlog(&a, layout);      // Emit function prolog.
-  FuncUtils::allocArgs(&a, layout, args); // Allocate arguments to registers.
+  a.emitProlog(frame);                    // Emit function prolog.
+  a.emitArgsAssignment(frame, args);      // Assign arguments to registers.
   a.movdqu(vec0, x86::ptr(src_a));        // Load 4 ints from [src_a] to XMM0.
   a.movdqu(vec1, x86::ptr(src_b));        // Load 4 ints from [src_b] to XMM1.
   a.paddd(vec0, vec1);                    // Add 4 ints in XMM1 to XMM0.
   a.movdqu(x86::ptr(dst), vec0);          // Store the result to [dst].
-  FuncUtils::emitEpilog(&a, layout);      // Emit function epilog and return.
+  a.emitEpilog(frame);                    // Emit function epilog and return.
 
   SumIntsFunc fn;
   Error err = rt.add(&fn, &code);         // Add the generated code to the runtime.
@@ -935,27 +934,27 @@ int main(int argc, char* argv[]) {
 
   // Now, after we emitted the function body, we can insert the prolog, arguments
   // allocation, and epilog. This is not possible with using pure X86Assembler.
-  FuncFrameInfo ffi;
-  ffi.setDirtyRegs(X86Reg::kKindVec,      // Make XMM0 and XMM1 dirty. VEC kind
-                   Utils::mask(0, 1));    // describes XMM|YMM|ZMM registers.
+  FuncFrame frame;
+  frame.init(func);
 
-  FuncArgsMapper args(&func);             // Create function arguments mapper.
+  // Make XMM0 and XMM1 dirty; `kGroupVec` describes XMM|YMM|ZMM registers.
+  frame.setDirtyRegs(X86Reg::kGroupVec, IntUtils::mask(0, 1));
+
+  FuncArgsAssignment args(&func);         // Create arguments assignment context.
   args.assignAll(dst, src_a, src_b);      // Assign our registers to arguments.
-  args.updateFrameInfo(ffi);              // Reflect our args in FuncFrameInfo.
-
-  FuncFrameLayout layout;                 // Create the FuncFrameLayout, which
-  layout.init(func, ffi);                 // contains metadata of prolog/epilog.
+  args.updateFrame(frame);                // Reflect our args in FuncFrame.
+  frame.finalize();                       // Finalize the FuncFrame (updates it).
 
   // Insert function prolog and allocate arguments to registers.
   cb.setCursor(prologInsertionPoint);
-  FuncUtils::emitProlog(&cb, layout);
-  FuncUtils::allocArgs(&cb, layout, args);
+  cb.emitProlog(frame);
+  cb.emitArgsAssignment(frame, args);
 
   // Insert function epilog.
   cb.setCursor(epilogInsertionPoint);
-  FuncUtils::emitEpilog(&cb, layout);
+  cb.emitEpilog(frame);
 
-  // Let's see how the function prolog and epilog looks.
+  // Let's see how the function's prolog and epilog looks.
   dumpCode(cb, "Prolog & Epilog");
 
   // IMPORTANT: CodeBuilder requires `finalize()` to be called to serialize
@@ -1001,16 +1000,16 @@ ret
 {5 8 4 9}
 ```
 
-The number of use-cases of **X86Builder** is not limited and highly depends on your creativity and experience. The previous example can be easily improved to collect all dirty registers inside the function programmatically and to pass them to `ffi.setDirtyRegs()`:
+The number of use-cases of **X86Builder** is not limited and highly depends on your creativity and experience. The previous example can be easily improved to collect all dirty registers inside the function programmatically and to pass them to `frame.setDirtyRegs()`:
 
 ```c++
 using namespace asmjit;
 
-// NOTE: This function doesn't cover all possible instructions. It ignores
+// NOTE: This function doesn't cover all possible constructs. It ignores
 // instructions that write to implicit registers that are not part of the
 // operand list. It also counts read-only registers. Real implementation
-// would be a bit more complicated, but still relatively easy.
-static void collectDirtyRegs(const CBNode* first, const CBNode* last, uint32_t regMask[X86Reg::kKindCount]) {
+// would be a bit more complicated, but still relatively easy to implement.
+static void collectDirtyRegs(const CBNode* first, const CBNode* last, uint32_t regMask[Reg::kGroupVirt]) {
   const CBNode* node = first;
   while (node) {
     if (node->actsAsInst()) {
@@ -1021,7 +1020,8 @@ static void collectDirtyRegs(const CBNode* first, const CBNode* last, uint32_t r
         const Operand& op = opArray[i];
         if (op.isReg()) {
           const X86Reg& reg = op.as<X86Reg>();
-          regMask[reg.getKind()] |= 1U << reg.getId();
+          if (reg.getGroup() < Reg::kGroupVirt)
+            regMask[reg.getGroup()] |= 1U << reg.getId();
         }
       }
     }
@@ -1031,13 +1031,13 @@ static void collectDirtyRegs(const CBNode* first, const CBNode* last, uint32_t r
   }
 }
 
-static void setDirtyRegsOfFFI(const X86Builder& cb, FuncFrameInfo& ffi) {
-  uint32_t regMask[X86Reg::kKindCount] = { 0 };
+static void setDirtyRegsOfFuncFrame(const X86Builder& cb, FuncFrame& frame) {
+  uint32_t regMask[Reg::kGroupVirt] = { 0 };
   collectDirtyRegs(cb.getFirstNode(), cb.getLastNode(), regMask);
 
   // X86/X64 ABIs only require to save GP/XMM registers:
-  ffi.setDirtyRegs(X86Reg::kKindGp, regMask[X86Reg::kKindGp]);
-  ffi.setDirtyRegs(X86Reg::kKindVec, regMask[X86Reg::kKindVec]);
+  frame.setDirtyRegs(X86Reg::kGroupGp , regMask[X86Reg::kGroupGp ]);
+  frame.setDirtyRegs(X86Reg::kGroupVec, regMask[X86Reg::kGroupVec]);
 }
 ```
 
@@ -1068,7 +1068,7 @@ Even when **Assembler** and **CodeBuilder** implement the same interface defined
 
 The graph basically shows that it's not possible to cast **X86Assembler** to **X86Builder** and vice versa. However, since both **X86Assembler** and **X86Builder** share the same interface defined by both **CodeEmitter** and **X86EmmiterImplicitT** a class called **X86Emitter** was introduced to make it possible to write a function that can emit to both **X86Assembler** and **X86Builder**. Note that **X86Emitter** cannot be created, it's abstract and has private constructors and destructors; it was only designed to be casted to and used as an interface.
 
-Each X86 emitter implements a member function called **asEmitter()**, which casts the instance to the **X86Emitter**, as illustrated on the next example:
+Each X86 emitter implements a member function called **as<X86Emitter>()**, which casts the instance to the **X86Emitter**, as illustrated on the next example:
 
 ```c++
 using namespace asmjit;
@@ -1080,11 +1080,11 @@ static void emitSomething(X86Emitter* e) {
 static void assemble(CodeHolder& code, bool useAsm) {
   if (useAsm) {
     X86Assembler a(&code);
-    emitSomething(a.asEmitter());
+    emitSomething(a.as<X86Emitter>());
   }
   else {
     X86Builder cb(&code);
-    emitSomething(cb.asEmitter());
+    emitSomething(cb.as<X86Emitter>());
 
     // IMPORTANT: CodeBuilder requires `finalize()` to be called to serialize
     // the code to the Assembler (it automatically creates one if not attached).
@@ -1307,7 +1307,7 @@ int main(int argc, char* argv[]) {
   X86Gp p = cc.newIntPtr("p");
   X86Gp i = cc.newIntPtr("i");
 
-  X86Mem stack = cc.newStack(256, 4);      // Allocate 256 bytes on the stack aligned to 4 bytes.
+  X86Mem stack = cc.newStack(256, 4);     // Allocate 256 bytes on the stack aligned to 4 bytes.
   X86Mem stackIdx(stack);                 // Copy of `stack` with `i` added.
   stackIdx.setIndex(i);                   // stackIdx <- stack[i].
   stackIdx.setSize(1);                    // stackIdx <- byte ptr stack[i].
@@ -1353,13 +1353,13 @@ int main(int argc, char* argv[]) {
   // ----> X86Compiler is no longer needed from here and can be destroyed <----
 
   Func func;
-  Error err = rt.add(&func, &code);        // Add the generated code to the runtime.
+  Error err = rt.add(&func, &code);       // Add the generated code to the runtime.
   if (err) return 1;                      // Handle a possible error returned by AsmJit.
   // ----> CodeHolder is no longer needed from here and can be destroyed <----
 
-  printf("Func() -> %d\n", func());        // Test the generated code.
+  printf("Func() -> %d\n", func());       // Test the generated code.
 
-  rt.release(func);                        // RAII, but let's make it explicit.
+  rt.release(func);                       // RAII, but let's make it explicit.
   return 0;
 }
 ```
@@ -1391,139 +1391,6 @@ static void exampleUseOfConstPool(X86Compiler& cc) {
 }
 ```
 
-### Code Injection
-
-Both **CodeBuilder** and **CodeCompiler** emitters store their nodes in a double-linked list, which makes it easy to manipulate during the code generation or after it. Each node is always emitted next to the current **cursor** and the cursor is changed to that newly emitted node. Cursor can be explicitly retrieved and assigned by **getCursor()** and **setCursor()**, respectively.
-
-The following example shows how to inject code at the beginning of the function by providing an **XmmConstInjector** helper class.
-
-```c++
-#include <asmjit/asmjit.h>
-#include <stdio.h>
-#include <vector>
-
-using namespace asmjit;
-
-// Simple injector that injects `movaps()` to the beginning of the function.
-class XmmConstInjector {
-public:
-  struct Slot {
-    X86Xmm reg;
-    Data128 value;
-  };
-
-  XmmConstInjector(X86Compiler* cc)
-    : _cc(cc),
-      _injectTarget(cc->getCursor()) {}
-
-  X86Xmm xmmOf(const Data128& value) {
-    // First reuse the register if it already holds the given `value`.
-    for (std::vector<Slot>::const_iterator it(_slots.begin()); it != _slots.end(); ++it) {
-      const Slot& slot = *it;
-      if (::memcmp(&slot.value, &value, sizeof(Data128)) == 0)
-        return slot.reg;
-    }
-
-    // Create a new register / value pair and store in `_slots`.
-    X86Xmm reg = _cc->newXmm("const%u", static_cast<unsigned int>(_slots.size()));
-
-    Slot newSlot;
-    newSlot.value = value;
-    newSlot.reg = reg;
-    _slots.push_back(newSlot);
-
-    // Create the constant and inject it after the injectTarget.
-    X86Mem mem = _cc->newConst(kConstScopeGlobal, &value, 16);
-    CBNode* saved = _cc->setCursor(_injectTarget);
-
-    _cc->movaps(reg, mem);
-    // Make sure we inject next load after the load we just emitted.
-    _injectTarget = _cc->getCursor();
-
-    // Restore the original cursor, so the code emitting can continue from where it was.
-    _cc->setCursor(saved);
-    return reg;
-  }
-
-  X86Compiler* _cc;
-  CBNode* _injectTarget;
-  std::vector<Slot> _slots;
-};
-
-// Signature of the generated function.
-typedef void (*Func)(uint16_t*);
-
-int main(int argc, char* argv[]) {
-  JitRuntime rt;                          // Runtime specialized for JIT code execution.
-
-  FileLogger logger(stdout);
-
-  CodeHolder code;                        // Holds code and relocation information.
-  code.init(rt.getCodeInfo());            // Initialize to the same arch as JIT runtime.
-  code.setLogger(&logger);
-
-  X86Compiler cc(&code);                  // Create and attach X86Compiler to `code`.
-  cc.addFunc(
-    FuncSignature1<void, uint16_t*>());   // Create a function that accepts `uint16_t[]'.
-
-  X86Gp p = cc.newIntPtr("p");            // Create and Assign the function argument `p`.
-  cc.setArg(0, p);
-
-  XmmConstInjector injector(&cc);         // The injector will inject the code |here|.
-
-  X86Xmm x = cc.newXmm("x");
-  cc.movups(x, x86::ptr(p));              // Load 16 bytes from `[p]` to `x`.
-
-  // Now use injector to add constants to the constant pool and to inject their loads.
-  Data128 data0 = Data128::fromU16(0x80);
-  Data128 data1 = Data128::fromU16(0x13);
-
-  cc.paddw(x, injector.xmmOf(data0));     // x.u16 = x.u16 + 0x80.
-  cc.pmullw(x, injector.xmmOf(data1));    // x.u16 = x.u16 * 0x13.
-  cc.movups(x86::ptr(p), x);              // Write back to `[p]`.
-
-  cc.endFunc();                           // End of the function body.
-  cc.finalize();                          // Translate and assemble the whole `cc` content.
-  // ----> X86Compiler is no longer needed from here and can be destroyed <----
-
-  Func func;
-  Error err = rt.add(&func, &code);       // Add the generated code to the runtime.
-  if (err) return 1;                      // Handle a possible error returned by AsmJit.
-  // ----> CodeHolder is no longer needed from here and can be destroyed <----
-
-  // Test the generated function
-  uint16_t vec[8] = { 0, 1, 2, 3, 4, 5, 6, 7 };
-  func(vec);
-
-  for (uint32_t i = 0; i < 8; i++)
-    printf("%u ", vec[i]);
-  printf("\n");
-
-  rt.release(func);                       // RAII, but let's make it explicit.
-  return 0;
-}
-```
-
-The code generated would look similar to:
-
-```x86asm
-L0:
-movaps xmm0, oword [L2]                 ; movaps const0, oword [L2]
-movaps xmm1, oword [L2+16]              ; movaps const1, oword [L2+16]
-movups xmm2, [rdi]                      ; movups x, [p]
-paddw xmm2, xmm0                        ; paddw x, const0
-pmullw xmm2, xmm1                       ; pmullw x, const1
-movups [rdi], xmm2                      ; movups [p], x
-L1:
-ret
-.align 16
-L2:
-.data 80008000800080008000800080008000
-.data 13001300130013001300130013001300
-```
-
-There are many other applications of code injection, usually it's used to lazy-add some initialization code and such, but the application is practically unlimited.
-
 Advanced Features
 -----------------
 
@@ -1539,10 +1406,12 @@ AsmJit's **Logger** provides the following:
 
 **Logger** also contains useful options that control the output and what should be logged:
 
-  * **Logger::kOptionBinaryForm** - Output also binary representation of each instruction.
-  * **Logger::kOptionImmExtended** - Output meaning of some immediate values.
-  * **Logger::kOptionHexImmediate** - Display all immediates in hexadecimal.
-  * **Logger::kOptionHexDisplacement** - Display all offsets in hexadecimal.
+  * **Logger::kOptionBinaryForm** - Show also binary form of each logged instruction.
+  * **Logger::kOptionExplainConsts** - Show a text explanation of some constants.
+  * **Logger::kOptionHexConsts** - Use hexadecimal notation to output constants.
+  * **Logger::kOptionHexOffsets** - Use hexadecimal notation to output offsets.
+  * **Logger::kOptionNodePosition** - Show a node position (if any) of CodeBuilder and CodeCompiler instructions.
+  * **Logger::kOptionDebugPasses** - Show an additional output from CodeBuilder and CodeCompiler passes.
 
 **Logger** is typically attached to **CodeHolder** and all attached code emitters automatically use it:
 
@@ -1568,17 +1437,17 @@ int main(int argc, char* argv[]) {
 
 ### Error Handling
 
-AsmJit uses error codes to represent and return errors. Every function where error can occur returns **Error**. Exceptions are never thrown by AsmJit even in extreme conditions like out-of-memory. Errors should never be ignored, however, checking errors after each asmjit API call would simply overcomplicate the whole code generation. To handle these errors AsmJit provides **ErrorHandler**, which contains **handleError()**:
+AsmJit uses error codes to represent and return errors. Every function where error can occur returns **Error**. Exceptions are never thrown by AsmJit even in extreme conditions like out-of-memory. Errors should never be ignored, however, checking errors after each asmjit API call would simply overcomplicate the whole code generation experience. To make life simpler AsmJit provides **ErrorHandler**, which provides **handleError()** function:
 
     `virtual bool handleError(Error err, const char* message, CodeEmitter* origin) = 0;`
 
 That can be overridden by AsmJit users and do the following:
 
-  * 1. Return `true` or `false` from `handleError()`. If `true` is returned it means that error was handled and AsmJit can continue execution. The error code still be propagated to the caller, but the error origin (CodeEmitter) won't be put into an error state (last-error won't be set and `isInErrorState()` would return `true`). However, `false` reports to AsmJit that the error cannot be handled - in such case it stores the error, which can be retrieved later by `getLastError()`. Returning `false` is the default behavior when no error handler is provided. To put the assembler into a non-error state again `resetLastError()` must be called.
-  * 2. Throw an exception. AsmJit doesn't use exceptions and is completely exception-safe, but you can throw exception from the error handler if this way is easier / preferred by you. Throwing an exception acts virtually as returning `true` - AsmJit won't store the error.
-  * 3. Use plain old C's `setjmp()` and `longjmp()`. Asmjit always puts `Assembler` and `Compiler` to a consistent state before calling the `handleError()` so `longjmp()` can be used without issues to cancel the code-generation if an error occurred. This method can be used if exception handling in your project is turned off and you still want some comfort. In most cases it should be safe as AsmJit is based on Zone memory, so no memory leaks will occur if you jump back to a location where `CodeHolder` still exist.
+  * 1. Record the error and continue (the way how the error is user-implemented).
+  * 2. Throw an exception. AsmJit doesn't use exceptions and is completely exception-safe, but it's perfectly legal to throw an exception from the error handler.
+  * 3. Use plain old C's `setjmp()` and `longjmp()`. Asmjit always puts `Assembler` and `Compiler` to a consistent state before calling the `handleError()` so `longjmp()` can be used without issues to cancel the code-generation if an error occurred. This method can be used if exception handling in your project is turned off and you still want some comfort. In most cases it should be safe as AsmJit uses Zone memory and the ownership of memory it allocates always ends with the instance that allocated it. If using this approach please never jump outside the life-time of **CodeHolder** and **CodeEmitter**.
 
-**ErrorHandler** is simply attached to **CodeHolder** and will be used by every emitter attached to it. The first example uses error handler that just prints the error, but lets AsmJit continue:
+**ErrorHandler** can be attached to **CodeHolder** and/or **CodeEmitter** (which has a priority). The first example uses error handler that just prints the error, but lets AsmJit continue:
 
 ```c++
 // Error handling #1:
@@ -1587,20 +1456,23 @@ That can be overridden by AsmJit users and do the following:
 #include <stdio.h>
 
 // Error handler that just prints the error and lets AsmJit ignore it.
-class PrintErrorHandler : public asmjit::ErrorHandler {
+class SimpleErrorHandler : public asmjit::ErrorHandler {
 public:
-  // Return `true` to set last error to `err`, return `false` to do nothing.
-  bool handleError(asmjit::Error err, const char* message, asmjit::CodeEmitter* origin) override {
+  inline SimpleErrorHandler() : lastError(kErrorOk) {}
+
+  void handleError(asmjit::Error err, const char* message, asmjit::CodeEmitter* origin) override {
+    this->err = err;
     fprintf(stderr, "ERROR: %s\n", message);
-    return false;
   }
+
+  Error err;
 };
 
 int main(int argc, char* argv[]) {
   using namespace asmjit;
 
   JitRuntime rt;
-  PrintErrorHandler eh;
+  SimpleErrorHandler eh;
 
   CodeHolder code;
   code.init(rt.getCodeInfo());
@@ -1609,6 +1481,10 @@ int main(int argc, char* argv[]) {
   // Try to emit instruction that doesn't exist.
   X86Assembler a(&code);
   a.emit(X86Inst::kIdMov, x86::xmm0, x86::xmm1);
+
+  if (eh.err) {
+    // Assembler failed!
+  }
 
   return 0;
 }
@@ -1628,19 +1504,19 @@ If error happens during instruction emitting / encoding the assembler behaves tr
 class AsmJitException : public std::exception {
 public:
   AsmJitException(asmjit::Error err, const char* message) noexcept
-    : error(err),
+    : err(err),
       message(message) {}
 
   const char* what() const noexcept override { return message.c_str(); }
 
-  asmjit::Error error;
+  asmjit::Error err;
   std::string message;
 };
 
-class ThrowErrorHandler : public asmjit::ErrorHandler {
+class ThrowableErrorHandler : public asmjit::ErrorHandler {
 public:
   // Throw is possible, functions that use ErrorHandler are never 'noexcept'.
-  bool handleError(asmjit::Error err, const char* message, asmjit::CodeEmitter* origin) override {
+  void handleError(asmjit::Error err, const char* message, asmjit::CodeEmitter* origin) override {
     throw AsmJitException(err, message);
   }
 };
@@ -1649,15 +1525,16 @@ int main(int argc, char* argv[]) {
   using namespace asmjit;
 
   JitRuntime rt;
-  ThrowErrorHandler eh;
+  ThrowableErrorHandler eh;
 
   CodeHolder code;
   code.init(rt.getCodeInfo());
   code.setErrorHandler(&eh);
 
+  X86Assembler a(&code);
+
   // Try to emit instruction that doesn't exist.
   try {
-    X86Assembler a(&code);
     a.emit(X86Inst::kIdMov, x86::xmm0, x86::xmm1);
   }
   catch (const AsmJitException& ex) {
@@ -1681,7 +1558,7 @@ class LongJmpErrorHandler : public asmjit::ErrorHandler {
 public:
   inline LongJmpErrorHandler() : err(asmjit::kErrorOk) {}
 
-  virtual bool handleError(asmjit::Error err, const char* message, asmjit::CodeEmitter* origin) {
+  void handleError(asmjit::Error err, const char* message, asmjit::CodeEmitter* origin) override {
     this->err = err;
     longjmp(state, 1);
   }
@@ -1700,8 +1577,9 @@ int main(int argc, char* argv[]) {
   code.init(rt.getCodeInfo());
   code.setErrorHandler(&eh);
 
-  // Try to emit instruction that doesn't exist.
   X86Assembler a(&code);
+
+  // Try to emit instruction that doesn't exist.
   if (!setjmp(eh.state)) {
     a.emit(X86Inst::kIdMov, x86::xmm0, x86::xmm1);
   }
@@ -1712,6 +1590,15 @@ int main(int argc, char* argv[]) {
 
   return 0;
 }
+```
+
+### Code Injection
+
+**CodeBuilder** and **CodeCompiler** emitters store their nodes in a double-linked list, which makes it easy to manipulate during the code generation or after it. Each node is always emitted next to the current **cursor** and the cursor is changed to that newly emitted node. Cursor can be explicitly retrieved and assigned by **getCursor()** and **setCursor()**, respectively.
+
+The following example shows how to inject code at the beginning of the function by implementing an **XmmConstInjector** helper class.
+
+```c++
 ```
 
 ### TODO

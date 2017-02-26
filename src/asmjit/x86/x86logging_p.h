@@ -13,6 +13,7 @@
 
 // [Dependencies]
 #include "../base/logging.h"
+#include "../base/stringbuilder.h"
 #include "../x86/x86globals.h"
 
 // [Api-Begin]
@@ -48,7 +49,7 @@ struct X86Logging {
     uint32_t logOptions,
     const CodeEmitter* emitter,
     uint32_t archType,
-    const Inst::Detail& detail, const Operand_* opArray, uint32_t opCount) noexcept;
+    const Inst::Detail& detail, const Operand_* operands, uint32_t count) noexcept;
 };
 
 //! \}

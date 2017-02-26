@@ -10,7 +10,6 @@
 
 // [Dependencies]
 #include "../base/assembler.h"
-#include "../base/utils.h"
 #include "../x86/x86emitter.h"
 #include "../x86/x86operand.h"
 
@@ -32,7 +31,6 @@ namespace asmjit {
 class ASMJIT_VIRTAPI X86Assembler
   : public Assembler,
     public X86EmitterImplicitT<X86Assembler> {
-
 public:
   typedef Assembler Base;
 
@@ -44,21 +42,16 @@ public:
   ASMJIT_API virtual ~X86Assembler() noexcept;
 
   // --------------------------------------------------------------------------
-  // [Compatibility]
+  // [Cast]
   // --------------------------------------------------------------------------
 
-  //! Explicit cast to `X86Emitter`.
-  ASMJIT_INLINE X86Emitter* asEmitter() noexcept { return reinterpret_cast<X86Emitter*>(this); }
-  //! Explicit cast to `X86Emitter` (const).
-  ASMJIT_INLINE const X86Emitter* asEmitter() const noexcept { return reinterpret_cast<const X86Emitter*>(this); }
-
-  //! Implicit cast to `X86Emitter`.
-  ASMJIT_INLINE operator X86Emitter&() noexcept { return *asEmitter(); }
-  //! Implicit cast to `X86Emitter` (const).
-  ASMJIT_INLINE operator const X86Emitter&() const noexcept { return *asEmitter(); }
+  //! Implicit cast to `X86Emitter&`.
+  ASMJIT_INLINE operator X86Emitter&() noexcept { return *as<X86Emitter>(); }
+  //! Implicit cast to `X86Emitter&` (const).
+  ASMJIT_INLINE operator const X86Emitter&() const noexcept { return *as<X86Emitter>(); }
 
   // --------------------------------------------------------------------------
-  // [Accessors]
+  // [Internal]
   // --------------------------------------------------------------------------
 
   // NOTE: X86Assembler uses _privateData to store 'address-override' bit that
@@ -69,20 +62,25 @@ public:
   ASMJIT_INLINE void _setAddressOverrideMask(uint32_t m) noexcept { _privateData = m; }
 
   // --------------------------------------------------------------------------
-  // [Events]
-  // --------------------------------------------------------------------------
-
-  ASMJIT_API Error onAttach(CodeHolder* code) noexcept override;
-  ASMJIT_API Error onDetach(CodeHolder* code) noexcept override;
-
-  // --------------------------------------------------------------------------
-  // [Code-Generation]
+  // [Emit (Low-Level)]
   // --------------------------------------------------------------------------
 
   using CodeEmitter::_emit;
 
   ASMJIT_API Error _emit(uint32_t instId, const Operand_& o0, const Operand_& o1, const Operand_& o2, const Operand_& o3) override;
+
+  // --------------------------------------------------------------------------
+  // [Align]
+  // --------------------------------------------------------------------------
+
   ASMJIT_API Error align(uint32_t mode, uint32_t alignment) override;
+
+  // --------------------------------------------------------------------------
+  // [Events]
+  // --------------------------------------------------------------------------
+
+  ASMJIT_API Error onAttach(CodeHolder* code) noexcept override;
+  ASMJIT_API Error onDetach(CodeHolder* code) noexcept override;
 };
 
 //! \}

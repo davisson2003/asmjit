@@ -9,8 +9,11 @@
 
 // [Dependencies]
 #include "../base/assembler.h"
-#include "../base/utils.h"
-#include "../base/vmem.h"
+#include "../base/intutils.h"
+#include "../base/logging.h"
+#include "../base/memutils.h"
+#include "../base/stringutils.h"
+#include "../base/virtmem.h"
 
 // [Api-Begin]
 #include "../asmjit_apibegin.h"
@@ -28,53 +31,63 @@ ErrorHandler::~ErrorHandler() noexcept {}
 // [asmjit::CodeHolder - Utilities]
 // ============================================================================
 
-static void CodeHolder_setGlobalOption(CodeHolder* self, uint32_t clear, uint32_t add) noexcept {
-  // Modify global options of `CodeHolder` itself.
-  self->_globalOptions = (self->_globalOptions & ~clear) | add;
-
-  // Modify all global options of all `CodeEmitter`s attached.
-  CodeEmitter* emitter = self->_emitters;
-  while (emitter) {
-    emitter->_globalOptions = (emitter->_globalOptions & ~clear) | add;
-    emitter = emitter->_nextEmitter;
-  }
-}
-
 static void CodeHolder_resetInternal(CodeHolder* self, bool releaseMemory) noexcept {
-  // Detach all `CodeEmitter`s.
-  while (self->_emitters)
-    self->detach(self->_emitters);
+  uint32_t i;
+  const ZoneVector<CodeEmitter*>& emitters = self->getEmitters();
+
+  i = emitters.getLength();
+  while (i)
+    self->detach(emitters[--i]);
 
   // Reset everything into its construction state.
   self->_codeInfo.reset();
-  self->_globalHints = 0;
-  self->_globalOptions = 0;
+  self->_emitterOptions = 0;
   self->_logger = nullptr;
   self->_errorHandler = nullptr;
 
-  self->_unresolvedLabelsCount = 0;
+  self->_unresolvedLabelCount = 0;
   self->_trampolinesSize = 0;
 
   // Reset all sections.
-  size_t numSections = self->_sections.getLength();
-  for (size_t i = 0; i < numSections; i++) {
+  uint32_t numSections = self->_sections.getLength();
+  for (i = 0; i < numSections; i++) {
     SectionEntry* section = self->_sections[i];
     if (section->_buffer.hasData() && !section->_buffer.isExternal())
-      Internal::releaseMemory(section->_buffer._data);
+      AsmJitInternal::releaseMemory(section->_buffer._data);
     section->_buffer._data = nullptr;
     section->_buffer._capacity = 0;
   }
 
   // Reset zone allocator and all containers using it.
-  ZoneHeap* heap = &self->_baseHeap;
+  ZoneAllocator* allocator = self->getAllocator();
 
-  self->_namedLabels.reset(heap);
+  self->_emitters.reset();
+  self->_namedLabels.reset(allocator);
   self->_relocations.reset();
-  self->_labels.reset();
+  self->_labelEntries.reset();
   self->_sections.reset();
 
-  heap->reset(&self->_baseZone);
-  self->_baseZone.reset(releaseMemory);
+  allocator->reset(&self->_zone);
+  self->_zone.reset(releaseMemory);
+}
+
+static void CodeHolder_modifyEmitterOptions(CodeHolder* self, uint32_t clear, uint32_t add) noexcept {
+  uint32_t oldOpt = self->_emitterOptions;
+  uint32_t newOpt = (oldOpt & ~clear) | add;
+
+  if (oldOpt == newOpt)
+    return;
+
+  // Modify emitter options of `CodeHolder` itself.
+  self->_emitterOptions = newOpt;
+
+  // Modify emitter options of all attached emitters.
+  const ZoneVector<CodeEmitter*>& emitters = self->getEmitters();
+  for (uint32_t i = 0, len = emitters.getLength(); i < len; i++) {
+    CodeEmitter* emitter = emitters[i];
+    emitter->_emitterOptions = (emitter->_emitterOptions & ~clear) | add;
+    emitter->onUpdateGlobalInstOptions();
+  }
 }
 
 // ============================================================================
@@ -83,18 +96,14 @@ static void CodeHolder_resetInternal(CodeHolder* self, bool releaseMemory) noexc
 
 CodeHolder::CodeHolder() noexcept
   : _codeInfo(),
-    _globalHints(0),
-    _globalOptions(0),
-    _emitters(nullptr),
-    _cgAsm(nullptr),
+    _emitterOptions(0),
     _logger(nullptr),
     _errorHandler(nullptr),
-    _unresolvedLabelsCount(0),
+    _unresolvedLabelCount(0),
     _trampolinesSize(0),
-    _baseZone(16384 - Zone::kZoneOverhead),
-    _dataZone(16384 - Zone::kZoneOverhead),
-    _baseHeap(&_baseZone),
-    _namedLabels(&_baseHeap) {}
+    _zone(16384 - Zone::kZoneOverhead),
+    _allocator(&_zone),
+    _namedLabels(&_allocator) {}
 
 CodeHolder::~CodeHolder() noexcept {
   CodeHolder_resetInternal(this, true);
@@ -110,13 +119,13 @@ Error CodeHolder::init(const CodeInfo& info) noexcept {
   if (isInitialized())
     return DebugUtils::errored(kErrorAlreadyInitialized);
 
-  // If we are just initializing there should be no emitters attached).
-  ASMJIT_ASSERT(_emitters == nullptr);
+  // If we are just initializing there should be no emitters attached.
+  ASMJIT_ASSERT(_emitters.isEmpty());
 
   // Create the default section and insert it to the `_sections` array.
-  Error err = _sections.willGrow(&_baseHeap);
+  Error err = _sections.willGrow(&_allocator);
   if (err == kErrorOk) {
-    SectionEntry* se = _baseZone.allocZeroedT<SectionEntry>();
+    SectionEntry* se = _allocator.allocZeroedT<SectionEntry>();
     if (ASMJIT_LIKELY(se)) {
       se->_flags = SectionEntry::kFlagExec | SectionEntry::kFlagConst;
       se->_setDefaultName('.', 't', 'e', 'x', 't');
@@ -128,7 +137,7 @@ Error CodeHolder::init(const CodeInfo& info) noexcept {
   }
 
   if (ASMJIT_UNLIKELY(err)) {
-    _baseZone.reset(false);
+    _zone.reset(false);
     return err;
   }
   else {
@@ -147,79 +156,58 @@ void CodeHolder::reset(bool releaseMemory) noexcept {
 
 Error CodeHolder::attach(CodeEmitter* emitter) noexcept {
   // Catch a possible misuse of the API.
-  if (!emitter)
+  if (ASMJIT_UNLIKELY(!emitter))
     return DebugUtils::errored(kErrorInvalidArgument);
 
-  uint32_t type = emitter->getType();
-  if (type == CodeEmitter::kTypeNone || type >= CodeEmitter::kTypeCount)
+  // Invalid emitter, this should not be possible.
+  uint32_t type = emitter->getEmitterType();
+  if (ASMJIT_UNLIKELY(type == CodeEmitter::kTypeNone || type >= CodeEmitter::kTypeCount))
     return DebugUtils::errored(kErrorInvalidState);
 
-  // This is suspicious, but don't fail if `emitter` matches.
+  // This is suspicious, but don't fail if `emitter` is already attached
+  // to this code holder. This is not error, but it's not recommended.
   if (emitter->_code != nullptr) {
-    if (emitter->_code == this) return kErrorOk;
+    if (emitter->_code == this)
+      return kErrorOk;
     return DebugUtils::errored(kErrorInvalidState);
   }
 
-  // Special case - attach `Assembler`.
-  CodeEmitter** pSlot = nullptr;
-  if (type == CodeEmitter::kTypeAssembler) {
-    if (_cgAsm)
-      return DebugUtils::errored(kErrorSlotOccupied);
-    pSlot = reinterpret_cast<CodeEmitter**>(&_cgAsm);
-  }
+  // Reserve the space now as we cannot fail after `onAttach()` succeeded.
+  ASMJIT_PROPAGATE(_emitters.willGrow(&_allocator, 1));
+  ASMJIT_PROPAGATE(emitter->onAttach(this));
 
-  Error err = emitter->onAttach(this);
-  if (err != kErrorOk) return err;
+  // Connect CodeHolder <-> CodeEmitter.
+  ASMJIT_ASSERT(emitter->_code == this);
+  _emitters.appendUnsafe(emitter);
 
-  // Add to a single-linked list of `CodeEmitter`s.
-  emitter->_nextEmitter = _emitters;
-  _emitters = emitter;
-  if (pSlot) *pSlot = emitter;
-
-  // Establish the connection.
-  emitter->_code = this;
   return kErrorOk;
 }
 
 Error CodeHolder::detach(CodeEmitter* emitter) noexcept {
-  if (!emitter)
+  if (ASMJIT_UNLIKELY(!emitter))
     return DebugUtils::errored(kErrorInvalidArgument);
 
-  if (emitter->_code != this)
+  if (ASMJIT_UNLIKELY(emitter->_code != this))
     return DebugUtils::errored(kErrorInvalidState);
 
-  uint32_t type = emitter->getType();
+  uint32_t type = emitter->getEmitterType();
   Error err = kErrorOk;
 
   // NOTE: We always detach if we were asked to, if error happens during
   // `emitter->onDetach()` we just propagate it, but the CodeEmitter will
   // be detached.
-  if (!emitter->_destroyed) {
+  if (!emitter->isDestroyed()) {
     if (type == CodeEmitter::kTypeAssembler)
-      static_cast<Assembler*>(emitter)->sync();
+      static_cast<Assembler*>(emitter)->onSync();
     err = emitter->onDetach(this);
   }
 
-  // Special case - detach `Assembler`.
-  if (type == CodeEmitter::kTypeAssembler)
-    _cgAsm = nullptr;
+  // Disconnect CodeHolder <-> CodeEmitter.
+  uint32_t index = _emitters.indexOf(emitter);
+  ASMJIT_ASSERT(index != Globals::kNotFound);
 
-  // Remove from a single-linked list of `CodeEmitter`s.
-  CodeEmitter** pPrev = &_emitters;
-  for (;;) {
-    ASMJIT_ASSERT(*pPrev != nullptr);
-    CodeEmitter* cur = *pPrev;
-
-    if (cur == emitter) {
-      *pPrev = emitter->_nextEmitter;
-      break;
-    }
-
-    pPrev = &cur->_nextEmitter;
-  }
-
+  _emitters.removeAt(index);
   emitter->_code = nullptr;
-  emitter->_nextEmitter = nullptr;
 
   return err;
 }
@@ -229,7 +217,12 @@ Error CodeHolder::detach(CodeEmitter* emitter) noexcept {
 // ============================================================================
 
 void CodeHolder::sync() noexcept {
-  if (_cgAsm) _cgAsm->sync();
+  const ZoneVector<CodeEmitter*>& emitters = getEmitters();
+  for (uint32_t i = 0, count = emitters.getLength(); i < count; i++) {
+    CodeEmitter* emitter = emitters[i];
+    if (emitter->isAssembler())
+      static_cast<Assembler*>(emitter)->onSync();
+  }
 }
 
 // ============================================================================
@@ -248,19 +241,14 @@ size_t CodeHolder::getCodeSize() const noexcept {
 // [asmjit::CodeHolder - Logging & Error Handling]
 // ============================================================================
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
 void CodeHolder::setLogger(Logger* logger) noexcept {
-  uint32_t opt = 0;
-  if (logger) opt = CodeEmitter::kOptionLoggingEnabled;
-
+#if !defined(ASMJIT_DISABLE_LOGGING)
   _logger = logger;
-  CodeHolder_setGlobalOption(this, CodeEmitter::kOptionLoggingEnabled, opt);
-}
-#endif // !ASMJIT_DISABLE_LOGGING
-
-Error CodeHolder::setErrorHandler(ErrorHandler* handler) noexcept {
-  _errorHandler = handler;
-  return kErrorOk;
+  uint32_t option = !logger ? uint32_t(0) : uint32_t(CodeEmitter::kOptionLoggingEnabled);
+  CodeHolder_modifyEmitterOptions(this, CodeEmitter::kOptionLoggingEnabled, option);
+#else
+  ASMJIT_UNUSED(logger);
+#endif
 }
 
 // ============================================================================
@@ -272,9 +260,9 @@ static Error CodeHolder_reserveInternal(CodeHolder* self, CodeBuffer* cb, size_t
   uint8_t* newData;
 
   if (oldData && !cb->isExternal())
-    newData = static_cast<uint8_t*>(Internal::reallocMemory(oldData, n));
+    newData = static_cast<uint8_t*>(AsmJitInternal::reallocMemory(oldData, n));
   else
-    newData = static_cast<uint8_t*>(Internal::allocMemory(n));
+    newData = static_cast<uint8_t*>(AsmJitInternal::allocMemory(n));
 
   if (ASMJIT_UNLIKELY(!newData))
     return DebugUtils::errored(kErrorNoHeapMemory);
@@ -282,31 +270,31 @@ static Error CodeHolder_reserveInternal(CodeHolder* self, CodeBuffer* cb, size_t
   cb->_data = newData;
   cb->_capacity = n;
 
-  // Update the `Assembler` pointers if attached. Maybe we should introduce an
-  // event for this, but since only one Assembler can be attached at a time it
-  // should not matter how these pointers are updated.
-  Assembler* a = self->_cgAsm;
-  if (a && &a->_section->_buffer == cb) {
-    size_t offset = a->getOffset();
+  // Update `Assembler` pointers if attached.
+  const ZoneVector<CodeEmitter*>& emitters = self->getEmitters();
+  for (uint32_t i = 0, len = emitters.getLength(); i < len; i++) {
+    CodeEmitter* emitter = emitters[i];
+    if (emitter->isAssembler()) {
+      Assembler* a = static_cast<Assembler*>(emitter);
+      if (&a->_section->_buffer == cb) {
+        size_t offset = a->getOffset();
 
-    a->_bufferData = newData;
-    a->_bufferEnd  = newData + n;
-    a->_bufferPtr  = newData + offset;
+        a->_bufferData = newData;
+        a->_bufferEnd  = newData + n;
+        a->_bufferPtr  = newData + offset;
+      }
+    }
   }
 
   return kErrorOk;
 }
 
 Error CodeHolder::growBuffer(CodeBuffer* cb, size_t n) noexcept {
-  // This is most likely called by `Assembler` so `sync()` shouldn't be needed,
-  // however, if this is called by the user and the currently attached Assembler
-  // did generate some code we could lose that, so sync now and make sure the
-  // section length is updated.
-  if (_cgAsm) _cgAsm->sync();
+  sync();
 
   // Now the length of the section must be valid.
   size_t length = cb->getLength();
-  if (ASMJIT_UNLIKELY(n > IntTraits<uintptr_t>::maxValue() - length))
+  if (ASMJIT_UNLIKELY(n > std::numeric_limits<uintptr_t>::max() - length))
     return DebugUtils::errored(kErrorNoHeapMemory);
 
   // We can now check if growing the buffer is really necessary. It's unlikely
@@ -318,18 +306,14 @@ Error CodeHolder::growBuffer(CodeBuffer* cb, size_t n) noexcept {
   if (cb->isFixedSize())
     return DebugUtils::errored(kErrorCodeTooLarge);
 
-  if (capacity < 8096)
-    capacity = 8096;
+  size_t kInitialCapacity = 8096;
+  if (capacity < kInitialCapacity)
+    capacity = kInitialCapacity;
   else
     capacity += Globals::kAllocOverhead;
 
   do {
     size_t old = capacity;
-    if (capacity < Globals::kAllocThreshold)
-      capacity *= 2;
-    else
-      capacity += Globals::kAllocThreshold;
-
     if (capacity < Globals::kAllocThreshold)
       capacity *= 2;
     else
@@ -350,9 +334,7 @@ Error CodeHolder::reserveBuffer(CodeBuffer* cb, size_t n) noexcept {
   if (cb->isFixedSize())
     return DebugUtils::errored(kErrorCodeTooLarge);
 
-  // We must sync, as mentioned in `growBuffer()` as well.
-  if (_cgAsm) _cgAsm->sync();
-
+  sync();
   return CodeHolder_reserveInternal(this, cb, n);
 }
 
@@ -367,38 +349,38 @@ namespace {
 //! Only used to lookup a label from `_namedLabels`.
 class LabelByName {
 public:
-  ASMJIT_INLINE LabelByName(const char* name, size_t nameLength, uint32_t hVal) noexcept
-    : name(name),
-      nameLength(static_cast<uint32_t>(nameLength)) {}
+  inline LabelByName(const char* key, size_t len, uint32_t hVal) noexcept
+    : key(key),
+      len(uint32_t(len)),
+      hVal(hVal) {}
 
-  ASMJIT_INLINE bool matches(const LabelEntry* entry) const noexcept {
-    return static_cast<uint32_t>(entry->getNameLength()) == nameLength &&
-           ::memcmp(entry->getName(), name, nameLength) == 0;
+  inline bool matches(const LabelEntry* entry) const noexcept {
+    return entry->getNameLength() == len && ::memcmp(entry->getName(), key, len) == 0;
   }
 
-  const char* name;
-  uint32_t nameLength;
+  const char* key;
+  uint32_t len;
   uint32_t hVal;
 };
 
-// Returns a hash of `name` and fixes `nameLength` if it's `Globals::kInvalidIndex`.
+// Returns a hash of `name` and fixes `nameLength` if it's `Globals::kNullTerminated`.
 static uint32_t CodeHolder_hashNameAndFixLen(const char* name, size_t& nameLength) noexcept {
   uint32_t hVal = 0;
-  if (nameLength == Globals::kInvalidIndex) {
+  if (nameLength == Globals::kNullTerminated) {
     size_t i = 0;
     for (;;) {
-      uint8_t c = static_cast<uint8_t>(name[i]);
+      uint8_t c = uint8_t(name[i]);
       if (!c) break;
-      hVal = Utils::hashRound(hVal, c);
+      hVal = StringUtils::hashRound(hVal, c);
       i++;
     }
     nameLength = i;
   }
   else {
     for (size_t i = 0; i < nameLength; i++) {
-      uint8_t c = static_cast<uint8_t>(name[i]);
+      uint8_t c = uint8_t(name[i]);
       if (ASMJIT_UNLIKELY(!c)) return DebugUtils::errored(kErrorInvalidLabelName);
-      hVal = Utils::hashRound(hVal, c);
+      hVal = StringUtils::hashRound(hVal, c);
     }
   }
   return hVal;
@@ -407,7 +389,7 @@ static uint32_t CodeHolder_hashNameAndFixLen(const char* name, size_t& nameLengt
 } // anonymous namespace
 
 LabelLink* CodeHolder::newLabelLink(LabelEntry* le, uint32_t sectionId, size_t offset, intptr_t rel) noexcept {
-  LabelLink* link = _baseHeap.allocT<LabelLink>();
+  LabelLink* link = _allocator.allocT<LabelLink>();
   if (ASMJIT_UNLIKELY(!link)) return nullptr;
 
   link->prev = le->_links;
@@ -418,30 +400,30 @@ LabelLink* CodeHolder::newLabelLink(LabelEntry* le, uint32_t sectionId, size_t o
   link->offset = offset;
   link->rel = rel;
 
-  _unresolvedLabelsCount++;
+  _unresolvedLabelCount++;
   return link;
 }
 
 Error CodeHolder::newLabelId(uint32_t& idOut) noexcept {
   idOut = 0;
 
-  size_t index = _labels.getLength();
-  if (ASMJIT_LIKELY(index >= Operand::kPackedIdCount))
+  uint32_t index = _labelEntries.getLength();
+  if (ASMJIT_UNLIKELY(index >= uint32_t(Operand::kPackedIdCount)))
     return DebugUtils::errored(kErrorLabelIndexOverflow);
 
-  ASMJIT_PROPAGATE(_labels.willGrow(&_baseHeap));
-  LabelEntry* le = _baseHeap.allocZeroedT<LabelEntry>();
+  ASMJIT_PROPAGATE(_labelEntries.willGrow(&_allocator));
+  LabelEntry* le = _allocator.allocZeroedT<LabelEntry>();
 
   if (ASMJIT_UNLIKELY(!le))
     return DebugUtils::errored(kErrorNoHeapMemory);;
 
-  uint32_t id = Operand::packId(static_cast<uint32_t>(index));
+  uint32_t id = Operand::packId(index);
   le->_setId(id);
   le->_parentId = 0;
   le->_sectionId = SectionEntry::kInvalidId;
   le->_offset = 0;
 
-  _labels.appendUnsafe(le);
+  _labelEntries.appendUnsafe(le);
   idOut = id;
   return kErrorOk;
 }
@@ -458,7 +440,7 @@ Error CodeHolder::newNamedLabelId(uint32_t& idOut, const char* name, size_t name
 
   switch (type) {
     case Label::kTypeLocal:
-      if (ASMJIT_UNLIKELY(Operand::unpackId(parentId) >= _labels.getLength()))
+      if (ASMJIT_UNLIKELY(Operand::unpackId(parentId) >= _labelEntries.getLength()))
         return DebugUtils::errored(kErrorInvalidParentLabel);
 
       hVal ^= parentId;
@@ -482,36 +464,27 @@ Error CodeHolder::newNamedLabelId(uint32_t& idOut, const char* name, size_t name
     return DebugUtils::errored(kErrorLabelAlreadyDefined);
 
   Error err = kErrorOk;
-  size_t index = _labels.getLength();
+  uint32_t index = _labelEntries.getLength();
 
-  if (ASMJIT_UNLIKELY(index >= Operand::kPackedIdCount))
+  if (ASMJIT_UNLIKELY(index >= uint32_t(Operand::kPackedIdCount)))
     return DebugUtils::errored(kErrorLabelIndexOverflow);
 
-  ASMJIT_PROPAGATE(_labels.willGrow(&_baseHeap));
-  le = _baseHeap.allocZeroedT<LabelEntry>();
+  ASMJIT_PROPAGATE(_labelEntries.willGrow(&_allocator));
+  le = _allocator.allocZeroedT<LabelEntry>();
 
   if (ASMJIT_UNLIKELY(!le))
-    return  DebugUtils::errored(kErrorNoHeapMemory);
+    return DebugUtils::errored(kErrorNoHeapMemory);
 
-  uint32_t id = Operand::packId(static_cast<uint32_t>(index));
+  uint32_t id = Operand::packId(index);
   le->_hVal = hVal;
   le->_setId(id);
-  le->_type = static_cast<uint8_t>(type);
+  le->_type = uint8_t(type);
   le->_parentId = 0;
   le->_sectionId = SectionEntry::kInvalidId;
   le->_offset = 0;
+  ASMJIT_PROPAGATE(le->_name.setData(&_zone, name, nameLength));
 
-  if (le->_name.mustEmbed(nameLength)) {
-    le->_name.setEmbedded(name, nameLength);
-  }
-  else {
-    char* nameExternal = static_cast<char*>(_dataZone.dup(name, nameLength, true));
-    if (ASMJIT_UNLIKELY(!nameExternal))
-      return DebugUtils::errored(kErrorNoHeapMemory);
-    le->_name.setExternal(nameExternal, nameLength);
-  }
-
-  _labels.appendUnsafe(le);
+  _labelEntries.appendUnsafe(le);
   _namedLabels.put(le);
 
   idOut = id;
@@ -519,11 +492,14 @@ Error CodeHolder::newNamedLabelId(uint32_t& idOut, const char* name, size_t name
 }
 
 uint32_t CodeHolder::getLabelIdByName(const char* name, size_t nameLength, uint32_t parentId) noexcept {
+  // TODO: Finalize - parent id is not used here?
+  ASMJIT_UNUSED(parentId);
+
   uint32_t hVal = CodeHolder_hashNameAndFixLen(name, nameLength);
   if (ASMJIT_UNLIKELY(!nameLength)) return 0;
 
   LabelEntry* le = _namedLabels.get(LabelByName(name, nameLength, hVal));
-  return le ? le->getId() : static_cast<uint32_t>(0);
+  return le ? le->getId() : uint32_t(0);
 }
 
 // ============================================================================
@@ -531,24 +507,22 @@ uint32_t CodeHolder::getLabelIdByName(const char* name, size_t nameLength, uint3
 // ============================================================================
 
 //! Encode MOD byte.
-static ASMJIT_INLINE uint32_t x86EncodeMod(uint32_t m, uint32_t o, uint32_t rm) noexcept {
+static inline uint32_t x86EncodeMod(uint32_t m, uint32_t o, uint32_t rm) noexcept {
   return (m << 6) | (o << 3) | rm;
 }
 
 Error CodeHolder::newRelocEntry(RelocEntry** dst, uint32_t type, uint32_t size) noexcept {
-  ASMJIT_PROPAGATE(_relocations.willGrow(&_baseHeap));
+  ASMJIT_PROPAGATE(_relocations.willGrow(&_allocator));
 
-  size_t index = _relocations.getLength();
-  if (ASMJIT_UNLIKELY(index > size_t(0xFFFFFFFFU)))
-    return DebugUtils::errored(kErrorRelocIndexOverflow);
+  uint32_t index = _relocations.getLength();
+  RelocEntry* re = _allocator.allocZeroedT<RelocEntry>();
 
-  RelocEntry* re = _baseHeap.allocZeroedT<RelocEntry>();
   if (ASMJIT_UNLIKELY(!re))
     return DebugUtils::errored(kErrorNoHeapMemory);
 
-  re->_id = static_cast<uint32_t>(index);
-  re->_type = static_cast<uint8_t>(type);
-  re->_size = static_cast<uint8_t>(size);
+  re->_id = index;
+  re->_type = uint8_t(type);
+  re->_size = uint8_t(size);
   re->_sourceSectionId = SectionEntry::kInvalidId;
   re->_targetSectionId = SectionEntry::kInvalidId;
   _relocations.appendUnsafe(re);
@@ -566,11 +540,11 @@ size_t CodeHolder::relocate(void* _dst, uint64_t baseAddress) const noexcept {
 
   uint8_t* dst = static_cast<uint8_t*>(_dst);
   if (baseAddress == Globals::kNoBaseAddress)
-    baseAddress = static_cast<uint64_t>((uintptr_t)dst);
+    baseAddress = uint64_t((uintptr_t)dst);
 
 #if !defined(ASMJIT_DISABLE_LOGGING)
   Logger* logger = getLogger();
-#endif // ASMJIT_DISABLE_LOGGING
+#endif
 
   size_t minCodeSize = section->getBuffer().getLength(); // Minimum code size.
   size_t maxCodeSize = getCodeSize();                    // Includes all possible trampolines.
@@ -594,7 +568,7 @@ size_t CodeHolder::relocate(void* _dst, uint64_t baseAddress) const noexcept {
       continue;
 
     uint64_t ptr = re->getData();
-    size_t codeOffset = static_cast<size_t>(re->getSourceOffset());
+    size_t codeOffset = size_t(re->getSourceOffset());
 
     // Make sure that the `RelocEntry` is correct, we don't want to write
     // out of bounds in `dst`.
@@ -624,7 +598,7 @@ size_t CodeHolder::relocate(void* _dst, uint64_t baseAddress) const noexcept {
           return DebugUtils::errored(kErrorInvalidRelocEntry);
 
         ptr -= baseAddress + re->getSourceOffset() + re->getSize();
-        if (!Utils::isInt32(static_cast<int64_t>(ptr))) {
+        if (!IntUtils::isInt32(int64_t(ptr))) {
           ptr = (uint64_t)trampOffset - re->getSourceOffset() - re->getSize();
           useTrampoline = true;
         }
@@ -637,15 +611,15 @@ size_t CodeHolder::relocate(void* _dst, uint64_t baseAddress) const noexcept {
 
     switch (re->getSize()) {
       case 1:
-        Utils::writeU8(dst + codeOffset, static_cast<uint32_t>(ptr & 0xFFU));
+        MemUtils::writeU8(dst + codeOffset, uint32_t(ptr & 0xFFU));
         break;
 
       case 4:
-        Utils::writeU32u(dst + codeOffset, static_cast<uint32_t>(ptr & 0xFFFFFFFFU));
+        MemUtils::writeU32u(dst + codeOffset, uint32_t(ptr & 0xFFFFFFFFU));
         break;
 
       case 8:
-        Utils::writeU64u(dst + codeOffset, ptr);
+        MemUtils::writeU64u(dst + codeOffset, ptr);
         break;
 
       default:
@@ -672,17 +646,17 @@ size_t CodeHolder::relocate(void* _dst, uint64_t baseAddress) const noexcept {
 
       // Patch `jmp/call` instruction.
       ASMJIT_ASSERT(codeOffset >= 2);
-      dst[codeOffset - 2] = static_cast<uint8_t>(byte0);
-      dst[codeOffset - 1] = static_cast<uint8_t>(byte1);
+      dst[codeOffset - 2] = uint8_t(byte0);
+      dst[codeOffset - 1] = uint8_t(byte1);
 
       // Store absolute address and advance the trampoline pointer.
-      Utils::writeU64u(dst + trampOffset, re->getData());
+      MemUtils::writeU64u(dst + trampOffset, re->getData());
       trampOffset += 8;
 
 #if !defined(ASMJIT_DISABLE_LOGGING)
       if (logger)
-        logger->logf("[reloc] dq 0x%016llX ; Trampoline\n", re->getData());
-#endif // !ASMJIT_DISABLE_LOGGING
+        logger->logf(".dq 0x%016llX ; TRAMP\n", re->getData());
+#endif
     }
   }
 

@@ -10,7 +10,8 @@
 
 // [Dependencies]
 #include "../base/codeholder.h"
-#include "../base/vmem.h"
+#include "../base/intutils.h"
+#include "../base/virtmem.h"
 
 // [Api-Begin]
 #include "../asmjit_apibegin.h"
@@ -35,10 +36,9 @@ class ASMJIT_VIRTAPI Runtime {
 public:
   ASMJIT_NONCOPYABLE(Runtime)
 
-  ASMJIT_ENUM(RuntimeType) {
-    kRuntimeNone = 0,
-    kRuntimeJit = 1,
-    kRuntimeRemote = 2
+  enum RuntimeType : uint32_t {
+    kRuntimeNone   = 0,
+    kRuntimeJit    = 1
   };
 
   // --------------------------------------------------------------------------
@@ -73,17 +73,13 @@ public:
   // --------------------------------------------------------------------------
 
   // NOTE: To allow passing function pointers to `add()` and `release()` the
-  // virtual methods are prefixed with `_` and called from templates.
+  // virtual methods are prefixed with `_` and called from templates instead.
 
   template<typename Func>
-  ASMJIT_INLINE Error add(Func* dst, CodeHolder* code) noexcept {
-    return _add(Internal::ptr_cast<void**, Func*>(dst), code);
-  }
+  ASMJIT_INLINE Error add(Func* dst, CodeHolder* code) noexcept { return _add(AsmJitInternal::ptr_cast<void**, Func*>(dst), code); }
 
   template<typename Func>
-  ASMJIT_INLINE Error release(Func dst) noexcept {
-    return _release(Internal::ptr_cast<void*, Func>(dst));
-  }
+  ASMJIT_INLINE Error release(Func dst) noexcept { return _release(AsmJitInternal::ptr_cast<void*, Func>(dst)); }
 
   //! Allocate a memory needed for a code stored in the \ref CodeHolder and
   //! relocate it to the target location.
@@ -107,47 +103,11 @@ public:
 };
 
 // ============================================================================
-// [asmjit::HostRuntime]
-// ============================================================================
-
-//! Runtime designed to be used in the same process the code is generated in.
-class ASMJIT_VIRTAPI HostRuntime : public Runtime {
-public:
-  ASMJIT_NONCOPYABLE(HostRuntime)
-
-  // --------------------------------------------------------------------------
-  // [Construction / Destruction]
-  // --------------------------------------------------------------------------
-
-  //! Create a `HostRuntime` instance.
-  ASMJIT_API HostRuntime() noexcept;
-  //! Destroy the `HostRuntime` instance.
-  ASMJIT_API virtual ~HostRuntime() noexcept;
-
-  // --------------------------------------------------------------------------
-  // [Interface]
-  // --------------------------------------------------------------------------
-
-  //! Flush an instruction cache.
-  //!
-  //! This member function is called after the code has been copied to the
-  //! destination buffer. It is only useful for JIT code generation as it
-  //! causes a flush of the processor's cache.
-  //!
-  //! Flushing is basically a NOP under X86/X64, but is needed by architectures
-  //! that do not have a transparent instruction cache like ARM.
-  //!
-  //! This function can also be overridden to improve compatibility with tools
-  //! such as Valgrind, however, it's not an official part of AsmJit.
-  ASMJIT_API virtual void flush(const void* p, size_t size) noexcept;
-};
-
-// ============================================================================
 // [asmjit::JitRuntime]
 // ============================================================================
 
 //! Runtime designed to store and execute code generated at runtime (JIT).
-class ASMJIT_VIRTAPI JitRuntime : public HostRuntime {
+class ASMJIT_VIRTAPI JitRuntime : public Runtime {
 public:
   ASMJIT_NONCOPYABLE(JitRuntime)
 
@@ -167,10 +127,10 @@ public:
   //! Get the type of allocation.
   ASMJIT_INLINE uint32_t getAllocType() const noexcept { return _allocType; }
   //! Set the type of allocation.
-  ASMJIT_INLINE void setAllocType(uint32_t allocType) noexcept { _allocType = allocType; }
+  ASMJIT_INLINE void setAllocType(uint32_t allocType) noexcept { _allocType = uint8_t(allocType); }
 
-  //! Get the virtual memory manager.
-  ASMJIT_INLINE VMemMgr* getMemMgr() const noexcept { return const_cast<VMemMgr*>(&_memMgr); }
+  //! Get `VirtMemManager` of the runtime.
+  ASMJIT_INLINE VirtMemManager* getVirtMemManager() const noexcept { return const_cast<VirtMemManager*>(&_virtMemMgr); }
 
   // --------------------------------------------------------------------------
   // [Interface]
@@ -179,12 +139,25 @@ public:
   ASMJIT_API Error _add(void** dst, CodeHolder* code) noexcept override;
   ASMJIT_API Error _release(void* p) noexcept override;
 
+  //! Flush an instruction cache.
+  //!
+  //! This member function is called after the code has been copied to the
+  //! destination buffer. It is only useful for JIT code generation as it
+  //! causes a flush of the processor's cache.
+  //!
+  //! Flushing is basically a NOP under X86/X64, but is needed by architectures
+  //! that do not have a transparent instruction cache like ARM.
+  //!
+  //! This function can also be overridden to improve compatibility with tools
+  //! such as Valgrind, however, it's not an official part of AsmJit.
+  ASMJIT_API virtual void flush(const void* p, size_t size) noexcept;
+
   // --------------------------------------------------------------------------
   // [Members]
   // --------------------------------------------------------------------------
 
   //! Virtual memory manager.
-  VMemMgr _memMgr;
+  VirtMemManager _virtMemMgr;
 };
 
 //! \}

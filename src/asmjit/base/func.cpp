@@ -12,14 +12,14 @@
 #include "../base/func.h"
 
 #if defined(ASMJIT_BUILD_X86)
-#include "../x86/x86internal_p.h"
-#include "../x86/x86operand.h"
-#endif // ASMJIT_BUILD_X86
+# include "../x86/x86internal_p.h"
+# include "../x86/x86operand.h"
+#endif
 
 #if defined(ASMJIT_BUILD_ARM)
-#include "../arm/arminternal_p.h"
-#include "../arm/armoperand.h"
-#endif // ASMJIT_BUILD_ARM
+# include "../arm/arminternal_p.h"
+# include "../arm/armoperand.h"
+#endif
 
 // [Api-Begin]
 #include "../asmjit_apibegin.h"
@@ -36,12 +36,12 @@ ASMJIT_FAVOR_SIZE Error CallConv::init(uint32_t ccId) noexcept {
 #if defined(ASMJIT_BUILD_X86)
   if (CallConv::isX86Family(ccId))
     return X86Internal::initCallConv(*this, ccId);
-#endif // ASMJIT_BUILD_X86
+#endif
 
 #if defined(ASMJIT_BUILD_ARM)
   if (CallConv::isArmFamily(ccId))
     return ArmInternal::initCallConv(*this, ccId);
-#endif // ASMJIT_BUILD_ARM
+#endif
 
   return DebugUtils::errored(kErrorInvalidArgument);
 }
@@ -65,26 +65,26 @@ ASMJIT_FAVOR_SIZE Error FuncDetail::init(const FuncSignature& sign) {
 
   const uint8_t* args = sign.getArgs();
   for (uint32_t i = 0; i < argCount; i++) {
-    Value& arg = _args[i];
-    arg.initTypeId(TypeId::deabstract(args[i], deabstractDelta));
+    FuncValue& arg = _args[i];
+    arg.init(TypeId::deabstract(args[i], deabstractDelta));
   }
-  _argCount = static_cast<uint8_t>(argCount);
+  _argCount = uint8_t(argCount);
 
   uint32_t ret = sign.getRet();
   if (ret != TypeId::kVoid) {
-    _rets[0].initTypeId(TypeId::deabstract(ret, deabstractDelta));
+    _rets[0].init(TypeId::deabstract(ret, deabstractDelta));
     _retCount = 1;
   }
 
 #if defined(ASMJIT_BUILD_X86)
   if (CallConv::isX86Family(ccId))
     return X86Internal::initFuncDetail(*this, sign, gpSize);
-#endif // ASMJIT_BUILD_X86
+#endif
 
 #if defined(ASMJIT_BUILD_ARM)
   if (CallConv::isArmFamily(ccId))
     return ArmInternal::initFuncDetail(*this, sign, gpSize);
-#endif // ASMJIT_BUILD_ARM
+#endif
 
   // We should never bubble here as if `cc.init()` succeeded then there has to
   // be an implementation for the current architecture. However, stay safe.
@@ -92,30 +92,44 @@ ASMJIT_FAVOR_SIZE Error FuncDetail::init(const FuncSignature& sign) {
 }
 
 // ============================================================================
-// [asmjit::FuncFrameLayout - Init / Reset]
+// [asmjit::FuncFrame - Init / Reset / Finalize]
 // ============================================================================
 
-ASMJIT_FAVOR_SIZE Error FuncFrameLayout::init(const FuncDetail& func, const FuncFrameInfo& ffi) noexcept {
+ASMJIT_FAVOR_SIZE Error FuncFrame::init(const FuncDetail& func) noexcept {
   uint32_t ccId = func.getCallConv().getId();
 
 #if defined(ASMJIT_BUILD_X86)
   if (CallConv::isX86Family(ccId))
-    return X86Internal::initFrameLayout(*this, func, ffi);
-#endif // ASMJIT_BUILD_X86
+    return X86Internal::initFuncFrame(*this, func);
+#endif
 
 #if defined(ASMJIT_BUILD_ARM)
   if (CallConv::isArmFamily(ccId))
-    return ArmInternal::initFrameLayout(*this, func, ffi);
-#endif // ASMJIT_BUILD_ARM
+    return ArmInternal::initFuncFrame(*this, func);
+#endif
+
+  return DebugUtils::errored(kErrorInvalidArgument);
+}
+
+ASMJIT_FAVOR_SIZE Error FuncFrame::finalize() noexcept {
+#if defined(ASMJIT_BUILD_X86)
+  if (ArchInfo::isX86Family(getArchType()))
+    return X86Internal::finalizeFuncFrame(*this);
+#endif
+
+#if defined(ASMJIT_BUILD_ARM)
+  if (ArchInfo::isArmFamily(getArchType()))
+    return ArmInternal::finalizeFuncFrame(*this);
+#endif
 
   return DebugUtils::errored(kErrorInvalidArgument);
 }
 
 // ============================================================================
-// [asmjit::FuncArgsMapper]
+// [asmjit::FuncArgsAssignment]
 // ============================================================================
 
-ASMJIT_FAVOR_SIZE Error FuncArgsMapper::updateFrameInfo(FuncFrameInfo& ffi) const noexcept {
+ASMJIT_FAVOR_SIZE Error FuncArgsAssignment::updateFuncFrame(FuncFrame& frame) const noexcept {
   const FuncDetail* func = getFuncDetail();
   if (!func) return DebugUtils::errored(kErrorInvalidState);
 
@@ -123,59 +137,13 @@ ASMJIT_FAVOR_SIZE Error FuncArgsMapper::updateFrameInfo(FuncFrameInfo& ffi) cons
 
 #if defined(ASMJIT_BUILD_X86)
   if (CallConv::isX86Family(ccId))
-    return X86Internal::argsToFrameInfo(*this, ffi);
-#endif // ASMJIT_BUILD_X86
+    return X86Internal::argsToFuncFrame(*this, frame);
+#endif
 
 #if defined(ASMJIT_BUILD_ARM)
   if (CallConv::isArmFamily(ccId))
-    return ArmInternal::argsToFrameInfo(*this, ffi);
-#endif // ASMJIT_BUILD_X86
-
-  return DebugUtils::errored(kErrorInvalidArch);
-}
-
-// ============================================================================
-// [asmjit::FuncUtils]
-// ============================================================================
-
-ASMJIT_FAVOR_SIZE Error FuncUtils::emitProlog(CodeEmitter* emitter, const FuncFrameLayout& layout) {
-#if defined(ASMJIT_BUILD_X86)
-  if (emitter->getArchInfo().isX86Family())
-    return X86Internal::emitProlog(static_cast<X86Emitter*>(emitter), layout);
-#endif // ASMJIT_BUILD_X86
-
-#if defined(ASMJIT_BUILD_ARM)
-  if (emitter->getArchInfo().isArmFamily())
-    return ArmInternal::emitProlog(static_cast<ArmEmitter*>(emitter), layout);
-#endif // ASMJIT_BUILD_ARM
-
-  return DebugUtils::errored(kErrorInvalidArch);
-}
-
-ASMJIT_FAVOR_SIZE Error FuncUtils::emitEpilog(CodeEmitter* emitter, const FuncFrameLayout& layout) {
-#if defined(ASMJIT_BUILD_X86)
-  if (emitter->getArchInfo().isX86Family())
-    return X86Internal::emitEpilog(static_cast<X86Emitter*>(emitter), layout);
-#endif // ASMJIT_BUILD_X86
-
-#if defined(ASMJIT_BUILD_ARM)
-  if (emitter->getArchInfo().isArmFamily())
-    return ArmInternal::emitEpilog(static_cast<ArmEmitter*>(emitter), layout);
-#endif // ASMJIT_BUILD_ARM
-
-  return DebugUtils::errored(kErrorInvalidArch);
-}
-
-ASMJIT_FAVOR_SIZE Error FuncUtils::allocArgs(CodeEmitter* emitter, const FuncFrameLayout& layout, const FuncArgsMapper& args) {
-#if defined(ASMJIT_BUILD_X86)
-  if (emitter->getArchInfo().isX86Family())
-    return X86Internal::allocArgs(static_cast<X86Emitter*>(emitter), layout, args);
-#endif // ASMJIT_BUILD_X86
-
-#if defined(ASMJIT_BUILD_ARM)
-  if (emitter->getArchInfo().isArmFamily())
-    return ArmInternal::allocArgs(static_cast<ArmEmitter*>(emitter), layout, args);
-#endif // ASMJIT_BUILD_ARM
+    return ArmInternal::argsToFuncFrame(*this, frame);
+#endif
 
   return DebugUtils::errored(kErrorInvalidArch);
 }

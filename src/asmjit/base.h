@@ -9,6 +9,7 @@
 #define _ASMJIT_BASE_H
 
 // [Dependencies]
+#include "./base/algorithm.h"
 #include "./base/arch.h"
 #include "./base/assembler.h"
 #include "./base/codebuilder.h"
@@ -20,14 +21,17 @@
 #include "./base/func.h"
 #include "./base/globals.h"
 #include "./base/inst.h"
+#include "./base/intutils.h"
 #include "./base/logging.h"
+#include "./base/memutils.h"
 #include "./base/operand.h"
 #include "./base/osutils.h"
 #include "./base/runtime.h"
 #include "./base/simdtypes.h"
-#include "./base/string.h"
-#include "./base/utils.h"
-#include "./base/vmem.h"
+#include "./base/smallstring.h"
+#include "./base/stringbuilder.h"
+#include "./base/stringutils.h"
+#include "./base/virtmem.h"
 #include "./base/zone.h"
 
 // [Guard]

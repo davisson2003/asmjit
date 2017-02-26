@@ -8,7 +8,7 @@
 #define ASMJIT_EXPORTS
 
 // [Dependencies]
-#include "../base/utils.h"
+#include "../base/intutils.h"
 #include "../base/zone.h"
 
 // [Api-Begin]
@@ -16,10 +16,11 @@
 
 namespace asmjit {
 
-//! Zero size block used by `Zone` that doesn't have any memory allocated.
+// Zero size block used by `Zone` that doesn't have any memory allocated.
+// Should be allocated in read-only memory and should never be modified.
 static const Zone::Block Zone_zeroBlock = { nullptr, nullptr, 0, { 0 } };
 
-static ASMJIT_INLINE uint32_t Zone_getAlignmentOffsetFromAlignment(uint32_t x) noexcept {
+static inline uint32_t Zone_getAlignmentOffsetFromAlignment(uint32_t x) noexcept {
   switch (x) {
     default: return 0;
     case 0 : return 0;
@@ -37,12 +38,14 @@ static ASMJIT_INLINE uint32_t Zone_getAlignmentOffsetFromAlignment(uint32_t x) n
 // [asmjit::Zone - Construction / Destruction]
 // ============================================================================
 
-Zone::Zone(uint32_t blockSize, uint32_t blockAlignment) noexcept
-  : _ptr(nullptr),
-    _end(nullptr),
-    _block(const_cast<Zone::Block*>(&Zone_zeroBlock)),
-    _blockSize(blockSize),
-    _blockAlignmentShift(Zone_getAlignmentOffsetFromAlignment(blockAlignment)) {}
+Zone::Zone(uint32_t blockSize, uint32_t blockAlignment) noexcept {
+  Block* empty = const_cast<Zone::Block*>(&Zone_zeroBlock);
+  _ptr = empty->data;
+  _end = empty->data;
+  _block = empty;
+  _blockSize = blockSize;
+  _blockAlignmentShift = Zone_getAlignmentOffsetFromAlignment(blockAlignment);
+}
 
 Zone::~Zone() noexcept {
   reset(true);
@@ -60,25 +63,26 @@ void Zone::reset(bool releaseMemory) noexcept {
     return;
 
   if (releaseMemory) {
-    // Since cur can be in the middle of the double-linked list, we have to
-    // traverse to both directions `prev` and `next` separately.
+    // Since `cur` can be in the middle of the double-linked list, we have to
+    // iterate in both directions `prev` and `next` separately.
     Block* next = cur->next;
     do {
       Block* prev = cur->prev;
-      Internal::releaseMemory(cur);
+      AsmJitInternal::releaseMemory(cur);
       cur = prev;
     } while (cur);
 
     cur = next;
     while (cur) {
       next = cur->next;
-      Internal::releaseMemory(cur);
+      AsmJitInternal::releaseMemory(cur);
       cur = next;
     }
 
-    _ptr = nullptr;
-    _end = nullptr;
-    _block = const_cast<Zone::Block*>(&Zone_zeroBlock);
+    Block* empty = const_cast<Zone::Block*>(&Zone_zeroBlock);
+    _ptr = empty->data;
+    _end = empty->data;
+    _block = empty;
   }
   else {
     while (cur->prev)
@@ -111,7 +115,7 @@ void* Zone::_alloc(size_t size) noexcept {
   // to check for remaining bytes.
   Block* next = curBlock->next;
   if (next && next->size >= size) {
-    p = Utils::alignTo(next->data, blockAlignment);
+    p = IntUtils::alignUp(next->data, blockAlignment);
 
     _block = next;
     _ptr = p + size;
@@ -121,19 +125,20 @@ void* Zone::_alloc(size_t size) noexcept {
   }
 
   // Prevent arithmetic overflow.
-  if (ASMJIT_UNLIKELY(blockSize > (~static_cast<size_t>(0) - sizeof(Block) - blockAlignment)))
+  const size_t kBaseBlockSize = sizeof(Block) - sizeof(void*);
+  if (ASMJIT_UNLIKELY(blockSize > (~size_t(0) - kBaseBlockSize - blockAlignment)))
     return nullptr;
 
   blockSize += blockAlignment;
-  Block* newBlock = static_cast<Block*>(Internal::allocMemory(sizeof(Block) + blockSize));
+  Block* newBlock = static_cast<Block*>(AsmJitInternal::allocMemory(kBaseBlockSize + blockSize));
 
   if (ASMJIT_UNLIKELY(!newBlock))
     return nullptr;
 
   // Align the pointer to `blockAlignment` and adjust the size of this block
-  // accordingly. It's the same as using `blockAlignment - Utils::alignDiff()`,
+  // accordingly. It's the same as using `blockAlignment - IntUtils::alignDiff()`,
   // just written differently.
-  p = Utils::alignTo(newBlock->data, blockAlignment);
+  p = IntUtils::alignUp(newBlock->data, blockAlignment);
   newBlock->prev = nullptr;
   newBlock->next = nullptr;
   newBlock->size = blockSize;
@@ -160,14 +165,16 @@ void* Zone::_alloc(size_t size) noexcept {
 
 void* Zone::allocZeroed(size_t size) noexcept {
   void* p = alloc(size);
-  if (ASMJIT_UNLIKELY(!p)) return p;
+  if (ASMJIT_UNLIKELY(!p))
+    return p;
   return ::memset(p, 0, size);
 }
 
 void* Zone::dup(const void* data, size_t size, bool nullTerminate) noexcept {
-  if (ASMJIT_UNLIKELY(!data || !size)) return nullptr;
+  if (ASMJIT_UNLIKELY(!data || !size))
+    return nullptr;
 
-  ASMJIT_ASSERT(size != IntTraits<size_t>::maxValue());
+  ASMJIT_ASSERT(size != std::numeric_limits<size_t>::max());
   uint8_t* m = allocT<uint8_t>(size + nullTerminate);
   if (ASMJIT_UNLIKELY(!m)) return nullptr;
 
@@ -178,7 +185,8 @@ void* Zone::dup(const void* data, size_t size, bool nullTerminate) noexcept {
 }
 
 char* Zone::sformat(const char* fmt, ...) noexcept {
-  if (ASMJIT_UNLIKELY(!fmt)) return nullptr;
+  if (ASMJIT_UNLIKELY(!fmt))
+    return nullptr;
 
   char buf[512];
   size_t len;
@@ -194,11 +202,11 @@ char* Zone::sformat(const char* fmt, ...) noexcept {
 }
 
 // ============================================================================
-// [asmjit::ZoneHeap - Helpers]
+// [asmjit::ZoneAllocator - Helpers]
 // ============================================================================
 
-static bool ZoneHeap_hasDynamicBlock(ZoneHeap* self, ZoneHeap::DynamicBlock* block) noexcept {
-  ZoneHeap::DynamicBlock* cur = self->_dynamicBlocks;
+static bool ZoneAllocator_hasDynamicBlock(ZoneAllocator* self, ZoneAllocator::DynamicBlock* block) noexcept {
+  ZoneAllocator::DynamicBlock* cur = self->_dynamicBlocks;
   while (cur) {
     if (cur == block)
       return true;
@@ -208,15 +216,15 @@ static bool ZoneHeap_hasDynamicBlock(ZoneHeap* self, ZoneHeap::DynamicBlock* blo
 }
 
 // ============================================================================
-// [asmjit::ZoneHeap - Init / Reset]
+// [asmjit::ZoneAllocator - Init / Reset]
 // ============================================================================
 
-void ZoneHeap::reset(Zone* zone) noexcept {
+void ZoneAllocator::reset(Zone* zone) noexcept {
   // Free dynamic blocks.
   DynamicBlock* block = _dynamicBlocks;
   while (block) {
     DynamicBlock* next = block->next;
-    Internal::releaseMemory(block);
+    AsmJitInternal::releaseMemory(block);
     block = next;
   }
 
@@ -226,10 +234,10 @@ void ZoneHeap::reset(Zone* zone) noexcept {
 }
 
 // ============================================================================
-// [asmjit::ZoneHeap - Alloc / Release]
+// [asmjit::ZoneAllocator - Alloc / Release]
 // ============================================================================
 
-void* ZoneHeap::_alloc(size_t size, size_t& allocatedSize) noexcept {
+void* ZoneAllocator::_alloc(size_t size, size_t& allocatedSize) noexcept {
   ASMJIT_ASSERT(isInitialized());
 
   // We use our memory pool only if the requested block is of a reasonable size.
@@ -245,24 +253,20 @@ void* ZoneHeap::_alloc(size_t size, size_t& allocatedSize) noexcept {
       return p;
     }
 
-    // So use Zone to allocate a new chunk for us. But before we use it, we
-    // check if there is enough room for the new chunk in zone, and if not,
-    // we redistribute the remaining memory in Zone's current block into slots.
-    Zone* zone = _zone;
-    p = Utils::alignTo(zone->getCursor(), kBlockAlignment);
-    size_t remain = (p <= zone->getEnd()) ? (size_t)(zone->getEnd() - p) : size_t(0);
+    p = _zone->align(kBlockAlignment);
+    size_t remain = (size_t)(_zone->getEnd() - p);
 
     if (ASMJIT_LIKELY(remain >= size)) {
-      zone->setCursor(p + size);
+      _zone->setCursor(p + size);
       //printf("ALLOCATED %p of size %d (SLOT %d)\n", p, int(size), slot);
       return p;
     }
     else {
-      // Distribute the remaining memory to suitable slots.
+      // Distribute the remaining memory to suitable slots, if possible.
       if (remain >= kLoGranularity) {
         do {
           size_t distSize = std::min<size_t>(remain, kLoMaxSize);
-          uint32_t distSlot = static_cast<uint32_t>((distSize - kLoGranularity) / kLoGranularity);
+          uint32_t distSlot = uint32_t((distSize - kLoGranularity) / kLoGranularity);
           ASMJIT_ASSERT(distSlot < kLoCount);
 
           reinterpret_cast<Slot*>(p)->next = _slots[distSlot];
@@ -271,10 +275,10 @@ void* ZoneHeap::_alloc(size_t size, size_t& allocatedSize) noexcept {
           p += distSize;
           remain -= distSize;
         } while (remain >= kLoGranularity);
-        zone->setCursor(p);
+        _zone->setCursor(p);
       }
 
-      p = static_cast<uint8_t*>(zone->_alloc(size));
+      p = static_cast<uint8_t*>(_zone->_alloc(size));
       if (ASMJIT_UNLIKELY(!p)) {
         allocatedSize = 0;
         return nullptr;
@@ -289,10 +293,10 @@ void* ZoneHeap::_alloc(size_t size, size_t& allocatedSize) noexcept {
     size_t overhead = sizeof(DynamicBlock) + sizeof(DynamicBlock*) + kBlockAlignment;
 
     // Handle a possible overflow.
-    if (ASMJIT_UNLIKELY(overhead >= ~static_cast<size_t>(0) - size))
+    if (ASMJIT_UNLIKELY(overhead >= ~size_t(0) - size))
       return nullptr;
 
-    void* p = Internal::allocMemory(size + overhead);
+    void* p = AsmJitInternal::allocMemory(size + overhead);
     if (ASMJIT_UNLIKELY(!p)) {
       allocatedSize = 0;
       return nullptr;
@@ -311,7 +315,7 @@ void* ZoneHeap::_alloc(size_t size, size_t& allocatedSize) noexcept {
 
     // Align the pointer to the guaranteed alignment and store `DynamicBlock`
     // at the end of the memory block, so `_releaseDynamic()` can find it.
-    p = Utils::alignTo(static_cast<uint8_t*>(p) + sizeof(DynamicBlock) + sizeof(DynamicBlock*), kBlockAlignment);
+    p = IntUtils::alignUp(static_cast<uint8_t*>(p) + sizeof(DynamicBlock) + sizeof(DynamicBlock*), kBlockAlignment);
     reinterpret_cast<DynamicBlock**>(p)[-1] = block;
 
     allocatedSize = size;
@@ -320,7 +324,7 @@ void* ZoneHeap::_alloc(size_t size, size_t& allocatedSize) noexcept {
   }
 }
 
-void* ZoneHeap::_allocZeroed(size_t size, size_t& allocatedSize) noexcept {
+void* ZoneAllocator::_allocZeroed(size_t size, size_t& allocatedSize) noexcept {
   ASMJIT_ASSERT(isInitialized());
 
   void* p = _alloc(size, allocatedSize);
@@ -328,13 +332,14 @@ void* ZoneHeap::_allocZeroed(size_t size, size_t& allocatedSize) noexcept {
   return ::memset(p, 0, allocatedSize);
 }
 
-void ZoneHeap::_releaseDynamic(void* p, size_t size) noexcept {
+void ZoneAllocator::_releaseDynamic(void* p, size_t size) noexcept {
+  ASMJIT_UNUSED(size);
   ASMJIT_ASSERT(isInitialized());
   //printf("RELEASING DYNAMIC %p of size %d\n", p, int(size));
 
   // Pointer to `DynamicBlock` is stored at [-1].
   DynamicBlock* block = reinterpret_cast<DynamicBlock**>(p)[-1];
-  ASMJIT_ASSERT(ZoneHeap_hasDynamicBlock(this, block));
+  ASMJIT_ASSERT(ZoneAllocator_hasDynamicBlock(this, block));
 
   // Unlink and free.
   DynamicBlock* prev = block->prev;
@@ -348,19 +353,19 @@ void ZoneHeap::_releaseDynamic(void* p, size_t size) noexcept {
   if (next)
     next->prev = prev;
 
-  Internal::releaseMemory(block);
+  AsmJitInternal::releaseMemory(block);
 }
 
 // ============================================================================
 // [asmjit::ZoneVectorBase - Helpers]
 // ============================================================================
 
-Error ZoneVectorBase::_grow(ZoneHeap* heap, size_t sizeOfT, size_t n) noexcept {
-  size_t threshold = Globals::kAllocThreshold / sizeOfT;
-  size_t capacity = _capacity;
-  size_t after = _length;
+Error ZoneVectorBase::_grow(ZoneAllocator* allocator, uint32_t sizeOfT, uint32_t n) noexcept {
+  uint32_t threshold = Globals::kAllocThreshold / sizeOfT;
+  uint32_t capacity = _capacity;
+  uint32_t after = _length;
 
-  if (ASMJIT_UNLIKELY(IntTraits<size_t>::maxValue() - n < after))
+  if (ASMJIT_UNLIKELY(std::numeric_limits<uint32_t>::max() - n < after))
     return DebugUtils::errored(kErrorNoHeapMemory);
 
   after += n;
@@ -369,8 +374,8 @@ Error ZoneVectorBase::_grow(ZoneHeap* heap, size_t sizeOfT, size_t n) noexcept {
 
   // ZoneVector is used as an array to hold short-lived data structures used
   // during code generation. The growing strategy is simple - use small capacity
-  // at the beginning (very good for ZoneHeap) and then grow quicker to prevent
-  // successive reallocations.
+  // at the beginning (very good for ZoneAllocator) and then grow quicker to
+  // prevent successive reallocations.
   if (capacity < 4)
     capacity = 4;
   else if (capacity < 8)
@@ -389,46 +394,47 @@ Error ZoneVectorBase::_grow(ZoneHeap* heap, size_t sizeOfT, size_t n) noexcept {
       capacity += threshold;
   }
 
-  return _reserve(heap, sizeOfT, capacity);
+  return _reserve(allocator, sizeOfT, capacity);
 }
 
-Error ZoneVectorBase::_reserve(ZoneHeap* heap, size_t sizeOfT, size_t n) noexcept {
-  size_t oldCapacity = _capacity;
+Error ZoneVectorBase::_reserve(ZoneAllocator* allocator, uint32_t sizeOfT, uint32_t n) noexcept {
+  uint32_t oldCapacity = _capacity;
   if (oldCapacity >= n) return kErrorOk;
 
-  size_t nBytes = n * sizeOfT;
+  uint32_t nBytes = n * sizeOfT;
   if (ASMJIT_UNLIKELY(nBytes < n))
     return DebugUtils::errored(kErrorNoHeapMemory);
 
   size_t allocatedBytes;
-  uint8_t* newData = static_cast<uint8_t*>(heap->alloc(nBytes, allocatedBytes));
+  uint8_t* newData = static_cast<uint8_t*>(allocator->alloc(nBytes, allocatedBytes));
 
   if (ASMJIT_UNLIKELY(!newData))
     return DebugUtils::errored(kErrorNoHeapMemory);
 
   void* oldData = _data;
   if (_length)
-    ::memcpy(newData, oldData, _length * sizeOfT);
+    ::memcpy(newData, oldData, size_t(_length) * sizeOfT);
 
   if (oldData)
-    heap->release(oldData, oldCapacity * sizeOfT);
+    allocator->release(oldData, size_t(oldCapacity) * sizeOfT);
 
-  _capacity = allocatedBytes / sizeOfT;
+  _capacity = uint32_t(allocatedBytes / sizeOfT);
   ASMJIT_ASSERT(_capacity >= n);
 
   _data = newData;
   return kErrorOk;
 }
 
-Error ZoneVectorBase::_resize(ZoneHeap* heap, size_t sizeOfT, size_t n) noexcept {
-  size_t length = _length;
+Error ZoneVectorBase::_resize(ZoneAllocator* allocator, uint32_t sizeOfT, uint32_t n) noexcept {
+  uint32_t length = _length;
+
   if (_capacity < n) {
-    ASMJIT_PROPAGATE(_grow(heap, sizeOfT, n - length));
+    ASMJIT_PROPAGATE(_grow(allocator, sizeOfT, n - length));
     ASMJIT_ASSERT(_capacity >= n);
   }
 
   if (length < n)
-    ::memset(static_cast<uint8_t*>(_data) + length * sizeOfT, 0, (n - length) * sizeOfT);
+    ::memset(static_cast<uint8_t*>(_data) + size_t(length) * sizeOfT, 0, size_t(n - length) * sizeOfT);
 
   _length = n;
   return kErrorOk;
@@ -438,41 +444,26 @@ Error ZoneVectorBase::_resize(ZoneHeap* heap, size_t sizeOfT, size_t n) noexcept
 // [asmjit::ZoneBitVector - Ops]
 // ============================================================================
 
-Error ZoneBitVector::_resize(ZoneHeap* heap, size_t newLength, size_t idealCapacity, bool newBitsValue) noexcept {
-  ASMJIT_ASSERT(idealCapacity >= newLength);
+Error ZoneBitVector::copyFrom(ZoneAllocator* allocator, const ZoneBitVector& other) noexcept {
+  BitWord* data = _data;
+  uint32_t newLength = other.getLength();
 
-  if (newLength <= _length) {
-    // The size after the resize is lesser than or equal to the current length.
-    size_t idx = newLength / kBitsPerWord;
-    size_t bit = newLength % kBitsPerWord;
-
-    // Just set all bits outside of the new length in the last word to zero.
-    // There is a case that there are not bits to set if `bit` is zero. This
-    // happens when `newLength` is a multiply of `kBitsPerWord` like 64, 128,
-    // and so on. In that case don't change anything as that would mean settings
-    // bits outside of the `_length`.
-    if (bit)
-      _data[idx] &= (static_cast<uintptr_t>(1) << bit) - 1U;
-
-    _length = newLength;
+  if (!newLength) {
+    _length = 0;
     return kErrorOk;
   }
 
-  size_t oldLength = _length;
-  BitWord* data = _data;
-
   if (newLength > _capacity) {
     // Realloc needed... Calculate the minimum capacity (in bytes) requied.
-    size_t minimumCapacityInBits = Utils::alignTo<size_t>(idealCapacity, kBitsPerWord);
-    size_t allocatedCapacity;
-
+    uint32_t minimumCapacityInBits = IntUtils::alignUp<uint32_t>(newLength, kBitWordSize);
     if (ASMJIT_UNLIKELY(minimumCapacityInBits < newLength))
       return DebugUtils::errored(kErrorNoHeapMemory);
 
     // Normalize to bytes.
-    size_t minimumCapacity = minimumCapacityInBits / 8;
-    BitWord* newData = static_cast<BitWord*>(heap->alloc(minimumCapacity, allocatedCapacity));
+    uint32_t minimumCapacity = minimumCapacityInBits / 8;
+    size_t allocatedCapacity;
 
+    BitWord* newData = static_cast<BitWord*>(allocator->alloc(minimumCapacity, allocatedCapacity));
     if (ASMJIT_UNLIKELY(!newData))
       return DebugUtils::errored(kErrorNoHeapMemory);
 
@@ -481,25 +472,85 @@ Error ZoneBitVector::_resize(ZoneHeap* heap, size_t newLength, size_t idealCapac
 
     // Arithmetic overflow should normally not happen. If it happens we just
     // change the `allocatedCapacityInBits` to the `minimumCapacityInBits` as
-    // this value is still safe to be used to call `_heap->release(...)`.
+    // this value is still safe to be used to call `_allocator->release(...)`.
     if (ASMJIT_UNLIKELY(allocatedCapacityInBits < allocatedCapacity))
       allocatedCapacityInBits = minimumCapacityInBits;
 
-    if (oldLength)
-      ::memcpy(newData, data, _wordsPerBits(oldLength));
-
     if (data)
-      heap->release(data, _capacity / 8);
+      allocator->release(data, _capacity / 8);
     data = newData;
 
     _data = data;
-    _capacity = allocatedCapacityInBits;
+    _capacity = uint32_t(allocatedCapacityInBits);
+  }
+
+  _length = newLength;
+  _copyBits(data, other.getData(), _wordsPerBits(newLength));
+
+  return kErrorOk;
+}
+
+Error ZoneBitVector::_resize(ZoneAllocator* allocator, uint32_t newLength, uint32_t idealCapacity, bool newBitsValue) noexcept {
+  ASMJIT_ASSERT(idealCapacity >= newLength);
+
+  if (newLength <= _length) {
+    // The size after the resize is lesser than or equal to the current length.
+    uint32_t idx = newLength / kBitWordSize;
+    uint32_t bit = newLength % kBitWordSize;
+
+    // Just set all bits outside of the new length in the last word to zero.
+    // There is a case that there are not bits to set if `bit` is zero. This
+    // happens when `newLength` is a multiply of `kBitWordSize` like 64, 128,
+    // and so on. In that case don't change anything as that would mean settings
+    // bits outside of the `_length`.
+    if (bit)
+      _data[idx] &= (BitWord(1) << bit) - 1U;
+
+    _length = newLength;
+    return kErrorOk;
+  }
+
+  uint32_t oldLength = _length;
+  BitWord* data = _data;
+
+  if (newLength > _capacity) {
+    // Realloc needed, calculate the minimum capacity (in bytes) requied.
+    uint32_t minimumCapacityInBits = IntUtils::alignUp<uint32_t>(idealCapacity, kBitWordSize);
+
+    if (ASMJIT_UNLIKELY(minimumCapacityInBits < newLength))
+      return DebugUtils::errored(kErrorNoHeapMemory);
+
+    // Normalize to bytes.
+    uint32_t minimumCapacity = minimumCapacityInBits / 8;
+    size_t allocatedCapacity;
+
+    BitWord* newData = static_cast<BitWord*>(allocator->alloc(minimumCapacity, allocatedCapacity));
+    if (ASMJIT_UNLIKELY(!newData))
+      return DebugUtils::errored(kErrorNoHeapMemory);
+
+    // `allocatedCapacity` now contains number in bytes, we need bits.
+    size_t allocatedCapacityInBits = allocatedCapacity * 8;
+
+    // Arithmetic overflow should normally not happen. If it happens we just
+    // change the `allocatedCapacityInBits` to the `minimumCapacityInBits` as
+    // this value is still safe to be used to call `_allocator->release(...)`.
+    if (ASMJIT_UNLIKELY(allocatedCapacityInBits < allocatedCapacity))
+      allocatedCapacityInBits = minimumCapacityInBits;
+
+    _copyBits(newData, data, _wordsPerBits(oldLength));
+
+    if (data)
+      allocator->release(data, _capacity / 8);
+    data = newData;
+
+    _data = data;
+    _capacity = uint32_t(allocatedCapacityInBits);
   }
 
   // Start (of the old length) and end (of the new length) bits
-  size_t idx = oldLength / kBitsPerWord;
-  size_t startBit = oldLength % kBitsPerWord;
-  size_t endBit = newLength % kBitsPerWord;
+  uint32_t idx = oldLength / kBitWordSize;
+  uint32_t startBit = oldLength % kBitWordSize;
+  uint32_t endBit = newLength % kBitWordSize;
 
   // Set new bits to either 0 or 1. The `pattern` is used to set multiple
   // bits per bit-word and contains either all zeros or all ones.
@@ -507,9 +558,9 @@ Error ZoneBitVector::_resize(ZoneHeap* heap, size_t newLength, size_t idealCapac
 
   // First initialize the last bit-word of the old length.
   if (startBit) {
-    size_t nBits = 0;
+    uint32_t nBits = 0;
 
-    if (idx == (newLength / kBitsPerWord)) {
+    if (idx == (newLength / kBitWordSize)) {
       // The number of bit-words is the same after the resize. In that case
       // we need to set only bits necessary in the current last bit-word.
       ASMJIT_ASSERT(startBit < endBit);
@@ -518,31 +569,31 @@ Error ZoneBitVector::_resize(ZoneHeap* heap, size_t newLength, size_t idealCapac
     else {
       // There is be more bit-words after the resize. In that case we don't
       // have to be extra careful about the last bit-word of the old length.
-      nBits = kBitsPerWord - startBit;
+      nBits = kBitWordSize - startBit;
     }
 
     data[idx++] |= pattern << nBits;
   }
 
   // Initialize all bit-words after the last bit-word of the old length.
-  size_t endIdx = _wordsPerBits(newLength);
-  endIdx -= static_cast<size_t>(endIdx * kBitsPerWord == newLength);
+  uint32_t endIdx = _wordsPerBits(newLength);
+  endIdx -= uint32_t(endIdx * kBitWordSize == newLength);
 
   while (idx <= endIdx)
     data[idx++] = pattern;
 
   // Clear unused bits of the last bit-word.
   if (endBit)
-    data[endIdx] &= (static_cast<BitWord>(1) << endBit) - 1;
+    data[endIdx] &= (BitWord(1) << endBit) - 1;
 
   _length = newLength;
   return kErrorOk;
 }
 
-Error ZoneBitVector::_append(ZoneHeap* heap, bool value) noexcept {
-  size_t kThreshold = Globals::kAllocThreshold * 8;
-  size_t newLength = _length + 1;
-  size_t idealCapacity = _capacity;
+Error ZoneBitVector::_append(ZoneAllocator* allocator, bool value) noexcept {
+  uint32_t kThreshold = Globals::kAllocThreshold * 8;
+  uint32_t newLength = _length + 1;
+  uint32_t idealCapacity = _capacity;
 
   if (idealCapacity < 128)
     idealCapacity = 128;
@@ -552,15 +603,15 @@ Error ZoneBitVector::_append(ZoneHeap* heap, bool value) noexcept {
     idealCapacity += kThreshold;
 
   if (ASMJIT_UNLIKELY(idealCapacity < _capacity)) {
-    // It's technically impossible that `_length + 1` overflows.
+    if (ASMJIT_UNLIKELY(_length == std::numeric_limits<uint32_t>::max()))
+      return DebugUtils::errored(kErrorNoHeapMemory);
     idealCapacity = newLength;
-    ASMJIT_ASSERT(idealCapacity > _capacity);
   }
 
-  return _resize(heap, newLength, idealCapacity, value);
+  return _resize(allocator, newLength, idealCapacity, value);
 }
 
-Error ZoneBitVector::fill(size_t from, size_t to, bool value) noexcept {
+Error ZoneBitVector::fill(uint32_t from, uint32_t to, bool value) noexcept {
   if (ASMJIT_UNLIKELY(from >= to)) {
     if (from > to)
       return DebugUtils::errored(kErrorInvalidArgument);
@@ -574,11 +625,11 @@ Error ZoneBitVector::fill(size_t from, size_t to, bool value) noexcept {
   // This is very similar to `ZoneBitVector::_fill()`, however, since we
   // actually set bits that are already part of the container we need to
   // special case filiing to zeros and ones.
-  size_t idx = from / kBitsPerWord;
-  size_t startBit = from % kBitsPerWord;
+  uint32_t idx = from / kBitWordSize;
+  uint32_t startBit = from % kBitWordSize;
 
-  size_t endIdx = to / kBitsPerWord;
-  size_t endBit = to % kBitsPerWord;
+  uint32_t endIdx = to / kBitWordSize;
+  uint32_t endBit = to % kBitWordSize;
 
   BitWord* data = _data;
   ASMJIT_ASSERT(data != nullptr);
@@ -588,8 +639,8 @@ Error ZoneBitVector::fill(size_t from, size_t to, bool value) noexcept {
     if (idx == endIdx) {
       ASMJIT_ASSERT(startBit < endBit);
 
-      size_t nBits = endBit - startBit;
-      BitWord mask = ((static_cast<BitWord>(1) << nBits) - 1) << startBit;
+      uint32_t nBits = endBit - startBit;
+      BitWord mask = ((BitWord(1) << nBits) - 1) << startBit;
 
       if (value)
         data[idx] |= mask;
@@ -598,7 +649,7 @@ Error ZoneBitVector::fill(size_t from, size_t to, bool value) noexcept {
       return kErrorOk;
     }
     else {
-      BitWord mask = (static_cast<BitWord>(0) - 1) << startBit;
+      BitWord mask = (BitWord(0) - 1) << startBit;
 
       if (value)
         data[idx++] |= mask;
@@ -617,7 +668,7 @@ Error ZoneBitVector::fill(size_t from, size_t to, bool value) noexcept {
 
   // Special case for non-zero `endBit`.
   if (endBit) {
-    BitWord mask = ((static_cast<BitWord>(1) << endBit) - 1);
+    BitWord mask = ((BitWord(1) << endBit) - 1);
     if (value)
       data[endIdx] |= mask;
     else
@@ -631,25 +682,24 @@ Error ZoneBitVector::fill(size_t from, size_t to, bool value) noexcept {
 // [asmjit::ZoneStackBase - Init / Reset]
 // ============================================================================
 
-Error ZoneStackBase::_init(ZoneHeap* heap, size_t middleIndex) noexcept {
-  ZoneHeap* oldHeap = _heap;
+Error ZoneStackBase::_init(ZoneAllocator* allocator, size_t middleIndex) noexcept {
+  ZoneAllocator* oldAllocator = _allocator;
 
-  if (oldHeap) {
+  if (oldAllocator) {
     Block* block = _block[kSideLeft];
     while (block) {
       Block* next = block->getNext();
-      oldHeap->release(block, kBlockSize);
+      oldAllocator->release(block, kBlockSize);
       block = next;
     }
 
-    _heap = nullptr;
+    _allocator = nullptr;
     _block[kSideLeft] = nullptr;
     _block[kSideRight] = nullptr;
   }
 
-
-  if (heap) {
-    Block* block = static_cast<Block*>(heap->alloc(kBlockSize));
+  if (allocator) {
+    Block* block = static_cast<Block*>(allocator->alloc(kBlockSize));
     if (ASMJIT_UNLIKELY(!block))
       return DebugUtils::errored(kErrorNoHeapMemory);
 
@@ -658,7 +708,7 @@ Error ZoneStackBase::_init(ZoneHeap* heap, size_t middleIndex) noexcept {
     block->_start = (uint8_t*)block + middleIndex;
     block->_end = (uint8_t*)block + middleIndex;
 
-    _heap = heap;
+    _allocator = allocator;
     _block[kSideLeft] = block;
     _block[kSideRight] = block;
   }
@@ -676,7 +726,7 @@ Error ZoneStackBase::_prepareBlock(uint32_t side, size_t initialIndex) noexcept 
   Block* prev = _block[side];
   ASMJIT_ASSERT(!prev->isEmpty());
 
-  Block* block = _heap->allocT<Block>(kBlockSize);
+  Block* block = _allocator->allocT<Block>(kBlockSize);
   if (ASMJIT_UNLIKELY(!block))
     return DebugUtils::errored(kErrorNoHeapMemory);
 
@@ -698,7 +748,7 @@ void ZoneStackBase::_cleanupBlock(uint32_t side, size_t middleIndex) noexcept {
   Block* prev = block->_link[!side];
   if (prev) {
     ASMJIT_ASSERT(prev->_link[side] == block);
-    _heap->release(block, kBlockSize);
+    _allocator->release(block, kBlockSize);
 
     prev->_link[side] = nullptr;
     _block[side] = prev;
@@ -734,12 +784,12 @@ static uint32_t ZoneHash_getClosestPrime(uint32_t x) noexcept {
 // [asmjit::ZoneHashBase - Reset]
 // ============================================================================
 
-void ZoneHashBase::reset(ZoneHeap* heap) noexcept {
+void ZoneHashBase::reset(ZoneAllocator* allocator) noexcept {
   ZoneHashNode** oldData = _data;
   if (oldData != _embedded)
-    _heap->release(oldData, _bucketsCount * sizeof(ZoneHashNode*));
+    _allocator->release(oldData, _bucketsCount * sizeof(ZoneHashNode*));
 
-  _heap = heap;
+  _allocator = allocator;
   _size = 0;
   _bucketsCount = 1;
   _bucketsGrow = 1;
@@ -756,7 +806,7 @@ void ZoneHashBase::_rehash(uint32_t newCount) noexcept {
 
   ZoneHashNode** oldData = _data;
   ZoneHashNode** newData = reinterpret_cast<ZoneHashNode**>(
-    _heap->allocZeroed(static_cast<size_t>(newCount) * sizeof(ZoneHashNode*)));
+    _allocator->allocZeroed(size_t(newCount) * sizeof(ZoneHashNode*)));
 
   // We can still store nodes into the table, but it will degrade.
   if (ASMJIT_UNLIKELY(newData == nullptr))
@@ -781,7 +831,7 @@ void ZoneHashBase::_rehash(uint32_t newCount) noexcept {
   // 90% is the maximum occupancy, can't overflow since the maximum capacity
   // is limited to the last prime number stored in the prime table.
   if (oldData != _embedded)
-    _heap->release(oldData, _bucketsCount * sizeof(ZoneHashNode*));
+    _allocator->release(oldData, _bucketsCount * sizeof(ZoneHashNode*));
 
   _bucketsCount = newCount;
   _bucketsGrow = newCount * 9 / 10;
@@ -833,42 +883,12 @@ ZoneHashNode* ZoneHashBase::_del(ZoneHashNode* node) noexcept {
 // ============================================================================
 
 #if defined(ASMJIT_TEST)
-UNIT(base_zonevector) {
+UNIT(base_zone_bit_vector) {
   Zone zone(8096 - Zone::kZoneOverhead);
-  ZoneHeap heap(&zone);
+  ZoneAllocator allocator(&zone);
 
-  int i;
-  int kMax = 100000;
-
-  ZoneVector<int> vec;
-
-  INFO("ZoneVector<int> basic tests");
-  EXPECT(vec.append(&heap, 0) == kErrorOk);
-  EXPECT(vec.isEmpty() == false);
-  EXPECT(vec.getLength() == 1);
-  EXPECT(vec.getCapacity() >= 1);
-  EXPECT(vec.indexOf(0) == 0);
-  EXPECT(vec.indexOf(-11) == Globals::kInvalidIndex);
-
-  vec.clear();
-  EXPECT(vec.isEmpty());
-  EXPECT(vec.getLength() == 0);
-  EXPECT(vec.indexOf(0) == Globals::kInvalidIndex);
-
-  for (i = 0; i < kMax; i++) {
-    EXPECT(vec.append(&heap, i) == kErrorOk);
-  }
-  EXPECT(vec.isEmpty() == false);
-  EXPECT(vec.getLength() == static_cast<size_t>(kMax));
-  EXPECT(vec.indexOf(kMax - 1) == static_cast<size_t>(kMax - 1));
-}
-
-UNIT(base_ZoneBitVector) {
-  Zone zone(8096 - Zone::kZoneOverhead);
-  ZoneHeap heap(&zone);
-
-  size_t i, count;
-  size_t kMaxCount = 100;
+  uint32_t i, count;
+  uint32_t kMaxCount = 100;
 
   ZoneBitVector vec;
   EXPECT(vec.isEmpty());
@@ -877,14 +897,14 @@ UNIT(base_ZoneBitVector) {
   INFO("ZoneBitVector::resize()");
   for (count = 1; count < kMaxCount; count++) {
     vec.clear();
-    EXPECT(vec.resize(&heap, count, false) == kErrorOk);
+    EXPECT(vec.resize(&allocator, count, false) == kErrorOk);
     EXPECT(vec.getLength() == count);
 
     for (i = 0; i < count; i++)
       EXPECT(vec.getAt(i) == false);
 
     vec.clear();
-    EXPECT(vec.resize(&heap, count, true) == kErrorOk);
+    EXPECT(vec.resize(&allocator, count, true) == kErrorOk);
     EXPECT(vec.getLength() == count);
 
     for (i = 0; i < count; i++)
@@ -894,28 +914,58 @@ UNIT(base_ZoneBitVector) {
   INFO("ZoneBitVector::fill()");
   for (count = 1; count < kMaxCount; count += 2) {
     vec.clear();
-    EXPECT(vec.resize(&heap, count) == kErrorOk);
+    EXPECT(vec.resize(&allocator, count) == kErrorOk);
     EXPECT(vec.getLength() == count);
 
     for (i = 0; i < (count + 1) / 2; i++) {
-      bool value = static_cast<bool>(i & 1);
+      bool value = bool(i & 1);
       EXPECT(vec.fill(i, count - i, value) == kErrorOk);
     }
 
     for (i = 0; i < count; i++) {
-      EXPECT(vec.getAt(i) == static_cast<bool>(i & 1));
+      EXPECT(vec.getAt(i) == bool(i & 1));
     }
   }
 }
 
-UNIT(base_zonestack) {
+UNIT(base_zone_int_vector) {
   Zone zone(8096 - Zone::kZoneOverhead);
-  ZoneHeap heap(&zone);
+  ZoneAllocator allocator(&zone);
+
+  int i;
+  int kMax = 100000;
+
+  ZoneVector<int> vec;
+
+  INFO("ZoneVector<int> basic tests");
+  EXPECT(vec.append(&allocator, 0) == kErrorOk);
+  EXPECT(vec.isEmpty() == false);
+  EXPECT(vec.getLength() == 1);
+  EXPECT(vec.getCapacity() >= 1);
+  EXPECT(vec.indexOf(0) == 0);
+  EXPECT(vec.indexOf(-11) == Globals::kNotFound);
+
+  vec.clear();
+  EXPECT(vec.isEmpty());
+  EXPECT(vec.getLength() == 0);
+  EXPECT(vec.indexOf(0) == Globals::kNotFound);
+
+  for (i = 0; i < kMax; i++) {
+    EXPECT(vec.append(&allocator, i) == kErrorOk);
+  }
+  EXPECT(vec.isEmpty() == false);
+  EXPECT(vec.getLength() == uint32_t(kMax));
+  EXPECT(vec.indexOf(kMax - 1) == uint32_t(kMax - 1));
+}
+
+UNIT(base_zone_stack) {
+  Zone zone(8096 - Zone::kZoneOverhead);
+  ZoneAllocator allocator(&zone);
   ZoneStack<int> stack;
 
   INFO("ZoneStack<int> contains %d elements per one Block", ZoneStack<int>::kNumBlockItems);
 
-  EXPECT(stack.init(&heap) == kErrorOk);
+  EXPECT(stack.init(&allocator) == kErrorOk);
   EXPECT(stack.isEmpty(), "Stack must be empty after `init()`");
 
   EXPECT(stack.append(42) == kErrorOk);
@@ -954,7 +1004,7 @@ UNIT(base_zonestack) {
   }
   EXPECT(stack.isEmpty());
 }
-#endif // ASMJIT_TEST
+#endif
 
 } // asmjit namespace
 

@@ -19,19 +19,21 @@ namespace asmjit {
 //! \addtogroup asmjit_x86
 //! \{
 
+// ============================================================================
+// [asmjit::X86InstImpl]
+// ============================================================================
+
 //! \internal
 //!
 //! Contains X86/X64 specific implementation of APIs provided by `asmjit::Inst`.
 //!
 //! The purpose of `X86InstImpl` is to move most of the logic out of `X86Inst`.
 struct X86InstImpl {
-  #if !defined(ASMJIT_DISABLE_VALIDATION)
+#if !defined(ASMJIT_DISABLE_INST_API)
   static Error validate(uint32_t archType, const Inst::Detail& detail, const Operand_* operands, uint32_t count) noexcept;
-  #endif
-
-  #if !defined(ASMJIT_DISABLE_EXTENSIONS)
-  static Error checkFeatures(uint32_t archType, const Inst::Detail& detail, const Operand_* operands, uint32_t count, CpuFeatures& out) noexcept;
-  #endif
+  static Error queryRWInfo(uint32_t archType, const Inst::Detail& detail, const Operand_* operands, uint32_t count, Inst::IRWInfo& out) noexcept;
+  static Error queryCpuFeatures(uint32_t archType, const Inst::Detail& detail, const Operand_* operands, uint32_t count, CpuFeatures& out) noexcept;
+#endif
 };
 
 //! \}

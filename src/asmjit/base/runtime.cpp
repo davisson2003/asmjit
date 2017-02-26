@@ -17,20 +17,34 @@
 
 namespace asmjit {
 
-static ASMJIT_INLINE void hostFlushInstructionCache(const void* p, size_t size) noexcept {
+// ============================================================================
+// [asmjit::Runtime - Construction / Destruction]
+// ============================================================================
+
+Runtime::Runtime() noexcept
+  : _codeInfo(),
+    _runtimeType(kRuntimeNone),
+    _allocType(VirtMem::kAllocFreeable) {}
+Runtime::~Runtime() noexcept {}
+
+// ============================================================================
+// [asmjit::JitRuntime - Utilities]
+// ============================================================================
+
+static ASMJIT_INLINE void JitRuntime_flushInstructionCache(const void* p, size_t size) noexcept {
   // Only useful on non-x86 architectures.
 #if !ASMJIT_ARCH_X86 && !ASMJIT_ARCH_X64
 # if ASMJIT_OS_WINDOWS
-  // Windows has a built-in support in kernel32.dll.
-  ::FlushInstructionCache(_memMgr.getProcessHandle(), p, size);
-# endif // ASMJIT_OS_WINDOWS
+  // Windows has a built-in support in `kernel32.dll`.
+  ::FlushInstructionCache(::GetCurrentProcess(), p, size);
+# endif
 #else
   ASMJIT_UNUSED(p);
   ASMJIT_UNUSED(size);
-#endif // !ASMJIT_ARCH_X86 && !ASMJIT_ARCH_X64
+#endif
 }
 
-static ASMJIT_INLINE uint32_t hostDetectNaturalStackAlignment() noexcept {
+static ASMJIT_INLINE uint32_t JitRuntime_detectNaturalStackAlignment() noexcept {
   // Alignment is assumed to match the pointer-size by default.
   uint32_t alignment = sizeof(intptr_t);
 
@@ -43,9 +57,7 @@ static ASMJIT_INLINE uint32_t hostDetectNaturalStackAlignment() noexcept {
   //!    is addition to an older specification.
   //   - 64-bit X86 requires stack to be aligned to at least 16 bytes.
 #if ASMJIT_ARCH_X86 || ASMJIT_ARCH_X64
-  int kIsModernOS = ASMJIT_OS_LINUX  || // Linux & ANDROID.
-                    ASMJIT_OS_MAC    || // OSX and iOS.
-                    ASMJIT_OS_BSD    ;  // BSD variants.
+  int kIsModernOS = ASMJIT_OS_BSD || ASMJIT_OS_LINUX || ASMJIT_OS_MAC;
   alignment = ASMJIT_ARCH_X64 || kIsModernOS ? 16 : 4;
 #endif
 
@@ -61,46 +73,20 @@ static ASMJIT_INLINE uint32_t hostDetectNaturalStackAlignment() noexcept {
   return alignment;
 }
 
-
-// ============================================================================
-// [asmjit::Runtime - Construction / Destruction]
-// ============================================================================
-
-Runtime::Runtime() noexcept
-  : _codeInfo(),
-    _runtimeType(kRuntimeNone),
-    _allocType(VMemMgr::kAllocFreeable) {}
-Runtime::~Runtime() noexcept {}
-
-// ============================================================================
-// [asmjit::HostRuntime - Construction / Destruction]
-// ============================================================================
-
-HostRuntime::HostRuntime() noexcept {
-  _runtimeType = kRuntimeJit;
-
-  // Setup the CodeInfo of this Runtime.
-  _codeInfo._archInfo       = CpuInfo::getHost().getArchInfo();
-  _codeInfo._stackAlignment = static_cast<uint8_t>(hostDetectNaturalStackAlignment());
-  _codeInfo._cdeclCallConv  = CallConv::kIdHostCDecl;
-  _codeInfo._stdCallConv    = CallConv::kIdHostStdCall;
-  _codeInfo._fastCallConv   = CallConv::kIdHostFastCall;
-}
-HostRuntime::~HostRuntime() noexcept {}
-
-// ============================================================================
-// [asmjit::HostRuntime - Interface]
-// ============================================================================
-
-void HostRuntime::flush(const void* p, size_t size) noexcept {
-  hostFlushInstructionCache(p, size);
-}
-
 // ============================================================================
 // [asmjit::JitRuntime - Construction / Destruction]
 // ============================================================================
 
-JitRuntime::JitRuntime() noexcept {}
+JitRuntime::JitRuntime() noexcept {
+  _runtimeType = kRuntimeJit;
+
+  // Setup the CodeInfo of this Runtime.
+  _codeInfo._archInfo       = CpuInfo::getHost().getArchInfo();
+  _codeInfo._stackAlignment = uint8_t(JitRuntime_detectNaturalStackAlignment());
+  _codeInfo._cdeclCallConv  = CallConv::kIdHostCDecl;
+  _codeInfo._stdCallConv    = CallConv::kIdHostStdCall;
+  _codeInfo._fastCallConv   = CallConv::kIdHostFastCall;
+}
 JitRuntime::~JitRuntime() noexcept {}
 
 // ============================================================================
@@ -114,22 +100,22 @@ Error JitRuntime::_add(void** dst, CodeHolder* code) noexcept {
     return DebugUtils::errored(kErrorNoCodeGenerated);
   }
 
-  void* p = _memMgr.alloc(codeSize, getAllocType());
+  void* p = _virtMemMgr.alloc(codeSize, getAllocType());
   if (ASMJIT_UNLIKELY(!p)) {
     *dst = nullptr;
     return DebugUtils::errored(kErrorNoVirtualMemory);
   }
 
-  // Relocate the code and release the unused memory back to `VMemMgr`.
+  // Relocate the code and release the unused memory back to `VirtMemManager`.
   size_t relocSize = code->relocate(p);
   if (ASMJIT_UNLIKELY(relocSize == 0)) {
     *dst = nullptr;
-    _memMgr.release(p);
+    _virtMemMgr.release(p);
     return DebugUtils::errored(kErrorInvalidState);
   }
 
   if (relocSize < codeSize)
-    _memMgr.shrink(p, relocSize);
+    _virtMemMgr.shrink(p, relocSize);
 
   flush(p, relocSize);
   *dst = p;
@@ -138,7 +124,11 @@ Error JitRuntime::_add(void** dst, CodeHolder* code) noexcept {
 }
 
 Error JitRuntime::_release(void* p) noexcept {
-  return _memMgr.release(p);
+  return _virtMemMgr.release(p);
+}
+
+void JitRuntime::flush(const void* p, size_t size) noexcept {
+  JitRuntime_flushInstructionCache(p, size);
 }
 
 } // asmjit namespace

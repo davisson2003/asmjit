@@ -47,35 +47,16 @@ public:
   ASMJIT_API virtual ~Assembler() noexcept;
 
   // --------------------------------------------------------------------------
-  // [Events]
+  // [Buffer Management]
   // --------------------------------------------------------------------------
-
-  ASMJIT_API Error onAttach(CodeHolder* code) noexcept override;
-  ASMJIT_API Error onDetach(CodeHolder* code) noexcept override;
-
-  // --------------------------------------------------------------------------
-  // [Code-Generation]
-  // --------------------------------------------------------------------------
-
-  using CodeEmitter::_emit;
-
-  ASMJIT_API Error _emit(uint32_t instId, const Operand_& o0, const Operand_& o1, const Operand_& o2, const Operand_& o3, const Operand_& o4, const Operand_& o5) override;
-  ASMJIT_API Error _emitOpArray(uint32_t instId, const Operand_* opArray, size_t opCount) override;
-
-  // --------------------------------------------------------------------------
-  // [Code-Buffer]
-  // --------------------------------------------------------------------------
-
-  //! Called by \ref CodeHolder::sync().
-  ASMJIT_API virtual void sync() noexcept;
 
   //! Get the capacity of the current CodeBuffer.
-  ASMJIT_INLINE size_t getBufferCapacity() const noexcept { return (size_t)(_bufferEnd - _bufferData); }
+  inline size_t getBufferCapacity() const noexcept { return (size_t)(_bufferEnd - _bufferData); }
   //! Get the number of remaining bytes in the current CodeBuffer.
-  ASMJIT_INLINE size_t getRemainingSpace() const noexcept { return (size_t)(_bufferEnd - _bufferPtr); }
+  inline size_t getRemainingSpace() const noexcept { return (size_t)(_bufferEnd - _bufferPtr); }
 
   //! Get the current position in the CodeBuffer.
-  ASMJIT_INLINE size_t getOffset() const noexcept { return (size_t)(_bufferPtr - _bufferData); }
+  inline size_t getOffset() const noexcept { return (size_t)(_bufferPtr - _bufferData); }
   //! Set the current position in the CodeBuffer to `offset`.
   //!
   //! NOTE: The `offset` cannot be outside of the buffer length (even if it's
@@ -83,31 +64,28 @@ public:
   ASMJIT_API Error setOffset(size_t offset);
 
   //! Get start of the CodeBuffer of the current section.
-  ASMJIT_INLINE uint8_t* getBufferData() const noexcept { return _bufferData; }
+  inline uint8_t* getBufferData() const noexcept { return _bufferData; }
   //! Get end (first invalid byte) of the current section.
-  ASMJIT_INLINE uint8_t* getBufferEnd() const noexcept { return _bufferEnd; }
+  inline uint8_t* getBufferEnd() const noexcept { return _bufferEnd; }
   //! Get pointer in the CodeBuffer of the current section.
-  ASMJIT_INLINE uint8_t* getBufferPtr() const noexcept { return _bufferPtr; }
+  inline uint8_t* getBufferPtr() const noexcept { return _bufferPtr; }
 
   // --------------------------------------------------------------------------
-  // [Code-Generation]
+  // [Label Management]
   // --------------------------------------------------------------------------
 
   ASMJIT_API Label newLabel() override;
-  ASMJIT_API Label newNamedLabel(
-    const char* name,
-    size_t nameLength = Globals::kInvalidIndex,
-    uint32_t type = Label::kTypeGlobal,
-    uint32_t parentId = 0) override;
+  ASMJIT_API Label newNamedLabel(const char* name, size_t length = Globals::kNullTerminated, uint32_t type = Label::kTypeGlobal, uint32_t parentId = 0) override;
   ASMJIT_API Error bind(const Label& label) override;
-  ASMJIT_API Error embed(const void* data, uint32_t size) override;
-  ASMJIT_API Error embedLabel(const Label& label) override;
-  ASMJIT_API Error embedConstPool(const Label& label, const ConstPool& pool) override;
-  ASMJIT_API Error comment(const char* s, size_t len = Globals::kInvalidIndex) override;
 
   // --------------------------------------------------------------------------
-  // [Emit-Helpers]
+  // [Emit (Low-Level)]
   // --------------------------------------------------------------------------
+
+  using CodeEmitter::_emit;
+
+  ASMJIT_API Error _emit(uint32_t instId, const Operand_& o0, const Operand_& o1, const Operand_& o2, const Operand_& o3, const Operand_& o4, const Operand_& o5) override;
+  ASMJIT_API Error _emitOpArray(uint32_t instId, const Operand_* operands, size_t count) override;
 
 protected:
 #if !defined(ASMJIT_DISABLE_LOGGING)
@@ -119,26 +97,56 @@ protected:
     Error err,
     uint32_t instId, uint32_t options, const Operand_& o0, const Operand_& o1, const Operand_& o2, const Operand_& o3);
 #else
-  ASMJIT_INLINE Error _emitFailed(
+  inline Error _emitFailed(
     uint32_t err,
     uint32_t instId, uint32_t options, const Operand_& o0, const Operand_& o1, const Operand_& o2, const Operand_& o3) {
 
-    resetOptions();
+    ASMJIT_UNUSED(instId);
+    ASMJIT_UNUSED(options);
+    ASMJIT_UNUSED(o0);
+    ASMJIT_UNUSED(o1);
+    ASMJIT_UNUSED(o2);
+    ASMJIT_UNUSED(o3);
+
+    resetInstOptions();
     resetInlineComment();
-    return setLastError(err);
+    return reportError(err);
   }
 #endif
+public:
+
+  // --------------------------------------------------------------------------
+  // [Embed]
+  // --------------------------------------------------------------------------
+
+  ASMJIT_API Error embed(const void* data, uint32_t size) override;
+  ASMJIT_API Error embedLabel(const Label& label) override;
+  ASMJIT_API Error embedConstPool(const Label& label, const ConstPool& pool) override;
+
+  // --------------------------------------------------------------------------
+  // [Comment]
+  // --------------------------------------------------------------------------
+
+  ASMJIT_API Error comment(const char* s, size_t len = Globals::kNullTerminated) override;
+
+  // --------------------------------------------------------------------------
+  // [Events]
+  // --------------------------------------------------------------------------
+
+  ASMJIT_API Error onAttach(CodeHolder* code) noexcept override;
+  ASMJIT_API Error onDetach(CodeHolder* code) noexcept override;
+
+  //! Called by \ref CodeHolder::sync().
+  ASMJIT_API virtual void onSync() noexcept;
 
   // --------------------------------------------------------------------------
   // [Members]
   // --------------------------------------------------------------------------
 
-public:
   SectionEntry* _section;                //!< Current section where the assembling happens.
   uint8_t* _bufferData;                  //!< Start of the CodeBuffer of the current section.
   uint8_t* _bufferEnd;                   //!< End (first invalid byte) of the current section.
   uint8_t* _bufferPtr;                   //!< Pointer in the CodeBuffer of the current section.
-
   Operand_ _op4;                         //!< 5th operand data, used only temporarily.
   Operand_ _op5;                         //!< 6th operand data, used only temporarily.
 };
