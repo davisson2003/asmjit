@@ -616,7 +616,7 @@ uint32_t ArmInst::getIdByName(const char* name, size_t len) noexcept {
     return Globals::kInvalidInstId;
 
   if (len == Globals::kNullTerminated)
-    len = ::strlen(name);
+    len = std::strlen(name);
 
   if (ASMJIT_UNLIKELY(len == 0 || len > kArmInstMaxLength))
     return Globals::kInvalidInstId;

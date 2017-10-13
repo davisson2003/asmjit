@@ -564,10 +564,15 @@ public:
   //! Tries to find a neighboring CBLabel (without going through code) that is
   //! already connected with `RABlock`. If no label is found then a new RABlock
   //! is created and assigned to all possible labels in a backward direction.
-  RABlock* newBlockOrExistingAt(CBLabel* cbLabel) noexcept;
+  RABlock* newBlockOrExistingAt(CBLabel* cbLabel, CBNode** stoppedAt = nullptr) noexcept;
 
   //! Add the given `block` to the block list and assign it a unique block id.
   Error addBlock(RABlock* block) noexcept;
+
+  inline Error addExitBlock(RABlock* block) noexcept {
+    block->addFlags(RABlock::kFlagIsFuncExit);
+    return _exits.append(getAllocator(), block);
+  }
 
   ASMJIT_INLINE RAInst* newRAInst(RABlock* block, uint32_t flags, uint32_t tiedRegCount, const RARegMask& clobberedRegs) noexcept {
     return new(getZone()->alloc(RAInst::sizeOf(tiedRegCount))) RAInst(block, flags, tiedRegCount, clobberedRegs);
@@ -631,7 +636,7 @@ public:
   //!      allocation.
   //!
   //! Use `RACFGBuilder` template that provides the necessary boilerplate.
-  virtual Error onBuildCFG() noexcept = 0;
+  virtual Error buildCFG() noexcept = 0;
 
   // --------------------------------------------------------------------------
   // [CFG - Views Order]
@@ -730,17 +735,18 @@ public:
     return asWorkReg(virtRegs[vIndex], out);
   }
 
-  inline void markStackUsed(RAWorkReg* workReg) noexcept {
-    if (workReg->isStackUsed())
-      return;
+  inline RAStackSlot* getOrCreateStackSlot(RAWorkReg* workReg) noexcept {
+    RAStackSlot* slot = workReg->getStackSlot();
+    if (slot) return slot;
 
-    // TODO: Not good, figure out how to set flags as well.
-    workReg->_stackSlot = _stackAllocator.newSlot(workReg->getVirtReg()->getVirtSize(), workReg->getVirtReg()->getAlignment(), 0);
+    slot = _stackAllocator.newSlot(_sp.getId(), workReg->getVirtReg()->getVirtSize(), workReg->getVirtReg()->getAlignment(), 0);
+    workReg->_stackSlot = slot;
     workReg->markStackUsed();
+    return slot;
   }
 
   inline Mem workRegAsMem(RAWorkReg* workReg) noexcept {
-    markStackUsed(workReg);
+    getOrCreateStackSlot(workReg);
     return Mem(Globals::Init, _sp.getType(), workReg->getVirtId(), Reg::kRegNone, 0, 0, 0, Mem::kSignatureMemRegHomeFlag);
   }
 
@@ -789,14 +795,16 @@ public:
   // --------------------------------------------------------------------------
 
   Error updateStackFrame() noexcept;
+  Error _markStackArgsToKeep() noexcept;
+  Error _updateStackArgs() noexcept;
   Error insertPrologEpilog() noexcept;
 
   // --------------------------------------------------------------------------
-  // [Allocation - Rewrite]
+  // [Rewriter]
   // --------------------------------------------------------------------------
 
   Error rewrite() noexcept;
-  Error rewrite(CBNode* first, CBNode* stop) noexcept;
+  Error _rewrite(CBNode* first, CBNode* stop) noexcept;
 
   // --------------------------------------------------------------------------
   // [Logging]
@@ -863,6 +871,7 @@ public:
   Reg _fp;                               //!< Frame pointer.
   RAStackAllocator _stackAllocator;      //!< Stack manager.
   FuncArgsAssignment _argsAssignment;    //!< Function arguments mapper.
+  uint32_t _numStackArgsToStackSlots;    //!< Some StackArgs have to be assigned to StackSlots.
 
   StringBuilderTmp<80> _tmpString;       //!< Temporary string builder used to format comments.
   uint32_t _maxWorkRegNameLength;        //!< Maximum length computed from all WorkReg's.

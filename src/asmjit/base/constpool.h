@@ -169,7 +169,7 @@ Visit:
       node->_shared = shared;
       node->_offset = uint32_t(offset);
 
-      ::memcpy(node->getData(), data, size);
+      std::memcpy(node->getData(), data, size);
       return node;
     }
 

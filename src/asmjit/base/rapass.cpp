@@ -91,6 +91,7 @@ RAPass::RAPass() noexcept
     _fp(),
     _stackAllocator(),
     _argsAssignment(),
+    _numStackArgsToStackSlots(0),
     _maxWorkRegNameLength(0) {}
 RAPass::~RAPass() noexcept {}
 
@@ -125,6 +126,8 @@ static void RAPass_reset(RAPass* self, FuncDetail* funcDetail) noexcept {
 
   self->_stackAllocator.reset(self->getAllocator());
   self->_argsAssignment.reset(funcDetail);
+  self->_numStackArgsToStackSlots = 0;
+
   self->_maxWorkRegNameLength = 0;
 }
 
@@ -195,7 +198,7 @@ Error RAPass::runOnFunction(Zone* zone, Logger* logger, CCFunc* func) noexcept {
 }
 
 Error RAPass::onPerformAllSteps() noexcept {
-  ASMJIT_PROPAGATE(onBuildCFG());
+  ASMJIT_PROPAGATE(buildCFG());
   ASMJIT_PROPAGATE(buildViews());
   ASMJIT_PROPAGATE(removeUnreachableBlocks());
 
@@ -234,10 +237,11 @@ RABlock* RAPass::newBlock(CBNode* initialNode) noexcept {
   return block;
 }
 
-RABlock* RAPass::newBlockOrExistingAt(CBLabel* cbLabel) noexcept {
+RABlock* RAPass::newBlockOrExistingAt(CBLabel* cbLabel, CBNode** stoppedAt) noexcept {
   if (cbLabel->hasPassData())
     return cbLabel->getPassData<RABlock>();
 
+  CCFunc* func = getFunc();
   CBNode* node = cbLabel->getPrev();
   RABlock* block = nullptr;
 
@@ -256,17 +260,23 @@ RABlock* RAPass::newBlockOrExistingAt(CBLabel* cbLabel) noexcept {
   //     ; Some comment...
   //     .align 16
   //     Label2:
-  uint32_t exitLabelId = getFunc()->getExitNode()->getId();
   size_t nPendingLabels = 0;
 
   while (node) {
     if (node->getType() == CBNode::kNodeLabel) {
-      if (node->as<CBLabel>()->getId() == exitLabelId)
-        break;
+      // Function has a different NodeType, just make sure this was not messed
+      // up as we must never associate BasicBlock with a `func` itself.
+      ASMJIT_ASSERT(node != func);
 
       block = node->getPassData<RABlock>();
-      if (block)
+      if (block) {
+        // Exit node has always a block associated with it. If we went here it
+        // means that `cbLabel` passed here is after the end of the function
+        // and cannot be merged with the function exit block.
+        if (node == func->getExitNode())
+          block = nullptr;
         break;
+      }
 
       nPendingLabels++;
     }
@@ -279,6 +289,9 @@ RABlock* RAPass::newBlockOrExistingAt(CBLabel* cbLabel) noexcept {
 
     node = node->getPrev();
   }
+
+  if (stoppedAt)
+    *stoppedAt = node;
 
   if (!block) {
     block = newBlock();
@@ -1277,7 +1290,7 @@ Error RAPass::setBlockEntryAssignment(RABlock* block, const RABlock* fromBlock, 
 
     if (physId != RAAssignment::kPhysNone) {
       as.unassign(group, workId, physId);
-      // printf("Block %d (from %d): Unassigning %s, \n", block->getBlockId(), fromBlock->getBlockId(), getWorkReg(workId)->getName());
+      // std::printf("Block %d (from %d): Unassigning %s, \n", block->getBlockId(), fromBlock->getBlockId(), getWorkReg(workId)->getName());
     }
   }
 
@@ -1305,25 +1318,118 @@ Error RAPass::setBlockEntryAssignment(RABlock* block, const RABlock* fromBlock, 
 // ============================================================================
 
 Error RAPass::updateStackFrame() noexcept {
-  // Calculate offsets of all stack slots.
-  ASMJIT_PROPAGATE(_stackAllocator.calculateStackFrame());
-
-  // Update function frame information to reflect the calculated values.
+  // Update some StackFrame information that we updated during allocation. The
+  // only information we don't have at the moment is final local stack size,
+  // which is calculated last.
   FuncFrame& frame = getFunc()->getFrame();
-  frame.setLocalStackSize(_stackAllocator.getStackSize());
-  frame.setLocalStackAlignment(_stackAllocator.getAlignment());
-
   for (uint32_t group = 0; group < Reg::kGroupVirt; group++)
     frame.addDirtyRegs(group, _clobberedRegs[group]);
+  frame.setLocalStackAlignment(_stackAllocator.getAlignment());
+
+  // If there are stack arguments that are not assigned to registers upon entry
+  // and the function doesn't require dynamic stack alignment we keep these
+  // arguments where they are. This will also mark all stack slots that match
+  // these arguments as allocated.
+  if (_numStackArgsToStackSlots)
+    ASMJIT_PROPAGATE(_markStackArgsToKeep());
+
+  // Calculate offsets of all stack slots and update StackSize to reflect the calculated local stack size.
+  ASMJIT_PROPAGATE(_stackAllocator.calculateStackFrame());
+  frame.setLocalStackSize(_stackAllocator.getStackSize());
+
+  // Update the stack frame based on `_argsAssignment` and finalize it.
+  // Finalization means to apply final calculation to the stack layout.
+  ASMJIT_PROPAGATE(_argsAssignment.updateFuncFrame(frame));
+  ASMJIT_PROPAGATE(frame.finalize());
+
+  // StackAllocator allocates all stots starting from [0], adjust them when necessary.
+  if (frame.getLocalStackOffset() != 0)
+    ASMJIT_PROPAGATE(_stackAllocator.adjustSlotOffsets(frame.getLocalStackOffset()));
+
+  // Again, if there are stack arguments allocated in function's stack we have
+  // to handle them. This handles all cases (either regular or dynamic stack
+  // alignment).
+  if (_numStackArgsToStackSlots)
+    ASMJIT_PROPAGATE(_updateStackArgs());
+
+  return kErrorOk;
+}
+
+Error RAPass::_markStackArgsToKeep() noexcept {
+  FuncFrame& frame = getFunc()->getFrame();
+  bool hasSAReg = frame.hasPreservedFP() || !frame.hasDynamicAlignment();
+
+  RAWorkRegs& workRegs = _workRegs;
+  uint32_t numWorkRegs = getWorkRegCount();
+
+  for (uint32_t workId = 0; workId < numWorkRegs; workId++) {
+    RAWorkReg* workReg = workRegs[workId];
+    if (workReg->hasFlag(RAWorkReg::kFlagStackArgToStack)) {
+      ASMJIT_ASSERT(workReg->hasArgIndex());
+      const FuncValue& srcArg = _func->getDetail().getArg(workReg->getArgIndex());
+
+      // If the register doesn't have stack slot then we failed. It doesn't
+      // make much sense as it was marked as `kFlagStackArgToStack`, which
+      // requires the WorkReg was live-in upon function entry.
+      RAStackSlot* slot = workReg->getStackSlot();
+      if (ASMJIT_UNLIKELY(!slot))
+        return DebugUtils::errored(kErrorInvalidState);
+
+      if (hasSAReg && srcArg.isStack() && !srcArg.isIndirect()) {
+        uint32_t typeSize = TypeId::sizeOf(srcArg.getTypeId());
+        if (typeSize == slot->getSize()) {
+          slot->addFlags(RAStackSlot::kFlagStackArg);
+          continue;
+        }
+      }
+
+      // NOTE: Update StackOffset here so when `_argsAssignment.updateFuncFrame()`
+      // is called it will take into consideration moving to stack slots. Without
+      // this we may miss some scratch registers later.
+      FuncValue& dstArg = _argsAssignment.getArg(workReg->getArgIndex());
+      dstArg.assignStackOffset(0);
+    }
+  }
+
+  return kErrorOk;
+}
+
+Error RAPass::_updateStackArgs() noexcept {
+  FuncFrame& frame = getFunc()->getFrame();
+  RAWorkRegs& workRegs = _workRegs;
+  uint32_t numWorkRegs = getWorkRegCount();
+
+  for (uint32_t workId = 0; workId < numWorkRegs; workId++) {
+    RAWorkReg* workReg = workRegs[workId];
+    if (workReg->hasFlag(RAWorkReg::kFlagStackArgToStack)) {
+      ASMJIT_ASSERT(workReg->hasArgIndex());
+      RAStackSlot* slot = workReg->getStackSlot();
+
+      if (ASMJIT_UNLIKELY(!slot))
+        return DebugUtils::errored(kErrorInvalidState);
+
+      if (slot->isStackArg()) {
+        const FuncValue& srcArg = _func->getDetail().getArg(workReg->getArgIndex());
+        if (frame.hasPreservedFP()) {
+          slot->setBaseRegId(_fp.getId());
+          slot->setOffset(int32_t(frame.getSAOffsetFromSA()) + srcArg.getStackOffset());
+        }
+        else {
+          slot->setOffset(int32_t(frame.getSAOffsetFromSP()) + srcArg.getStackOffset());
+        }
+      }
+      else {
+        FuncValue& dstArg = _argsAssignment.getArg(workReg->getArgIndex());
+        dstArg.setStackOffset(slot->getOffset());
+      }
+    }
+  }
 
   return kErrorOk;
 }
 
 Error RAPass::insertPrologEpilog() noexcept {
   FuncFrame& frame = _func->getFrame();
-
-  ASMJIT_PROPAGATE(_argsAssignment.updateFuncFrame(frame));
-  ASMJIT_PROPAGATE(frame.finalize());
 
   cc()->_setCursor(getFunc());
   ASMJIT_PROPAGATE(cc()->emitProlog(frame));
@@ -1336,7 +1442,7 @@ Error RAPass::insertPrologEpilog() noexcept {
 }
 
 // ============================================================================
-// [asmjit::RAPass - Allocation - Rewrite]
+// [asmjit::RAPass - Rewriter]
 // ============================================================================
 
 Error RAPass::rewrite() noexcept {
@@ -1345,10 +1451,10 @@ Error RAPass::rewrite() noexcept {
   );
   ASMJIT_RA_LOG_FORMAT("[RAPass::Rewrite]\n");
 
-  return rewrite(_func, _stop);
+  return _rewrite(_func, _stop);
 }
 
-Error RAPass::rewrite(CBNode* first, CBNode* stop) noexcept {
+Error RAPass::_rewrite(CBNode* first, CBNode* stop) noexcept {
   uint32_t virtCount = cc()->_vRegArray.getLength();
 
   CBNode* node = first;
@@ -1420,9 +1526,9 @@ Error RAPass::rewrite(CBNode* first, CBNode* stop) noexcept {
             ASMJIT_ASSERT(workReg != nullptr);
 
             RAStackSlot* slot = workReg->getStackSlot();
-            int32_t offset = slot->offset;
+            int32_t offset = slot->getOffset();
 
-            mem.setBase(_sp);
+            mem._setBase(_sp.getType(), slot->getBaseRegId());
             mem.clearRegHome();
             mem.addOffsetLo32(offset);
           }

@@ -108,7 +108,7 @@ CCFunc* CodeCompiler::newFunc(const FuncSignature& sign) noexcept {
     func->_args = _allocator.allocT<VirtReg*>(func->getArgCount() * sizeof(VirtReg*));
     if (!func->_args) goto _NoMemory;
 
-    ::memset(func->_args, 0, func->getArgCount() * sizeof(VirtReg*));
+    std::memset(func->_args, 0, func->getArgCount() * sizeof(VirtReg*));
   }
 
   return func;
@@ -223,7 +223,7 @@ CCFuncCall* CodeCompiler::newCall(uint32_t instId, const Operand_& o0, const Fun
     return nullptr;
   }
 
-  ::memset(node->_args, 0, nArgs * sizeof(Operand));
+  std::memset(node->_args, 0, nArgs * sizeof(Operand));
   return node;
 }
 
@@ -260,7 +260,7 @@ static void CodeCompiler_assignGenericName(CodeCompiler* self, VirtReg* vReg) {
   uint32_t index = unsigned(Operand::unpackId(vReg->_id));
 
   char buf[64];
-  int len = snprintf(buf, ASMJIT_ARRAY_SIZE(buf), "%%%u", index);
+  int len = std::snprintf(buf, ASMJIT_ARRAY_SIZE(buf), "%%%u", unsigned(index));
 
   ASMJIT_ASSERT(len > 0 && len < int(ASMJIT_ARRAY_SIZE(buf)));
   vReg->_name.setData(&self->_dataZone, buf, unsigned(len));
@@ -307,7 +307,7 @@ Error CodeCompiler::_newReg(Reg& out, uint32_t typeId, const char* name) {
   return kErrorOk;
 }
 
-Error CodeCompiler::_newReg(Reg& out, uint32_t typeId, const char* fmt, va_list ap) {
+Error CodeCompiler::_newReg(Reg& out, uint32_t typeId, const char* fmt, std::va_list ap) {
   StringBuilderTmp<256> sb;
   sb.appendFormatVA(fmt, ap);
   return _newReg(out, typeId, sb.getData());
@@ -388,7 +388,7 @@ Error CodeCompiler::_newReg(Reg& out, const Reg& ref, const char* name) {
   return kErrorOk;
 }
 
-Error CodeCompiler::_newReg(Reg& out, const Reg& ref, const char* fmt, va_list ap) {
+Error CodeCompiler::_newReg(Reg& out, const Reg& ref, const char* fmt, std::va_list ap) {
   StringBuilderTmp<256> sb;
   sb.appendFormatVA(fmt, ap);
   return _newReg(out, ref, sb.getData());
@@ -457,15 +457,13 @@ void CodeCompiler::rename(Reg& reg, const char* fmt, ...) {
 
   if (fmt && fmt[0] != '\0') {
     char buf[128];
+    std::va_list ap;
 
-    va_list ap;
     va_start(ap, fmt);
-
-    vsnprintf(buf, ASMJIT_ARRAY_SIZE(buf), fmt, ap);
-    buf[ASMJIT_ARRAY_SIZE(buf) - 1] = '\0';
+    std::vsnprintf(buf, ASMJIT_ARRAY_SIZE(buf), fmt, ap);
+    va_end(ap);
 
     vReg->_name.setData(&_dataZone, buf, Globals::kNullTerminated);
-    va_end(ap);
   }
   else {
     CodeCompiler_assignGenericName(this, vReg);

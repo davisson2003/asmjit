@@ -590,7 +590,7 @@ namespace IntUtils {
   //!
   //! while (it.hasNext()) {
   //!   uint32_t bitIndex = it.next();
-  //!   printf("Bit at %u is set\n", bitIndex);
+  //!   std::printf("Bit at %u is set\n", unsigned(bitIndex));
   //! }
   //! ```
   template<typename BitWordT>

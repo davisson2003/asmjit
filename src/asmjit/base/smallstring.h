@@ -32,10 +32,10 @@ struct SmallStringBase {
 
   ASMJIT_NOINLINE Error setData(Zone* zone, uint32_t maxEmbeddedLength, const char* str, size_t len) noexcept {
     if (len == Globals::kNullTerminated)
-      len = ::strlen(str);
+      len = std::strlen(str);
 
     if (len <= maxEmbeddedLength) {
-      ::memcpy(_embedded, str, len);
+      std::memcpy(_embedded, str, len);
       _embedded[len] = '\0';
     }
     else {

@@ -13,6 +13,8 @@
 
 // [Dependencies]
 #include "../base/intutils.h"
+#include "../base/logging.h"
+#include "../base/stringbuilder.h"
 #include "../x86/x86internal_p.h"
 
 // [Api-Begin]
@@ -96,10 +98,10 @@ X86CallConv:
       cc.setPreservedRegs(kGroupGp, IntUtils::mask(kZbx, kZsp, kZbp, 12, 13, 14, 15));
       break;
 
-    case CallConv::kIdX86FastEval2:
-    case CallConv::kIdX86FastEval3:
-    case CallConv::kIdX86FastEval4: {
-      uint32_t n = ccId - CallConv::kIdX86FastEval2;
+    case CallConv::kIdX86LightCall2:
+    case CallConv::kIdX86LightCall3:
+    case CallConv::kIdX86LightCall4: {
+      uint32_t n = (ccId - CallConv::kIdX86LightCall2) + 2;
 
       cc.setArchType(ArchInfo::kTypeX86);
       cc.setFlags(CallConv::kFlagPassFloatsByVec);
@@ -115,10 +117,10 @@ X86CallConv:
       break;
     }
 
-    case CallConv::kIdX64FastEval2:
-    case CallConv::kIdX64FastEval3:
-    case CallConv::kIdX64FastEval4: {
-      uint32_t n = ccId - CallConv::kIdX64FastEval2;
+    case CallConv::kIdX64LightCall2:
+    case CallConv::kIdX64LightCall3:
+    case CallConv::kIdX64LightCall4: {
+      uint32_t n = (ccId - CallConv::kIdX64LightCall2) + 2;
 
       cc.setArchType(ArchInfo::kTypeX64);
       cc.setFlags(CallConv::kFlagPassFloatsByVec);
@@ -251,13 +253,13 @@ ASMJIT_FAVOR_SIZE Error X86Internal::initFuncDetail(FuncDetail& func, const Func
         uint32_t regId = gpzPos < CallConv::kMaxRegArgsPerGroup ? cc._passedOrder[X86Reg::kGroupGp].id[gpzPos] : uint8_t(Reg::kIdBad);
         if (regId != Reg::kIdBad) {
           uint32_t regType = (typeId <= TypeId::kU32) ? X86Reg::kRegGpd : X86Reg::kRegGpq;
-          arg.addRegData(regType, regId);
+          arg.assignRegData(regType, regId);
           func.addUsedRegs(X86Reg::kGroupGp, IntUtils::mask(regId));
           gpzPos++;
         }
         else {
           uint32_t size = std::max<uint32_t>(TypeId::sizeOf(typeId), gpSize);
-          arg.addStackOffset(stackOffset);
+          arg.assignStackOffset(int32_t(stackOffset));
           stackOffset += size;
         }
         continue;
@@ -271,14 +273,14 @@ ASMJIT_FAVOR_SIZE Error X86Internal::initFuncDetail(FuncDetail& func, const Func
           regId = Reg::kIdBad;
 
         if (regId != Reg::kIdBad) {
-          arg.init(typeId);
-          arg.addRegData(x86VecTypeIdToRegType(typeId), regId);
+          arg.initTypeId(typeId);
+          arg.assignRegData(x86VecTypeIdToRegType(typeId), regId);
           func.addUsedRegs(X86Reg::kGroupVec, IntUtils::mask(regId));
           vecPos++;
         }
         else {
           uint32_t size = TypeId::sizeOf(typeId);
-          arg.addStackOffset(stackOffset);
+          arg.assignStackOffset(int32_t(stackOffset));
           stackOffset += size;
         }
         continue;
@@ -297,11 +299,11 @@ ASMJIT_FAVOR_SIZE Error X86Internal::initFuncDetail(FuncDetail& func, const Func
         uint32_t regId = i < CallConv::kMaxRegArgsPerGroup ? cc._passedOrder[X86Reg::kGroupGp].id[i] : uint8_t(Reg::kIdBad);
         if (regId != Reg::kIdBad) {
           uint32_t regType = (size <= 4 && !TypeId::isMmx(typeId)) ? X86Reg::kRegGpd : X86Reg::kRegGpq;
-          arg.addRegData(regType, regId);
+          arg.assignRegData(regType, regId);
           func.addUsedRegs(X86Reg::kGroupGp, IntUtils::mask(regId));
         }
         else {
-          arg.addStackOffset(stackOffset);
+          arg.assignStackOffset(int32_t(stackOffset));
           stackOffset += gpSize;
         }
         continue;
@@ -313,11 +315,11 @@ ASMJIT_FAVOR_SIZE Error X86Internal::initFuncDetail(FuncDetail& func, const Func
           uint32_t regType = x86VecTypeIdToRegType(typeId);
           uint32_t regId = cc._passedOrder[X86Reg::kGroupVec].id[i];
 
-          arg.addRegData(regType, regId);
+          arg.assignRegData(regType, regId);
           func.addUsedRegs(X86Reg::kGroupVec, IntUtils::mask(regId));
         }
         else {
-          arg.addStackOffset(stackOffset);
+          arg.assignStackOffset(int32_t(stackOffset));
           stackOffset += 8; // Always 8 bytes (float/double).
         }
         continue;
@@ -333,6 +335,26 @@ ASMJIT_FAVOR_SIZE Error X86Internal::initFuncDetail(FuncDetail& func, const Func
 // [asmjit::X86FuncArgsContext]
 // ============================================================================
 
+static RegInfo x86GetRegForMemToMemMove(uint32_t archType, uint32_t dstTypeId, uint32_t srcTypeId) noexcept {
+  uint32_t dstSize = TypeId::sizeOf(dstTypeId);
+  uint32_t srcSize = TypeId::sizeOf(srcTypeId);
+  uint32_t maxSize = std::max<uint32_t>(dstSize, srcSize);
+  uint32_t gpSize = archType == ArchInfo::kTypeX86 ? 4 : 8;
+
+  uint32_t signature = 0;
+  if (maxSize <= gpSize || (TypeId::isInt(dstTypeId) && TypeId::isInt(srcTypeId)))
+    signature = maxSize <= 4 ? X86Reg::signatureOfT<X86Reg::kRegGpd>()
+                             : X86Reg::signatureOfT<X86Reg::kRegGpq>();
+  else if (maxSize <= 16)
+    signature = X86Reg::signatureOfT<X86Reg::kRegXmm>();
+  else if (maxSize <= 32)
+    signature = X86Reg::signatureOfT<X86Reg::kRegYmm>();
+  else if (maxSize <= 64)
+    signature = X86Reg::signatureOfT<X86Reg::kRegZmm>();
+
+  return RegInfo { signature };
+}
+
 // Used by both `argsToFuncFrame()` and `emitArgsAssignment()`.
 class X86FuncArgsContext {
 public:
@@ -342,107 +364,135 @@ public:
 
   //! Contains information about a single argument or SA register that may need shuffling.
   struct Var {
-    ASMJIT_INLINE void init(const FuncValue& cur_, const FuncValue& out_) noexcept {
+    inline void init(const FuncValue& cur_, const FuncValue& out_) noexcept {
       cur = cur_;
       out = out_;
     }
 
     //! Reset the value to its unassigned state.
-    ASMJIT_INLINE void reset() noexcept {
+    inline void reset() noexcept {
       cur.reset();
       out.reset();
     }
+
+    inline bool isDone() const noexcept { return cur.isDone(); }
+    inline void markDone() noexcept { cur.addFlags(FuncValue::kFlagIsDone); }
 
     FuncValue cur;
     FuncValue out;
   };
 
   struct WorkData {
-    ASMJIT_INLINE void reset() noexcept {
-      archRegs = 0;
-      workRegs = 0;
-      usedRegs = 0;
-      liveRegs = 0;
-      dstRegs = 0;
-      dstShuf = 0;
-      numSwaps = 0;
-      numStackArgs = 0;
-      ::memset(reserved, 0, sizeof(reserved));
-      ::memset(physToVarId, kVarIdNone, 32);
+    inline void reset() noexcept {
+      _archRegs = 0;
+      _workRegs = 0;
+      _usedRegs = 0;
+      _assignedRegs = 0;
+      _dstRegs = 0;
+      _dstShuf = 0;
+      _numSwaps = 0;
+      _numStackArgs = 0;
+      std::memset(_reserved, 0, sizeof(_reserved));
+      std::memset(_physToVarId, kVarIdNone, 32);
     }
 
-    ASMJIT_INLINE bool isAssigned(uint32_t regId) const noexcept {
+    inline bool isAssigned(uint32_t regId) const noexcept {
       ASMJIT_ASSERT(regId < 32);
-      return physToVarId[regId] != kVarIdNone;
+      return (_assignedRegs & IntUtils::mask(regId)) != 0;
     }
 
-    ASMJIT_INLINE void assign(uint32_t regId, uint32_t varId) noexcept {
-      ASMJIT_ASSERT((liveRegs & IntUtils::mask(regId)) == 0);
+    inline void assign(uint32_t varId, uint32_t regId) noexcept {
+      ASMJIT_ASSERT(!isAssigned(regId));
+      ASMJIT_ASSERT(_physToVarId[regId] == kVarIdNone);
 
-      physToVarId[regId] = uint8_t(varId);
-      liveRegs ^= IntUtils::mask(regId);
+      _physToVarId[regId] = uint8_t(varId);
+      _assignedRegs ^= IntUtils::mask(regId);
     }
 
-    ASMJIT_INLINE void reassign(uint32_t newId, uint32_t oldId, uint32_t varId) noexcept {
-      ASMJIT_ASSERT((liveRegs & IntUtils::mask(newId)) == 0);
-      ASMJIT_ASSERT((liveRegs & IntUtils::mask(oldId)) != 0);
+    inline void reassign(uint32_t varId, uint32_t newId, uint32_t oldId) noexcept {
+      ASMJIT_ASSERT( isAssigned(oldId));
+      ASMJIT_ASSERT(!isAssigned(newId));
+      ASMJIT_ASSERT(_physToVarId[oldId] == varId);
+      ASMJIT_ASSERT(_physToVarId[newId] == kVarIdNone);
 
-      physToVarId[oldId] = uint8_t(kVarIdNone);
-      physToVarId[newId] = uint8_t(varId);
-      liveRegs ^= IntUtils::mask(newId) ^ IntUtils::mask(oldId);
+      _physToVarId[oldId] = uint8_t(kVarIdNone);
+      _physToVarId[newId] = uint8_t(varId);
+      _assignedRegs ^= IntUtils::mask(newId) ^ IntUtils::mask(oldId);
     }
 
-    ASMJIT_INLINE void swap(uint32_t aRegId, uint32_t aVarId, uint32_t bRegId, uint32_t bVarId) noexcept {
-      physToVarId[aRegId] = uint8_t(bVarId);
-      physToVarId[bRegId] = uint8_t(aVarId);
+    inline void swap(uint32_t aVarId, uint32_t aRegId, uint32_t bVarId, uint32_t bRegId) noexcept {
+      ASMJIT_ASSERT(isAssigned(aRegId));
+      ASMJIT_ASSERT(isAssigned(bRegId));
+      ASMJIT_ASSERT(_physToVarId[aRegId] == aVarId);
+      ASMJIT_ASSERT(_physToVarId[bRegId] == bVarId);
+
+      _physToVarId[aRegId] = uint8_t(bVarId);
+      _physToVarId[bRegId] = uint8_t(aVarId);
     }
 
-    ASMJIT_INLINE void unassign(uint32_t regId) noexcept {
-      ASMJIT_ASSERT((liveRegs & IntUtils::mask(regId)) != 0);
+    inline void unassign(uint32_t varId, uint32_t regId) noexcept {
+      ASMJIT_ASSERT(isAssigned(regId));
+      ASMJIT_ASSERT(_physToVarId[regId] == varId);
 
-      physToVarId[regId] = uint8_t(kVarIdNone);
-      liveRegs ^= IntUtils::mask(regId);
+      _physToVarId[regId] = uint8_t(kVarIdNone);
+      _assignedRegs ^= IntUtils::mask(regId);
     }
 
-    uint32_t archRegs;                   //!< All allocable registers provided by the architecture.
-    uint32_t workRegs;                   //!< All registers that can be used by the shuffler.
-    uint32_t usedRegs;                   //!< Registers actually used by the shuffler.
-    uint32_t liveRegs;                   //!< Registers currently alive.
-    uint32_t dstRegs;                    //!< Destination registers assigned to arguments or SA.
-    uint32_t dstShuf;                    //!< Destination registers that require shuffling.
-    uint8_t numSwaps;                    //!< Number of register swaps.
-    uint8_t numStackArgs;                //!< Number of stack loads.
-    uint8_t reserved[6];                 //!< Reserved (only used as padding).
-    uint8_t physToVarId[32];             //!< Physical ID to variable ID mapping.
+    inline uint32_t getArchRegs() const noexcept { return _archRegs; }
+    inline uint32_t getWorkRegs() const noexcept { return _workRegs; }
+    inline uint32_t getUsedRegs() const noexcept { return _usedRegs; }
+    inline uint32_t getAssignedRegs() const noexcept { return _assignedRegs; }
+    inline uint32_t getDstRegs() const noexcept { return _dstRegs; }
+    inline uint32_t getAvailableRegs() const noexcept { return _workRegs & ~_assignedRegs; }
+
+    uint32_t _archRegs;                  //!< All allocable registers provided by the architecture.
+    uint32_t _workRegs;                  //!< All registers that can be used by the shuffler.
+    uint32_t _usedRegs;                  //!< Registers used by the shuffler (all).
+    uint32_t _assignedRegs;              //!< Assigned registers.
+    uint32_t _dstRegs;                   //!< Destination registers assigned to arguments or SA.
+    uint32_t _dstShuf;                   //!< Destination registers that require shuffling.
+    uint8_t _numSwaps;                   //!< Number of register swaps.
+    uint8_t _numStackArgs;               //!< Number of stack loads.
+    uint8_t _reserved[6];                //!< Reserved (only used as padding).
+    uint8_t _physToVarId[32];            //!< Physical ID to variable ID mapping.
   };
 
   X86FuncArgsContext() noexcept;
 
+  inline uint32_t getArchType() const noexcept { return _archType; }
+  inline uint32_t getVarCount() const noexcept { return _varCount; }
+
+  inline Var& getVar(uint32_t varId) noexcept { return _vars[varId]; }
+  inline const Var& getVar(uint32_t varId) const noexcept { return _vars[varId]; }
+  inline uint32_t indexOf(const Var* var) const noexcept { return uint32_t((size_t)(var - _vars)); }
+
   Error initWorkData(const FuncFrame& frame, const FuncArgsAssignment& args) noexcept;
-  Error markRegsForSwaps(FuncFrame& frame) noexcept;
+  Error markScratchRegs(FuncFrame& frame) noexcept;
   Error markDstRegsDirty(FuncFrame& frame) noexcept;
   Error markStackArgsReg(FuncFrame& frame) noexcept;
-
-  ASMJIT_INLINE uint32_t indexOf(const Var* var) const noexcept { return uint32_t((size_t)(var - _vars)); }
 
   // --------------------------------------------------------------------------
   // [Members]
   // --------------------------------------------------------------------------
 
-  uint32_t _varCount;
-  bool _hasRegSwaps;
-  bool _hasStackArgs;
-  bool _hasPreservedFP;
+  uint8_t _archType;
+  bool _hasStackSrc;                     //!< Has arguments passed via stack (SRC).
+  bool _hasPreservedFP;                  //!< Has preserved frame-pointer (FP).
+  uint8_t _stackDstMask;                 //!< Has arguments assigned to stack (DST).
+  uint8_t _regSwapsMask;                 //!< Register swap groups (bit-mask).
   uint8_t _saVarId;
+  uint32_t _varCount;
   WorkData _workData[Reg::kGroupVirt];
   Var _vars[kFuncArgCountLoHi + 1];
 };
 
 X86FuncArgsContext::X86FuncArgsContext() noexcept {
+  _archType = ArchInfo::kTypeNone;
   _varCount = 0;
-  _hasRegSwaps = false;
-  _hasStackArgs = false;
+  _hasStackSrc = false;
   _hasPreservedFP = false;
+  _stackDstMask = 0;
+  _regSwapsMask = 0;
   _saVarId = kVarIdNone;
 
   for (uint32_t group = 0; group < Reg::kGroupVirt; group++)
@@ -456,83 +506,113 @@ ASMJIT_FAVOR_SIZE Error X86FuncArgsContext::initWorkData(const FuncFrame& frame,
   uint32_t i;
   const FuncDetail& func = *args.getFuncDetail();
 
+  // Initialize ArchType.
   uint32_t archType = func.getCallConv().getArchType();
-  uint32_t count = (archType == ArchInfo::kTypeX86) ? 8 : 16;
-  uint32_t varId = 0;
+  uint32_t archRegCount = (archType == ArchInfo::kTypeX86) ? 8 : 16;
 
-  // Initialize WorkData::archRegs.
-  _workData[X86Reg::kGroupGp ].archRegs = IntUtils::bits(count) & ~IntUtils::mask(X86Gp::kIdSp);
-  _workData[X86Reg::kGroupVec].archRegs = IntUtils::bits(count);
-  _workData[X86Reg::kGroupMm ].archRegs = IntUtils::bits(8);
-  _workData[X86Reg::kGroupK  ].archRegs = IntUtils::bits(8);
+  _archType = uint8_t(archType);
+
+  // Initialize `_archRegs`.
+  _workData[X86Reg::kGroupGp ]._archRegs = IntUtils::bits(archRegCount) & ~IntUtils::mask(X86Gp::kIdSp);
+  _workData[X86Reg::kGroupVec]._archRegs = IntUtils::bits(archRegCount);
+  _workData[X86Reg::kGroupMm ]._archRegs = IntUtils::bits(8);
+  _workData[X86Reg::kGroupK  ]._archRegs = IntUtils::bits(8);
 
   if (frame.hasPreservedFP())
-    _workData[X86Reg::kGroupGp].archRegs &= ~IntUtils::mask(X86Gp::kIdBp);
+    _workData[X86Reg::kGroupGp]._archRegs &= ~IntUtils::mask(X86Gp::kIdBp);
 
   // Extract information from all function arguments/assignments and build Var[] array.
+  uint32_t varId = 0;
   for (i = 0; i < kFuncArgCountLoHi; i++) {
-    const FuncValue& dstArg = args.getArg(i);
-    if (!dstArg.isAssigned()) continue;
+    const FuncValue& dst_ = args.getArg(i);
+    if (!dst_.isAssigned()) continue;
 
-    const FuncValue& srcArg = func.getArg(i);
-    if (ASMJIT_UNLIKELY(!srcArg.isAssigned()))
+    const FuncValue& src_ = func.getArg(i);
+    if (ASMJIT_UNLIKELY(!src_.isAssigned()))
       return DebugUtils::errored(kErrorInvalidState);
 
-    uint32_t dstType = dstArg.getRegType();
-    if (ASMJIT_UNLIKELY(dstType >= X86Reg::kRegCount))
-      return DebugUtils::errored(kErrorInvalidRegType);
-
-    uint32_t dstGroup = X86Reg::groupOf(dstType);
-    if (ASMJIT_UNLIKELY(dstGroup >= Reg::kGroupVirt))
-      return DebugUtils::errored(kErrorInvalidRegGroup);
-
-    WorkData& wd = _workData[dstGroup];
-    uint32_t dstId = dstArg.getRegId();
-    if (ASMJIT_UNLIKELY(dstId >= 32 || !(wd.archRegs & IntUtils::mask(dstId))))
-      return DebugUtils::errored(kErrorInvalidPhysId);
-
-    uint32_t dstMask = IntUtils::mask(dstId);
-    if (ASMJIT_UNLIKELY(wd.dstRegs & dstMask))
-      return DebugUtils::errored(kErrorOverlappedRegs);
-
     Var& var = _vars[varId];
-    var.init(srcArg, dstArg);
+    var.init(src_, dst_);
 
-    wd.dstRegs |= dstMask;
-    wd.usedRegs |= dstMask;
+    FuncValue& src = var.cur;
+    FuncValue& dst = var.out;
 
-    if (srcArg.isReg()) {
-      uint32_t srcId = srcArg.getRegId();
-      uint32_t srcGroup = X86Reg::groupOf(srcArg.getRegType());
+    uint32_t dstGroup = 0xFFFFFFFFU;
+    uint32_t dstId = Reg::kIdBad;
+    WorkData* dstWd = nullptr;
+
+    if (dst.isReg()) {
+      uint32_t dstType = dst.getRegType();
+      if (ASMJIT_UNLIKELY(dstType >= X86Reg::kRegCount))
+        return DebugUtils::errored(kErrorInvalidRegType);
+
+      // Copy TypeId from source if the destination doesn't have it. The RA
+      // used by CodeCompiler would never leave TypeId undefined, but users
+      // of FuncAPI can just assign phys regs without specifying the type.
+      if (!dst.hasTypeId())
+        dst.setTypeId(X86Reg::typeIdOf(dst.getRegType()));
+
+      dstGroup = X86Reg::groupOf(dstType);
+      if (ASMJIT_UNLIKELY(dstGroup >= Reg::kGroupVirt))
+        return DebugUtils::errored(kErrorInvalidRegGroup);
+
+      dstWd = &_workData[dstGroup];
+      dstId = dst.getRegId();
+      if (ASMJIT_UNLIKELY(dstId >= 32 || !(dstWd->getArchRegs() & IntUtils::mask(dstId))))
+        return DebugUtils::errored(kErrorInvalidPhysId);
+
+      uint32_t dstMask = IntUtils::mask(dstId);
+      if (ASMJIT_UNLIKELY(dstWd->getDstRegs() & dstMask))
+        return DebugUtils::errored(kErrorOverlappedRegs);
+
+      dstWd->_dstRegs |= dstMask;
+      dstWd->_dstShuf |= dstMask;
+      dstWd->_usedRegs |= dstMask;
+    }
+    else {
+      if (!dst.hasTypeId())
+        dst.setTypeId(src.getTypeId());
+
+      RegInfo regInfo = x86GetRegForMemToMemMove(archType, dst.getTypeId(), src.getTypeId());
+      if (ASMJIT_UNLIKELY(!regInfo.isValid()))
+        return DebugUtils::errored(kErrorInvalidState);
+      _stackDstMask = uint8_t(_stackDstMask | IntUtils::mask(regInfo.getGroup()));
+    }
+
+    if (src.isReg()) {
+      uint32_t srcId = src.getRegId();
+      uint32_t srcGroup = X86Reg::groupOf(src.getRegType());
 
       if (dstGroup == srcGroup) {
-        wd.assign(srcId, varId);
+        dstWd->assign(varId, srcId);
+
         // The best case, register is allocated where it is expected to be.
-        if (dstId == srcId) continue;
+        if (dstId == srcId)
+          var.markDone();
       }
       else {
         if (ASMJIT_UNLIKELY(srcGroup >= Reg::kGroupVirt))
           return DebugUtils::errored(kErrorInvalidState);
 
         WorkData& srcData = _workData[srcGroup];
-        srcData.assign(srcId, varId);
+        srcData.assign(varId, srcId);
       }
     }
     else {
-      wd.numStackArgs++;
-      _hasStackArgs = true;
+      if (dstWd)
+        dstWd->_numStackArgs++;
+      _hasStackSrc = true;
     }
 
-    wd.dstShuf |= dstMask;
     varId++;
   }
 
   // Initialize WorkData::workRegs.
   for (i = 0; i < Reg::kGroupVirt; i++)
-    _workData[i].workRegs = (_workData[i].archRegs & (frame.getDirtyRegs(i) | ~frame.getPreservedRegs(i))) | _workData[i].dstRegs | _workData[i].liveRegs;
+    _workData[i]._workRegs = (_workData[i].getArchRegs() & (frame.getDirtyRegs(i) | ~frame.getPreservedRegs(i))) | _workData[i].getDstRegs() | _workData[i].getAssignedRegs();
 
   // Create a variable that represents `SARegId` if necessary.
-  bool saRegRequired = _hasStackArgs && frame.hasDynamicAlignment() && !frame.hasPreservedFP();
+  bool saRegRequired = _hasStackSrc && frame.hasDynamicAlignment() && !frame.hasPreservedFP();
 
   WorkData& gpRegs = _workData[Reg::kGroupGp];
   uint32_t saCurRegId = frame.getSARegId();
@@ -540,13 +620,13 @@ ASMJIT_FAVOR_SIZE Error X86FuncArgsContext::initWorkData(const FuncFrame& frame,
 
   if (saCurRegId != Reg::kIdBad) {
     // Check if the provided `SARegId` doesn't collide with input registers.
-    if (ASMJIT_UNLIKELY((gpRegs.liveRegs & IntUtils::mask(saCurRegId)) != 0))
+    if (ASMJIT_UNLIKELY(gpRegs.isAssigned(saCurRegId)))
       return DebugUtils::errored(kErrorOverlappedRegs);
   }
 
   if (saOutRegId != Reg::kIdBad) {
     // Check if the provided `SARegId` doesn't collide with argument assignments.
-    if (ASMJIT_UNLIKELY((gpRegs.dstRegs & IntUtils::mask(saOutRegId)) != 0))
+    if (ASMJIT_UNLIKELY((gpRegs.getDstRegs() & IntUtils::mask(saOutRegId)) != 0))
       return DebugUtils::errored(kErrorOverlappedRegs);
     saRegRequired = true;
   }
@@ -562,12 +642,14 @@ ASMJIT_FAVOR_SIZE Error X86FuncArgsContext::initWorkData(const FuncFrame& frame,
     var.reset();
 
     if (saCurRegId == Reg::kIdBad) {
-      if (saOutRegId != Reg::kIdBad && (gpRegs.liveRegs & IntUtils::mask(saOutRegId)) == 0) {
+      if (saOutRegId != Reg::kIdBad && !gpRegs.isAssigned(saOutRegId)) {
         saCurRegId = saOutRegId;
       }
       else {
-        uint32_t availableRegs = gpRegs.workRegs & ~(gpRegs.liveRegs);
-        if (!availableRegs) availableRegs = gpRegs.archRegs & ~gpRegs.workRegs;
+        uint32_t availableRegs = gpRegs.getAvailableRegs();
+        if (!availableRegs)
+          availableRegs = gpRegs.getArchRegs() & ~gpRegs.getWorkRegs();
+
         if (ASMJIT_UNLIKELY(!availableRegs))
           return DebugUtils::errored(kErrorNoMorePhysRegs);
 
@@ -576,16 +658,16 @@ ASMJIT_FAVOR_SIZE Error X86FuncArgsContext::initWorkData(const FuncFrame& frame,
     }
 
     var.cur.initReg(ptrRegType, saCurRegId, ptrTypeId);
-    gpRegs.assign(saCurRegId, varId);
-    gpRegs.workRegs |= IntUtils::mask(saCurRegId);
+    gpRegs.assign(varId, saCurRegId);
+    gpRegs._workRegs |= IntUtils::mask(saCurRegId);
 
     if (saOutRegId != Reg::kIdBad) {
       var.out.initReg(ptrRegType, saOutRegId, ptrTypeId);
-      gpRegs.dstRegs |= IntUtils::mask(saOutRegId);
-      gpRegs.workRegs |= IntUtils::mask(saOutRegId);
+      gpRegs._dstRegs |= IntUtils::mask(saOutRegId);
+      gpRegs._workRegs |= IntUtils::mask(saOutRegId);
     }
     else {
-      var.cur.addFlags(FuncValue::kIsDone);
+      var.markDone();
     }
 
     varId++;
@@ -596,16 +678,20 @@ ASMJIT_FAVOR_SIZE Error X86FuncArgsContext::initWorkData(const FuncFrame& frame,
   // Detect register swaps.
   for (varId = 0; varId < _varCount; varId++) {
     Var& var = _vars[varId];
-    if (var.cur.isReg()) {
-      uint32_t regId = var.cur.getRegId();
-      uint32_t regGroup = X86Reg::groupOf(var.cur.getRegType());
+    if (var.cur.isReg() && var.out.isReg()) {
+      uint32_t srcId = var.cur.getRegId();
+      uint32_t dstId = var.out.getRegId();
 
-      WorkData& set = _workData[regGroup];
-      if (set.isAssigned(regId)) {
-        Var& other = _vars[set.physToVarId[regId]];
-        if (X86Reg::groupOf(other.out.getRegType()) == regGroup && other.out.getRegId() == regId) {
-          set.numSwaps++;
-          _hasRegSwaps = true;
+      uint32_t group = X86Reg::groupOf(var.cur.getRegType());
+      if (group != X86Reg::groupOf(var.out.getRegType()))
+        continue;
+
+      WorkData& wd = _workData[group];
+      if (wd.isAssigned(dstId)) {
+        Var& other = _vars[wd._physToVarId[dstId]];
+        if (X86Reg::groupOf(other.out.getRegType()) == group && other.out.getRegId() == srcId) {
+          wd._numSwaps++;
+          _regSwapsMask |= IntUtils::mask(group);
         }
       }
     }
@@ -617,48 +703,51 @@ ASMJIT_FAVOR_SIZE Error X86FuncArgsContext::initWorkData(const FuncFrame& frame,
 ASMJIT_FAVOR_SIZE Error X86FuncArgsContext::markDstRegsDirty(FuncFrame& frame) noexcept {
   for (uint32_t i = 0; i < Reg::kGroupVirt; i++) {
     WorkData& wd = _workData[i];
-    uint32_t regs = wd.usedRegs | wd.dstShuf;
+    uint32_t regs = wd.getUsedRegs() | wd._dstShuf;
 
-    wd.workRegs |= regs;
+    wd._workRegs |= regs;
     frame.addDirtyRegs(i, regs);
   }
 
   return kErrorOk;
 }
 
-ASMJIT_FAVOR_SIZE Error X86FuncArgsContext::markRegsForSwaps(FuncFrame& frame) noexcept {
-  if (!_hasRegSwaps)
+ASMJIT_FAVOR_SIZE Error X86FuncArgsContext::markScratchRegs(FuncFrame& frame) noexcept {
+  uint32_t groupMask = 0;
+
+  // Handle stack to stack moves.
+  groupMask |= _stackDstMask;
+
+  // Handle register swaps.
+  groupMask |= _regSwapsMask & ~IntUtils::mask(Reg::kGroupGp);
+
+  if (!groupMask)
     return kErrorOk;
 
-  // If some registers require swapping then select one dirty register that
-  // can be used as a temporary. We can do it also without it (by using xors),
-  // but using temporary is always safer and also faster approach.
-  for (uint32_t i = 0; i < Reg::kGroupVirt; i++) {
-    // Skip all register groups where swapping is natively supported (GP regs).
-    if (i == X86Reg::kGroupGp) continue;
+  // selects one dirty register per affected group that can be used as a scratch register.
+  for (uint32_t group = 0; group < Reg::kGroupVirt; group++) {
+    if (groupMask & (1U << group)) {
+      WorkData& wd = _workData[group];
 
-    // Skip all register groups that don't require swapping.
-    WorkData& wd = _workData[i];
-    if (!wd.numSwaps) continue;
+      // Initially, pick some clobbered or dirty register.
+      uint32_t workRegs = wd.getWorkRegs();
+      uint32_t regs = workRegs & ~(wd.getUsedRegs() | wd._dstShuf);
 
-    // Initially, pick some clobbered or dirty register.
-    uint32_t workRegs = wd.workRegs;
-    uint32_t regs = workRegs & ~(wd.usedRegs | wd.dstShuf);
+      // If that didn't work out pick some register which is not in 'used'.
+      if (!regs) regs = workRegs & ~wd.getUsedRegs();
 
-    // If that didn't work out pick some register which is not in 'used'.
-    if (!regs) regs = workRegs & ~wd.usedRegs;
+      // If that didn't work out pick any other register that is allocable.
+      // This last resort case will, however, result in marking one more
+      // register dirty.
+      if (!regs) regs = wd.getArchRegs() & ~workRegs;
 
-    // If that didn't work out pick any other register that is allocable.
-    // This last resort case will, however, result in marking one more
-    // register dirty.
-    if (!regs) regs = wd.archRegs & ~workRegs;
+      // If that didn't work out we will have to use XORs instead of MOVs.
+      if (!regs) continue;
 
-    // If that didn't work out we will have to use XORs instead of MOVs.
-    if (!regs) continue;
-
-    uint32_t regMask = IntUtils::blsi(regs);
-    wd.workRegs |= regMask;
-    frame.addDirtyRegs(i, regMask);
+      uint32_t regMask = IntUtils::blsi(regs);
+      wd._workRegs |= regMask;
+      frame.addDirtyRegs(group, regMask);
+    }
   }
 
   return kErrorOk;
@@ -712,7 +801,7 @@ ASMJIT_FAVOR_SIZE Error X86Internal::initFuncFrame(FuncFrame& frame, const FuncD
 
   // Initial masks of dirty and preserved registers.
   for (uint32_t group = 0; group < Reg::kGroupVirt; group++) {
-    frame._dirtyRegs[group] = func.getPassedRegs(group);
+    frame._dirtyRegs[group] = func.getUsedRegs(group);
     frame._preservedRegs[group] = func.getPreservedRegs(group);
   }
 
@@ -738,28 +827,31 @@ ASMJIT_FAVOR_SIZE Error X86Internal::finalizeFuncFrame(FuncFrame& frame) noexcep
   bool hasDA = frame.hasDynamicAlignment();
 
   // Include EBP|RBP if the function preserves the frame-pointer.
-  if (hasFP) frame._dirtyRegs[X86Reg::kGroupGp] |= IntUtils::mask(X86Gp::kIdBp);
+  if (hasFP)
+    frame._dirtyRegs[X86Reg::kGroupGp] |= IntUtils::mask(X86Gp::kIdBp);
 
   // These two are identical if the function doesn't align its stack dynamically.
   uint32_t saRegId = frame.getSARegId();
-  if (saRegId == Reg::kIdBad) saRegId = X86Gp::kIdSp;
+  if (saRegId == Reg::kIdBad)
+    saRegId = X86Gp::kIdSp;
 
   // Fix stack arguments base-register from ESP|RSP to EBP|RBP in case it was
   // not picked before and the function performs dynamic stack alignment.
-  if (hasDA && saRegId == X86Gp::kIdSp) saRegId = X86Gp::kIdBp;
+  if (hasDA && saRegId == X86Gp::kIdSp)
+    saRegId = X86Gp::kIdBp;
 
   // Mark as dirty any register but ESP|RSP if used as SA pointer.
   if (saRegId != X86Gp::kIdSp)
     frame._dirtyRegs[X86Reg::kGroupGp] |= IntUtils::mask(saRegId);
 
-  frame._spRegId = X86Gp::kIdSp;
+  frame._spRegId = uint8_t(X86Gp::kIdSp);
   frame._saRegId = uint8_t(saRegId);
 
   // Setup stack size used to save preserved registers.
   frame._gpSaveSize    = uint16_t(IntUtils::popcnt(frame.getSavedRegs(X86Reg::kGroupGp )) * gpSize);
   frame._nonGpSaveSize = uint16_t(IntUtils::popcnt(frame.getSavedRegs(X86Reg::kGroupVec)) * vecSize +
-                                            IntUtils::popcnt(frame.getSavedRegs(X86Reg::kGroupMm )) * 8 +
-                                            IntUtils::popcnt(frame.getSavedRegs(X86Reg::kGroupK  )) * 8);
+                                  IntUtils::popcnt(frame.getSavedRegs(X86Reg::kGroupMm )) * 8 +
+                                  IntUtils::popcnt(frame.getSavedRegs(X86Reg::kGroupK  )) * 8);
 
   uint32_t v = 0;                             // The beginning of the stack frame relative to SP after prolog.
   v += frame.getCallStackSize();              // Count 'callStackSize'    <- This is used to call functions.
@@ -768,8 +860,8 @@ ASMJIT_FAVOR_SIZE Error X86Internal::finalizeFuncFrame(FuncFrame& frame) noexcep
   frame._localStackOffset = v;                // Store 'localStackOffset' <- Function's local stack starts here..
   v += frame.getLocalStackSize();             // Count 'localStackSize'   <- Function's local stack ends here.
 
-  // If the function is aligned, calculate the alignment necessary to store
-  // vector registers, and set `FuncFrame::kAttrAlignedVecSR` to inform
+  // If the function's stack must be aligned, calculate the alignment necessary
+  // to store vector registers, and set `FuncFrame::kAttrAlignedVecSR` to inform
   // PEI that it can use instructions to perform aligned stores/loads.
   if (stackAlignment >= vecSize && frame._nonGpSaveSize) {
     frame.addAttributes(FuncFrame::kAttrAlignedVecSR);
@@ -779,7 +871,7 @@ ASMJIT_FAVOR_SIZE Error X86Internal::finalizeFuncFrame(FuncFrame& frame) noexcep
   frame._nonGpSaveOffset = v;                 // Store '_nonGpSaveOffset' <- Non-GP Save/Restore starts here.
   v += frame._nonGpSaveSize;                  // Count '_nonGpSaveSize'   <- Non-GP Save/Restore ends here.
 
-  // Calculate if dynamic alignment (DA) slot (stored as offset relative to SP) is required and its offset of it.
+  // Calculate if dynamic alignment (DA) slot (stored as offset relative to SP) is required and its offset.
   if (hasDA && !hasFP) {
     frame._daOffset = v;                      // Store 'daOffset'         <- DA pointer would be stored here.
     v += gpSize;                              // Count 'daOffset'.
@@ -805,10 +897,10 @@ ASMJIT_FAVOR_SIZE Error X86Internal::finalizeFuncFrame(FuncFrame& frame) noexcep
 
   v += frame._gpSaveSize;                     // Count 'gpSaveSize'       <- Function's GP Save/Restore ends here.
   v += gpSize;                                // Count 'ReturnAddress'    <- As CALL pushes onto stack.
-  v += frame.getSpillZoneSize();              // Count 'SpillZoneSize'    <- WIN64 or custom calling convention only.
 
   // If the function performs dynamic stack alignment then the stack-adjustment must be aligned.
-  if (hasDA) frame._stackAdjustment = IntUtils::alignUp(frame._stackAdjustment, stackAlignment);
+  if (hasDA)
+    frame._stackAdjustment = IntUtils::alignUp(frame._stackAdjustment, stackAlignment);
 
   uint32_t saInvOff = FuncFrame::kTagInvalidOffset;
   uint32_t saTmpOff = gpSize + frame._gpSaveSize;
@@ -831,7 +923,7 @@ ASMJIT_FAVOR_SIZE Error X86Internal::argsToFuncFrame(const FuncArgsAssignment& a
   X86FuncArgsContext ctx;
   ASMJIT_PROPAGATE(ctx.initWorkData(frame, args));
   ASMJIT_PROPAGATE(ctx.markDstRegsDirty(frame));
-  ASMJIT_PROPAGATE(ctx.markRegsForSwaps(frame));
+  ASMJIT_PROPAGATE(ctx.markScratchRegs(frame));
   ASMJIT_PROPAGATE(ctx.markStackArgsReg(frame));
   return kErrorOk;
 }
@@ -874,12 +966,12 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitRegMove(X86Emitter* emitter,
       // Special case - 'movzx' load.
       if (memFlags & kSrcMem) {
         instId = X86Inst::kIdMovzx;
-        dst.setSignature(X86RegTraits<X86Reg::kRegGpd>::kSignature);
+        dst.setSignature(X86Reg::signatureOfT<X86Reg::kRegGpd>());
       }
       else if (!memFlags) {
         // Change both destination and source registers to GPD (safer, no dependencies).
-        dst.setSignature(X86RegTraits<X86Reg::kRegGpd>::kSignature);
-        src.setSignature(X86RegTraits<X86Reg::kRegGpd>::kSignature);
+        dst.setSignature(X86Reg::signatureOfT<X86Reg::kRegGpd>());
+        src.setSignature(X86Reg::signatureOfT<X86Reg::kRegGpd>());
       }
       ASMJIT_FALLTHROUGH;
 
@@ -1345,6 +1437,43 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitEpilog(X86Emitter* emitter, const FuncF
 // [asmjit::X86Internal - Emit Arguments Assignment]
 // ============================================================================
 
+static void dumpFuncValue(StringBuilder& sb, uint32_t archType, const FuncValue& value) noexcept {
+  Logging::formatTypeId(sb, value.getTypeId());
+  sb.appendChar('@');
+  if (value.isReg()) {
+    Logging::formatRegister(sb, 0, nullptr, archType, value.getRegType(), value.getRegId());
+  }
+  else if (value.isStack()) {
+    sb.appendFormat("[%d]", value.getStackOffset());
+  }
+  else {
+    sb.appendString("<none>");
+  }
+}
+
+static void dumpAssignment(StringBuilder& sb, const X86FuncArgsContext& ctx) noexcept {
+  typedef X86FuncArgsContext::Var Var;
+
+  uint32_t archType = ctx.getArchType();
+  uint32_t varCount = ctx.getVarCount();
+
+  for (uint32_t i = 0; i < varCount; i++) {
+    const Var& var = ctx.getVar(i);
+    const FuncValue& dst = var.out;
+    const FuncValue& cur = var.cur;
+
+    sb.appendFormat("Var%u: ", i);
+    dumpFuncValue(sb, archType, dst);
+    sb.appendString(" <- ");
+    dumpFuncValue(sb, archType, cur);
+
+    if (var.isDone())
+      sb.appendString(" {Done}");
+
+    sb.appendChar('\n');
+  }
+}
+
 ASMJIT_FAVOR_SIZE Error X86Internal::emitArgsAssignment(X86Emitter* emitter, const FuncFrame& frame, const FuncArgsAssignment& args) {
   typedef X86FuncArgsContext::Var Var;
   typedef X86FuncArgsContext::WorkData WorkData;
@@ -1359,20 +1488,98 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitArgsAssignment(X86Emitter* emitter, con
   X86FuncArgsContext ctx;
   ASMJIT_PROPAGATE(ctx.initWorkData(frame, args));
 
+  /*
+  {
+    StringBuilder sb;
+    dumpAssignment(sb, ctx);
+    std::printf("%s\n", sb.getData());
+  }
+  */
+
+  uint32_t archType = ctx.getArchType();
   uint32_t varCount = ctx._varCount;
   WorkData* workData = ctx._workData;
 
   // Use AVX if it's enabled.
   bool avxEnabled = frame.isAvxEnabled();
 
-  // Shuffle all registers that are currently assigned as specified by the assignment.
+  uint32_t saVarId = ctx._saVarId;
+  uint32_t saRegId = X86Gp::kIdSp;
+
+  if (frame.hasDynamicAlignment()) {
+    if (frame.hasPreservedFP())
+      saRegId = X86Gp::kIdBp;
+    else
+      saRegId = saVarId < varCount ? ctx._vars[saVarId].cur.getRegId() : frame.getSARegId();
+  }
+
+  // --------------------------------------------------------------------------
+  // Register to stack and stack to stack moves must be first as now we have
+  // the biggest chance of having as many as possible unassigned registers.
+  // --------------------------------------------------------------------------
+
+  if (ctx._stackDstMask) {
+    // Base address of all arguments passed by stack.
+    X86Mem baseArgPtr = x86::ptr(emitter->gpz(saRegId), int32_t(frame.getSAOffset(saRegId)));
+    X86Mem baseStackPtr = x86::ptr(emitter->gpz(X86Gp::kIdSp), int32_t(0));
+
+    for (uint32_t varId = 0; varId < varCount; varId++) {
+      Var& var = ctx._vars[varId];
+      if (!var.out.isStack()) continue;
+
+      ASMJIT_ASSERT(var.cur.isReg() || var.cur.isStack());
+      X86Reg reg;
+
+      if (var.cur.isReg()) {
+        WorkData& wd = workData[X86Reg::groupOf(var.cur.getRegType())];
+        uint32_t rId = var.cur.getRegId();
+
+        reg.setSignatureAndId(X86Reg::signatureOf(var.cur.getRegType()), rId);
+        wd.unassign(varId, rId);
+      }
+      else {
+        // Stack to reg move - tricky since we move stack to stack we can decide which
+        // register to use. In general we follow the rule that IntToInt moves will use
+        // GP regs with possibility to sign or zero extend, and all other moves will
+        // either use GP or VEC regs depending on the size of the move.
+        RegInfo rInfo = x86GetRegForMemToMemMove(archType, var.out.getTypeId(), var.cur.getTypeId());
+        if (ASMJIT_UNLIKELY(!rInfo.isValid()))
+          return DebugUtils::errored(kErrorInvalidState);
+
+        WorkData& wd = workData[rInfo.getGroup()];
+        uint32_t availableRegs = wd.getAvailableRegs();
+        if (ASMJIT_UNLIKELY(!availableRegs))
+          return DebugUtils::errored(kErrorInvalidState);
+
+        uint32_t rId = IntUtils::ctz(availableRegs);
+        reg.setSignatureAndId(rInfo.getSignature(), rId);
+
+        ASMJIT_PROPAGATE(
+          emitArgMove(emitter,
+                      reg,
+                      var.out.getTypeId(),
+                      baseArgPtr.cloneAdjusted(var.cur.getStackOffset()),
+                      var.cur.getTypeId(),
+                      avxEnabled));
+      }
+
+      // Reg to stack move.
+      ASMJIT_PROPAGATE(
+        emitRegMove(emitter, baseStackPtr.cloneAdjusted(var.out.getStackOffset()), reg, var.cur.getTypeId(), avxEnabled));
+
+      var.markDone();
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Shuffle all registers that are currently assigned accordingly to the assignment.
+  // --------------------------------------------------------------------------
+
   uint32_t workFlags = kWorkNone;
   for (;;) {
     for (uint32_t varId = 0; varId < varCount; varId++) {
       Var& var = ctx._vars[varId];
-
-      if (var.cur.isDone() || !var.cur.isReg())
-        continue;
+      if (var.isDone() || !var.cur.isReg()) continue;
 
       uint32_t curType = var.cur.getRegType();
       uint32_t outType = var.out.getRegType();
@@ -1387,7 +1594,7 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitArgsAssignment(X86Emitter* emitter, con
         ASMJIT_ASSERT(!"IMPLEMENTED");
 
         // Requires a conversion between two register groups.
-        if (workData[outGroup].numSwaps) {
+        if (workData[outGroup]._numSwaps) {
           // TODO: Postponed
           workFlags |= kWorkPending;
         }
@@ -1405,41 +1612,41 @@ EmitMove:
               X86Reg::fromTypeAndId(outType, outId), var.out.getTypeId(),
               X86Reg::fromTypeAndId(curType, curId), var.cur.getTypeId(), avxEnabled));
 
-          wd.reassign(outId, curId, varId);
+          wd.reassign(varId, outId, curId);
           var.cur.initReg(outType, outId, var.out.getTypeId());
 
           if (outId == var.out.getRegId())
-            var.cur.addFlags(FuncValue::kIsDone);
+            var.markDone();
           workFlags |= kWorkDidSome | kWorkPending;
         }
         else {
-          uint32_t altId = wd.physToVarId[outId];
+          uint32_t altId = wd._physToVarId[outId];
           Var& altVar = ctx._vars[altId];
 
-          if (!altVar.out.isInitialized() || altVar.out.getRegId() == curId) {
+          if (!altVar.out.isInitialized() || (altVar.out.isReg() && altVar.out.getRegId() == curId)) {
             // Swap operation is possible only between two GP registers.
             if (curGroup == X86Reg::kGroupGp) {
               uint32_t highestType = std::max(var.cur.getRegType(), altVar.cur.getRegType());
-              uint32_t signature = highestType == X86Reg::kRegGpq ? uint32_t(X86RegTraits<X86Reg::kRegGpq>::kSignature)
-                                                                  : uint32_t(X86RegTraits<X86Reg::kRegGpd>::kSignature);
+              uint32_t signature = highestType == X86Reg::kRegGpq ? X86Reg::signatureOfT<X86Reg::kRegGpq>()
+                                                                  : X86Reg::signatureOfT<X86Reg::kRegGpd>();
 
               ASMJIT_PROPAGATE(emitter->emit(X86Inst::kIdXchg, X86Reg(signature, outId), X86Reg(signature, curId)));
-              wd.swap(curId, varId, outId, altId);
+              wd.swap(varId, curId, altId, outId);
               var.cur.setRegId(outId);
-              var.cur.addFlags(FuncValue::kIsDone);
+              var.markDone();
               altVar.cur.setRegId(curId);
 
               if (altVar.out.isInitialized())
-                altVar.cur.addFlags(FuncValue::kIsDone);
+                altVar.markDone();
               workFlags |= kWorkDidSome;
             }
             else {
               // If there is a scratch register it can be used to perform the swap.
-              uint32_t availableRegs = (~wd.liveRegs & wd.workRegs);
+              uint32_t availableRegs = wd.getAvailableRegs();
               if (availableRegs) {
-                uint32_t inOutRegs = wd.dstRegs;
-                if (availableRegs & inOutRegs)
-                  availableRegs &= inOutRegs;
+                uint32_t inOutRegs = wd.getDstRegs();
+                if (availableRegs & ~inOutRegs)
+                  availableRegs &= ~inOutRegs;
                 outId = IntUtils::ctz(availableRegs);
                 goto EmitMove;
               }
@@ -1458,34 +1665,34 @@ EmitMove:
     if (!(workFlags & kWorkPending))
       break;
 
+    // If we did nothing twice it means that something is really broken.
     if ((workFlags & (kWorkDidSome | kWorkPostponed)) == kWorkPostponed)
       return DebugUtils::errored(kErrorInvalidState);
 
     workFlags = (workFlags & kWorkDidSome) ? kWorkNone : kWorkPostponed;
   }
 
+  // --------------------------------------------------------------------------
   // Load arguments passed by stack into registers. This is pretty simple and
   // it never requires multiple iterations like the previous phase.
-  if (ctx._hasStackArgs) {
+  // --------------------------------------------------------------------------
+
+  if (ctx._hasStackSrc) {
     uint32_t iterCount = 1;
-
-    uint32_t saVarId = ctx._saVarId;
-    uint32_t saRegId = X86Gp::kIdSp;
-
-    if (frame.hasDynamicAlignment()) {
-      if (frame.hasPreservedFP())
-        saRegId = X86Gp::kIdBp;
-      else
-        saRegId = saVarId < varCount ? ctx._vars[saVarId].cur.getRegId() : frame.getSARegId();
-    }
+    if (frame.hasDynamicAlignment() && !frame.hasPreservedFP())
+      saRegId = saVarId < varCount ? ctx._vars[saVarId].cur.getRegId() : frame.getSARegId();
 
     // Base address of all arguments passed by stack.
-    X86Mem saMem = x86::ptr(emitter->gpz(saRegId), int32_t(frame.getSAOffset(saRegId)));
+    X86Mem baseArgPtr = x86::ptr(emitter->gpz(saRegId), int32_t(frame.getSAOffset(saRegId)));
 
     for (uint32_t iter = 0; iter < iterCount; iter++) {
       for (uint32_t varId = 0; varId < varCount; varId++) {
         Var& var = ctx._vars[varId];
-        if (var.cur.isStack() && !var.cur.isDone()) {
+        if (var.isDone()) continue;
+
+        if (var.cur.isStack()) {
+          ASMJIT_ASSERT(var.out.isReg());
+
           uint32_t outId = var.out.getRegId();
           uint32_t outType = var.out.getRegType();
 
@@ -1493,23 +1700,24 @@ EmitMove:
           WorkData& wd = ctx._workData[group];
 
           if (outId == saRegId && group == Reg::kGroupGp) {
+            // This register will be processed last as we still need `saRegId`.
             if (iterCount == 1) {
               iterCount++;
               continue;
             }
-            wd.unassign(outId);
+            wd.unassign(wd._physToVarId[outId], outId);
           }
 
           X86Reg dstReg = X86Reg::fromTypeAndId(outType, outId);
-          X86Mem srcMem = saMem.cloneAdjusted(var.cur.getStackOffset());
+          X86Mem srcMem = baseArgPtr.cloneAdjusted(var.cur.getStackOffset());
 
           ASMJIT_PROPAGATE(
             emitArgMove(emitter,
               dstReg, var.out.getTypeId(),
               srcMem, var.cur.getTypeId(), avxEnabled));
 
-          wd.assign(outId, varId);
-          var.cur.initReg(outType, outId, var.cur.getTypeId(), FuncValue::kIsDone);
+          wd.assign(varId, outId);
+          var.cur.initReg(outType, outId, var.cur.getTypeId(), FuncValue::kFlagIsDone);
         }
       }
     }

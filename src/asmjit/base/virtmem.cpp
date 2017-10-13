@@ -66,7 +66,7 @@ namespace asmjit {
 
 // Windows specific implementation using `VirtualAlloc` and `VirtualFree`.
 #if ASMJIT_OS_WINDOWS
-VirtMemInfo VirtMem::getInfo() noexcept {
+VirtMem::Info VirtMem::getInfo() noexcept {
   VirtMem::Info vmInfo;
   SYSTEM_INFO systemInfo;
 
@@ -81,7 +81,7 @@ void* VirtMem::alloc(size_t size, uint32_t flags) noexcept {
   if (size == 0)
     return nullptr;
 
-  // Windows XP-SP2, Windows Vista+ and newer allow data-execution-prevention (DEP).
+  // Windows XP-SP2, Vista and newer support data-execution-prevention (DEP).
   DWORD protectFlags = 0;
   if (flags & kAccessExecute)
     protectFlags |= (flags & kAccessWrite) ? PAGE_EXECUTE_READWRITE : PAGE_EXECUTE_READ;
@@ -137,6 +137,16 @@ Error VirtMem::release(void* p, size_t size) noexcept {
 #endif
 
 // ============================================================================
+// [asmjit::VirtMemManager::TypeDefs]
+// ============================================================================
+
+using Globals::BitWord;
+using Globals::kBitWordSize;
+
+typedef VirtMemManager::RBNode RBNode;
+typedef VirtMemManager::MemNode MemNode;
+
+// ============================================================================
 // [asmjit::VirtMemManager - BitOps]
 // ============================================================================
 
@@ -144,45 +154,28 @@ Error VirtMem::release(void* p, size_t size) noexcept {
 #define M_MOD(x, y) ((x) % (y))
 
 //! \internal
-enum { kBitsPerEntity = (sizeof(size_t) * 8) };
-
-//! \internal
 //!
 //! Set `len` bits in `buf` starting at `index` bit index.
-static void _SetBits(size_t* buf, size_t index, size_t len) noexcept {
+static void VirtMemManager_setBits(BitWord* buf, size_t index, size_t len) noexcept {
   if (len == 0)
     return;
 
-  size_t i = index / kBitsPerEntity; // size_t[]
-  size_t j = index % kBitsPerEntity; // size_t[][] bit index
+  size_t i = index / kBitWordSize;                      // BitWord[]
+  size_t j = index % kBitWordSize;                      // BitWord[][] bit index
+  size_t n = std::min<size_t>(kBitWordSize - j, len);   // How many bytes process in the first group.
 
-  // How many bytes process in the first group.
-  size_t c = kBitsPerEntity - j;
-  if (c > len)
-    c = len;
-
-  // Offset.
   buf += i;
+  *buf++ |= (~BitWord(0) >> (kBitWordSize - n)) << j;
+  len -= n;
 
-  *buf++ |= ((~(size_t)0) >> (kBitsPerEntity - c)) << j;
-  len -= c;
-
-  while (len >= kBitsPerEntity) {
-    *buf++ = ~(size_t)0;
-    len -= kBitsPerEntity;
+  while (len >= kBitWordSize) {
+    *buf++ = ~BitWord(0);
+    len -= kBitWordSize;
   }
 
   if (len)
-    *buf |= ((~(size_t)0) >> (kBitsPerEntity - len));
+    *buf |= ~BitWord(0) >> (kBitWordSize - len);
 }
-
-// ============================================================================
-// [asmjit::VirtMemManager::TypeDefs]
-// ============================================================================
-
-typedef VirtMemManager::RBNode RBNode;
-typedef VirtMemManager::MemNode MemNode;
-typedef VirtMemManager::PermanentNode PermanentNode;
 
 // ============================================================================
 // [asmjit::VirtMemManager::RBNode]
@@ -284,25 +277,8 @@ struct VirtMemManager::MemNode : public RBNode {
   size_t density;        // Minimum count of allocated bytes in this node (also alignment).
   size_t largestBlock;   // Contains largest block that can be allocated.
 
-  size_t* baUsed;        // Contains bits about used blocks       (0 = unused, 1 = used).
-  size_t* baCont;        // Contains bits about continuous blocks (0 = stop  , 1 = continue).
-};
-
-// ============================================================================
-// [asmjit::VirtMemManager::PermanentNode]
-// ============================================================================
-
-//! \internal
-//!
-//! Permanent node.
-struct VirtMemManager::PermanentNode {
-  //! Get available space.
-  ASMJIT_INLINE size_t getAvailable() const noexcept { return size - used; }
-
-  PermanentNode* prev;   // Pointer to prev chunk or nullptr.
-  uint8_t* mem;          // Base pointer (virtual memory address).
-  size_t size;           // Count of bytes allocated.
-  size_t used;           // Count of bytes used.
+  BitWord* baUsed;       // Contains bits about used blocks       (0 = unused, 1 = used).
+  BitWord* baCont;       // Contains bits about continuous blocks (0 = stop  , 1 = continue).
 };
 
 // ============================================================================
@@ -312,7 +288,7 @@ struct VirtMemManager::PermanentNode {
 //! \internal
 //!
 //! Check whether the Red-Black tree is valid.
-static bool vMemMgrCheckTree(VirtMemManager* self) noexcept {
+static bool VirtMemManager_checkTree(VirtMemManager* self) noexcept {
   return rbAssert(self->_root) > 0;
 }
 
@@ -321,13 +297,15 @@ static bool vMemMgrCheckTree(VirtMemManager* self) noexcept {
 //! Alloc virtual memory including a heap memory needed for `MemNode` data.
 //!
 //! Returns set-up `MemNode*` or nullptr if allocation failed.
-static MemNode* vMemMgrCreateNode(VirtMemManager* self, size_t size, size_t density) noexcept {
+static MemNode* VirtMemManager_newNode(VirtMemManager* self, size_t size, size_t density) noexcept {
+  ASMJIT_UNUSED(self);
+
   uint8_t* vmem = static_cast<uint8_t*>(VirtMem::alloc(size, VirtMem::kAccessWrite | VirtMem::kAccessExecute));
-  if (!vmem)
+  if (ASMJIT_UNLIKELY(!vmem))
     return nullptr;
 
   size_t blocks = size / density;
-  size_t bsize = (((blocks + 7) >> 3) + sizeof(size_t) - 1) & ~(size_t)(sizeof(size_t) - 1);
+  size_t bsize = (((blocks + 7) >> 3) + sizeof(size_t) - 1) & ~size_t(sizeof(size_t) - 1);
 
   MemNode* node = static_cast<MemNode*>(AsmJitInternal::allocMemory(sizeof(MemNode)));
   uint8_t* data = static_cast<uint8_t*>(AsmJitInternal::allocMemory(bsize * 2));
@@ -356,14 +334,14 @@ static MemNode* vMemMgrCreateNode(VirtMemManager* self, size_t size, size_t dens
   node->density = density;
   node->largestBlock = size;
 
-  ::memset(data, 0, bsize * 2);
-  node->baUsed = reinterpret_cast<size_t*>(data);
-  node->baCont = reinterpret_cast<size_t*>(data + bsize);
+  std::memset(data, 0, bsize * 2);
+  node->baUsed = reinterpret_cast<BitWord*>(data);
+  node->baCont = reinterpret_cast<BitWord*>(data + bsize);
 
   return node;
 }
 
-static void vMemMgrInsertNode(VirtMemManager* self, MemNode* node) noexcept {
+static void VirtMemManager_insertNode(VirtMemManager* self, MemNode* node) noexcept {
   if (!self->_root) {
     // Empty tree case.
     self->_root = node;
@@ -446,7 +424,7 @@ static void vMemMgrInsertNode(VirtMemManager* self, MemNode* node) noexcept {
 //!
 //! Returns node that should be freed, but it doesn't have to be necessarily
 //! the `node` passed.
-static MemNode* vMemMgrRemoveNode(VirtMemManager* self, MemNode* node) noexcept {
+static MemNode* VirtMemManager_removeNode(VirtMemManager* self, MemNode* node) noexcept {
   // False tree root.
   RBNode head = { { nullptr, nullptr }, 0, 0 };
 
@@ -545,7 +523,7 @@ static MemNode* vMemMgrRemoveNode(VirtMemManager* self, MemNode* node) noexcept 
   return static_cast<MemNode*>(q);
 }
 
-static MemNode* vMemMgrFindNodeByPtr(VirtMemManager* self, uint8_t* mem) noexcept {
+static MemNode* VirtMemManager_getNodeByPtr(VirtMemManager* self, uint8_t* mem) noexcept {
   MemNode* node = self->_root;
   while (node) {
     uint8_t* nodeMem = node->mem;
@@ -569,51 +547,61 @@ static MemNode* vMemMgrFindNodeByPtr(VirtMemManager* self, uint8_t* mem) noexcep
   return node;
 }
 
-static void* vMemMgrAllocPermanent(VirtMemManager* self, size_t size) noexcept {
-  static const size_t permanentAlignment = 32;
-  static const size_t permanentNodeSize  = 32768;
+// ============================================================================
+// [asmjit::VirtMemManager - Construction / Destruction]
+// ============================================================================
 
-  size = IntUtils::alignUp<size_t>(size, permanentAlignment);
+VirtMemManager::VirtMemManager() noexcept {
+  VirtMem::Info vmInfo = VirtMem::getInfo();
 
-  AutoLock locked(self->_lock);
-  PermanentNode* node = self->_permanent;
+  _pageSize = vmInfo.pageSize;
+  _blockSize = vmInfo.pageGranularity;
+  _blockDensity = 64;
 
-  // Try to find space in allocated chunks.
-  while (node && size > node->getAvailable())
-    node = node->prev;
+  _usedBytes = 0;
+  _allocatedBytes = 0;
 
-  // Or allocate new node.
-  if (!node) {
-    size_t nodeSize = permanentNodeSize;
-    if (nodeSize < size) nodeSize = size;
-
-    node = static_cast<PermanentNode*>(AsmJitInternal::allocMemory(sizeof(PermanentNode)));
-    if (!node) return nullptr;
-
-    node->mem = static_cast<uint8_t*>(VirtMem::alloc(nodeSize, VirtMem::kAccessWrite | VirtMem::kAccessExecute));
-    if (!node->mem) {
-      AsmJitInternal::releaseMemory(node);
-      return nullptr;
-    }
-
-    node->size = nodeSize;
-    node->used = 0;
-    node->prev = self->_permanent;
-    self->_permanent = node;
-  }
-
-  // Finally, copy function code to our space we reserved for.
-  uint8_t* result = node->mem + node->used;
-
-  // Update Statistics.
-  node->used += size;
-  self->_usedBytes += size;
-
-  // Code can be null to only reserve space for code.
-  return static_cast<void*>(result);
+  _root = nullptr;
+  _first = nullptr;
+  _last = nullptr;
+  _optimal = nullptr;
 }
 
-static void* vMemMgrAllocFreeable(VirtMemManager* self, size_t size) noexcept {
+VirtMemManager::~VirtMemManager() noexcept {
+  reset();
+}
+
+// ============================================================================
+// [asmjit::VirtMemManager - Reset]
+// ============================================================================
+
+void VirtMemManager::reset() noexcept {
+  MemNode* node = _first;
+
+  while (node) {
+    MemNode* next = node->next;
+
+    VirtMem::release(node->mem, node->size);
+    AsmJitInternal::releaseMemory(node->baUsed);
+    AsmJitInternal::releaseMemory(node);
+
+    node = next;
+  }
+
+  _allocatedBytes = 0;
+  _usedBytes = 0;
+
+  _root = nullptr;
+  _first = nullptr;
+  _last = nullptr;
+  _optimal = nullptr;
+}
+
+// ============================================================================
+// [asmjit::VirtMemManager - Alloc / Release]
+// ============================================================================
+
+void* VirtMemManager::alloc(size_t size) noexcept {
   // Current index.
   size_t i;
 
@@ -626,9 +614,9 @@ static void* vMemMgrAllocFreeable(VirtMemManager* self, size_t size) noexcept {
   if (size == 0)
     return nullptr;
 
-  AutoLock locked(self->_lock);
-  MemNode* node = self->_optimal;
-  minVSize = self->_blockSize;
+  AutoLock locked(_lock);
+  MemNode* node = _optimal;
+  minVSize = _blockSize;
 
   // Try to find memory block in existing nodes.
   while (node) {
@@ -636,16 +624,17 @@ static void* vMemMgrAllocFreeable(VirtMemManager* self, size_t size) noexcept {
     if ((node->getAvailable() < size) || (node->largestBlock < size && node->largestBlock != 0)) {
       MemNode* next = node->next;
 
-      if (node->getAvailable() < minVSize && node == self->_optimal && next)
-        self->_optimal = next;
+      if (node->getAvailable() < minVSize && node == _optimal && next)
+        _optimal = next;
 
       node = next;
       continue;
     }
 
-    size_t* up = node->baUsed;     // Current ubits address.
-    size_t ubits;                  // Current ubits[0] value.
-    size_t bit;                    // Current bit mask.
+    BitWord* up = node->baUsed;    // Current ubits address.
+    BitWord ubits;                 // Current ubits[0] value.
+    BitWord bit;                   // Current bit mask.
+
     size_t blocks = node->blocks;  // Count of blocks in node.
     size_t cont = 0;               // How many bits are currently freed in find loop.
     size_t maxCont = 0;            // Largest continuous block (bits count).
@@ -659,16 +648,16 @@ static void* vMemMgrAllocFreeable(VirtMemManager* self, size_t size) noexcept {
       ubits = *up++;
 
       // Fast skip used blocks.
-      if (ubits == ~(size_t)0) {
+      if (ubits == ~BitWord(0)) {
         if (cont > maxCont)
           maxCont = cont;
         cont = 0;
 
-        i += kBitsPerEntity;
+        i += kBitWordSize;
         continue;
       }
 
-      size_t max = kBitsPerEntity;
+      size_t max = kBitWordSize;
       if (i + max > blocks)
         max = blocks - i;
 
@@ -688,7 +677,7 @@ static void* vMemMgrAllocFreeable(VirtMemManager* self, size_t size) noexcept {
         cont = 0;
       }
 
-      i += kBitsPerEntity;
+      i += kBitWordSize;
     }
 
     // Because we traversed the entire node, we can set largest node size that
@@ -701,35 +690,35 @@ static void* vMemMgrAllocFreeable(VirtMemManager* self, size_t size) noexcept {
   // If we are here, we failed to find existing memory block and we must
   // allocate a new one.
   {
-    size_t blockSize = self->_blockSize;
-    if (blockSize < size) blockSize = size;
+    size_t newBlockSize = _blockSize;
+    if (newBlockSize < size) newBlockSize = size;
 
-    node = vMemMgrCreateNode(self, blockSize, self->_blockDensity);
+    node = VirtMemManager_newNode(this, newBlockSize, this->_blockDensity);
     if (!node) return nullptr;
 
     // Update binary tree.
-    vMemMgrInsertNode(self, node);
-    ASMJIT_ASSERT(vMemMgrCheckTree(self));
+    VirtMemManager_insertNode(this, node);
+    ASMJIT_ASSERT(VirtMemManager_checkTree(this));
 
     // Alloc first node at start.
     i = 0;
     need = (size + node->density - 1) / node->density;
 
     // Update statistics.
-    self->_allocatedBytes += node->size;
+    _allocatedBytes += node->size;
   }
 
 L_Found:
   // Update bits.
-  _SetBits(node->baUsed, i, need);
-  _SetBits(node->baCont, i, need - 1);
+  VirtMemManager_setBits(node->baUsed, i, need);
+  VirtMemManager_setBits(node->baCont, i, need - 1);
 
   // Update statistics.
   {
     size_t u = need * node->density;
     node->used += u;
     node->largestBlock = 0;
-    self->_usedBytes += u;
+    _usedBytes += u;
   }
 
   // And return pointer to allocated memory.
@@ -738,106 +727,23 @@ L_Found:
   return result;
 }
 
-//! \internal
-//!
-//! Reset the whole `VirtMemManager` instance, freeing all heap memory allocated an
-//! virtual memory allocated unless `keepVirtualMemory` is true (and this is
-//! only used when writing data to a remote process).
-static void vMemMgrReset(VirtMemManager* self, bool keepVirtualMemory) noexcept {
-  MemNode* node = self->_first;
-
-  while (node) {
-    MemNode* next = node->next;
-
-    if (!keepVirtualMemory)
-      VirtMem::release(node->mem, node->size);
-
-    AsmJitInternal::releaseMemory(node->baUsed);
-    AsmJitInternal::releaseMemory(node);
-
-    node = next;
-  }
-
-  self->_allocatedBytes = 0;
-  self->_usedBytes = 0;
-
-  self->_root = nullptr;
-  self->_first = nullptr;
-  self->_last = nullptr;
-  self->_optimal = nullptr;
-}
-
-// ============================================================================
-// [asmjit::VirtMemManager - Construction / Destruction]
-// ============================================================================
-
-VirtMemManager::VirtMemManager() noexcept {
-  VirtMem::Info vmInfo = VirtMem::getInfo();
-
-  _pageSize = vmInfo.pageSize;
-  _blockSize = vmInfo.pageGranularity;
-  _blockDensity = 64;
-  _keepVirtualMemory = false;
-
-  _usedBytes = 0;
-  _allocatedBytes = 0;
-
-  _root = nullptr;
-  _first = nullptr;
-  _last = nullptr;
-  _optimal = nullptr;
-  _permanent = nullptr;
-}
-
-VirtMemManager::~VirtMemManager() noexcept {
-  // Freeable memory cleanup - Also frees the virtual memory if configured to.
-  vMemMgrReset(this, _keepVirtualMemory);
-
-  // Permanent memory cleanup - Never frees the virtual memory.
-  PermanentNode* node = _permanent;
-  while (node) {
-    PermanentNode* prev = node->prev;
-    AsmJitInternal::releaseMemory(node);
-    node = prev;
-  }
-}
-
-// ============================================================================
-// [asmjit::VirtMemManager - Reset]
-// ============================================================================
-
-void VirtMemManager::reset() noexcept {
-  vMemMgrReset(this, false);
-}
-
-// ============================================================================
-// [asmjit::VirtMemManager - Alloc / Release]
-// ============================================================================
-
-void* VirtMemManager::alloc(size_t size, uint32_t type) noexcept {
-  if (type == VirtMem::kAllocPermanent)
-    return vMemMgrAllocPermanent(this, size);
-  else
-    return vMemMgrAllocFreeable(this, size);
-}
-
 Error VirtMemManager::release(void* p) noexcept {
   if (!p)
     return kErrorOk;
 
   AutoLock locked(_lock);
-  MemNode* node = vMemMgrFindNodeByPtr(this, static_cast<uint8_t*>(p));
+  MemNode* node = VirtMemManager_getNodeByPtr(this, static_cast<uint8_t*>(p));
   if (!node) return DebugUtils::errored(kErrorInvalidArgument);
 
   size_t offset = (size_t)((uint8_t*)p - (uint8_t*)node->mem);
   size_t bitpos = M_DIV(offset, node->density);
-  size_t i = (bitpos / kBitsPerEntity);
+  size_t i = (bitpos / kBitWordSize);
 
-  size_t* up = node->baUsed + i;  // Current ubits address.
-  size_t* cp = node->baCont + i;  // Current cbits address.
-  size_t ubits = *up;             // Current ubits[0] value.
-  size_t cbits = *cp;             // Current cbits[0] value.
-  size_t bit = (size_t)1 << (bitpos % kBitsPerEntity);
+  BitWord* up = node->baUsed + i;  // Current ubits address.
+  BitWord* cp = node->baCont + i;  // Current cbits address.
+  BitWord ubits = *up;             // Current ubits[0] value.
+  BitWord cbits = *cp;             // Current cbits[0] value.
+  BitWord bit = BitWord(1) << (bitpos % kBitWordSize);
 
   size_t cont = 0;
   bool stop;
@@ -899,8 +805,8 @@ Error VirtMemManager::release(void* p) noexcept {
 
     // Remove node. This function can return different node than
     // passed into, but data is copied into previous node if needed.
-    AsmJitInternal::releaseMemory(vMemMgrRemoveNode(this, node));
-    ASMJIT_ASSERT(vMemMgrCheckTree(this));
+    AsmJitInternal::releaseMemory(VirtMemManager_removeNode(this, node));
+    ASMJIT_ASSERT(VirtMemManager_checkTree(this));
   }
 
   return kErrorOk;
@@ -912,18 +818,18 @@ Error VirtMemManager::shrink(void* p, size_t used) noexcept {
     return release(p);
 
   AutoLock locked(_lock);
-  MemNode* node = vMemMgrFindNodeByPtr(this, (uint8_t*)p);
+  MemNode* node = VirtMemManager_getNodeByPtr(this, (uint8_t*)p);
   if (!node) return DebugUtils::errored(kErrorInvalidArgument);
 
   size_t offset = (size_t)((uint8_t*)p - (uint8_t*)node->mem);
   size_t bitpos = M_DIV(offset, node->density);
-  size_t i = (bitpos / kBitsPerEntity);
+  size_t i = (bitpos / kBitWordSize);
 
-  size_t* up = node->baUsed + i;  // Current ubits address.
-  size_t* cp = node->baCont + i;  // Current cbits address.
-  size_t ubits = *up;             // Current ubits[0] value.
-  size_t cbits = *cp;             // Current cbits[0] value.
-  size_t bit = (size_t)1 << (bitpos % kBitsPerEntity);
+  BitWord* up = node->baUsed + i;  // Current ubits address.
+  BitWord* cp = node->baCont + i;  // Current cbits address.
+  BitWord ubits = *up;             // Current ubits[0] value.
+  BitWord cbits = *cp;             // Current cbits[0] value.
+  BitWord bit = BitWord(1) << (bitpos % kBitWordSize);
 
   size_t cont = 0;
   size_t usedBlocks = (used + node->density - 1) / node->density;
@@ -948,7 +854,7 @@ Error VirtMemManager::shrink(void* p, size_t used) noexcept {
   }
 
   // Free the tail blocks.
-  cont = ~(size_t)0;
+  cont = ~BitWord(0);
   stop = (cbits & bit) == 0;
   ubits &= ~bit;
 
@@ -988,30 +894,30 @@ Error VirtMemManager::shrink(void* p, size_t used) noexcept {
 // ============================================================================
 
 #if defined(ASMJIT_TEST)
-static void VMemTest_fill(void* a, void* b, int i) noexcept {
+static void VirtMemTest_fill(void* a, void* b, int i) noexcept {
   int pattern = rand() % 256;
   *(int *)a = i;
   *(int *)b = i;
-  ::memset((char*)a + sizeof(int), pattern, unsigned(i) - sizeof(int));
-  ::memset((char*)b + sizeof(int), pattern, unsigned(i) - sizeof(int));
+  std::memset((char*)a + sizeof(int), pattern, unsigned(i) - sizeof(int));
+  std::memset((char*)b + sizeof(int), pattern, unsigned(i) - sizeof(int));
 }
 
-static void VMemTest_verify(void* a, void* b) noexcept {
+static void VirtMemTest_verify(void* a, void* b) noexcept {
   int ai = *(int*)a;
   int bi = *(int*)b;
 
   EXPECT(ai == bi, "The length of 'a' (%d) and 'b' (%d) should be same", ai, bi);
-  EXPECT(::memcmp(a, b, size_t(ai)) == 0, "Pattern (%p) doesn't match", a);
+  EXPECT(std::memcmp(a, b, size_t(ai)) == 0, "Pattern (%p) doesn't match", a);
 }
 
-static void VMemTest_stats(VirtMemManager& memmgr) noexcept {
+static void VirtMemTest_stats(VirtMemManager& memmgr) noexcept {
   INFO("Used     : %llu", uint64_t(memmgr.getUsedBytes()));
   INFO("Allocated: %llu", uint64_t(memmgr.getAllocatedBytes()));
 }
 
-static void VMemTest_shuffle(void** a, void** b, size_t count) noexcept {
+static void VirtMemTest_shuffle(void** a, void** b, size_t count) noexcept {
   for (size_t i = 0; i < count; ++i) {
-    size_t si = (size_t)rand() % count;
+    size_t si = size_t(unsigned(rand()) % count);
 
     void* ta = a[i];
     void* tb = b[i];
@@ -1041,23 +947,23 @@ UNIT(base_virtmem) {
 
   INFO("Allocating virtual memory...");
   for (i = 0; i < kCount; i++) {
-    size_t r = unsigned(rand() % 1000) + 4;
+    size_t r = (unsigned(rand()) % 1000) + 4;
 
     a[i] = memmgr.alloc(r);
     EXPECT(a[i] != nullptr, "Couldn't allocate %d bytes of virtual memory", r);
-    ::memset(a[i], 0, r);
+    std::memset(a[i], 0, r);
   }
-  VMemTest_stats(memmgr);
+  VirtMemTest_stats(memmgr);
 
   INFO("Freeing virtual memory...");
   for (i = 0; i < kCount; i++) {
     EXPECT(memmgr.release(a[i]) == kErrorOk, "Failed to free %p", b[i]);
   }
-  VMemTest_stats(memmgr);
+  VirtMemTest_stats(memmgr);
 
   INFO("Verified alloc/free test - %d allocations", kCount);
   for (i = 0; i < kCount; i++) {
-    size_t r = unsigned(rand() % 1000) + 4;
+    size_t r = (unsigned(rand()) % 1000) + 4;
 
     a[i] = memmgr.alloc(r);
     EXPECT(a[i] != nullptr, "Couldn't allocate %d bytes of virtual memory", r);
@@ -1065,24 +971,24 @@ UNIT(base_virtmem) {
     b[i] = AsmJitInternal::allocMemory(r);
     EXPECT(b[i] != nullptr, "Couldn't allocate %d bytes on heap", r);
 
-    VMemTest_fill(a[i], b[i], int(r));
+    VirtMemTest_fill(a[i], b[i], int(r));
   }
-  VMemTest_stats(memmgr);
+  VirtMemTest_stats(memmgr);
 
   INFO("Shuffling...");
-  VMemTest_shuffle(a, b, unsigned(kCount));
+  VirtMemTest_shuffle(a, b, unsigned(kCount));
 
   INFO("Verify and free...");
   for (i = 0; i < kCount / 2; i++) {
-    VMemTest_verify(a[i], b[i]);
+    VirtMemTest_verify(a[i], b[i]);
     EXPECT(memmgr.release(a[i]) == kErrorOk, "Failed to free %p", a[i]);
     AsmJitInternal::releaseMemory(b[i]);
   }
-  VMemTest_stats(memmgr);
+  VirtMemTest_stats(memmgr);
 
   INFO("Alloc again");
   for (i = 0; i < kCount / 2; i++) {
-    size_t r = unsigned(rand() % 1000) + 4;
+    size_t r = (unsigned(rand()) % 1000) + 4;
 
     a[i] = memmgr.alloc(r);
     EXPECT(a[i] != nullptr, "Couldn't allocate %d bytes of virtual memory", r);
@@ -1090,17 +996,17 @@ UNIT(base_virtmem) {
     b[i] = AsmJitInternal::allocMemory(r);
     EXPECT(b[i] != nullptr, "Couldn't allocate %d bytes on heap");
 
-    VMemTest_fill(a[i], b[i], int(r));
+    VirtMemTest_fill(a[i], b[i], int(r));
   }
-  VMemTest_stats(memmgr);
+  VirtMemTest_stats(memmgr);
 
   INFO("Verify and free...");
   for (i = 0; i < kCount; i++) {
-    VMemTest_verify(a[i], b[i]);
+    VirtMemTest_verify(a[i], b[i]);
     EXPECT(memmgr.release(a[i]) == kErrorOk, "Failed to free %p", a[i]);
     AsmJitInternal::releaseMemory(b[i]);
   }
-  VMemTest_stats(memmgr);
+  VirtMemTest_stats(memmgr);
 
   AsmJitInternal::releaseMemory(a);
   AsmJitInternal::releaseMemory(b);

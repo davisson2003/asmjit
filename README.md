@@ -91,7 +91,6 @@ Breaking the official API is sometimes inevitable, what to do?
 
 TODOs:
   * [ ] AsmJit added support for code sections, but only the first section (executable code) works atm.
-  * [ ] AsmJit next-wip branch implements a brand-new register allocator (and contains reworked CodeBuilder and CodeCompiler), but it's not complete yet.
 
 Supported Environments
 ----------------------

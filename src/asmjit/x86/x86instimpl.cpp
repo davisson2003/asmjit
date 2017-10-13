@@ -47,7 +47,7 @@ struct X86OpTypeFromRegTypeT {
 
 template<uint32_t RegType>
 struct X86RegMaskFromRegTypeT {
-  enum {
+  enum : uint32_t {
     kMask = (RegType == X86Reg::kRegGpbLo) ? 0x0000000FU :
             (RegType == X86Reg::kRegGpbHi) ? 0x0000000FU :
             (RegType == X86Reg::kRegGpw  ) ? 0x000000FFU :
@@ -69,7 +69,7 @@ struct X86RegMaskFromRegTypeT {
 
 template<uint32_t RegType>
 struct X64RegMaskFromRegTypeT {
-  enum {
+  enum : uint32_t {
     kMask = (RegType == X86Reg::kRegGpbLo) ? 0x0000FFFFU :
             (RegType == X86Reg::kRegGpbHi) ? 0x0000000FU :
             (RegType == X86Reg::kRegGpw  ) ? 0x0000FFFFU :
@@ -222,14 +222,15 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::validate(uint32_t archType, const Inst::Det
   // [Translate Each Operand to OSignature]
   // --------------------------------------------------------------------------
 
-  X86Inst::OSignature oSigTranslated[6];
+  X86Inst::OSignature oSigTranslated[Globals::kMaxOpCount];
   uint32_t combinedOpFlags = 0;
   uint32_t combinedRegMask = 0;
   const X86Mem* memOp = nullptr;
 
   for (i = 0; i < count; i++) {
     const Operand_& op = operands[i];
-    if (op.getOp() == Operand::kOpNone) break;
+    if (op.getOp() == Operand::kOpNone)
+      break;
 
     uint32_t opFlags = 0;
     uint32_t memFlags = 0;

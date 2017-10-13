@@ -2789,7 +2789,7 @@ uint32_t X86Inst::getIdByName(const char* name, size_t len) noexcept {
     return Inst::kIdNone;
 
   if (len == Globals::kNullTerminated)
-    len = ::strlen(name);
+    len = std::strlen(name);
 
   if (ASMJIT_UNLIKELY(len == 0 || len > kX86InstMaxLength))
     return Inst::kIdNone;

@@ -23,8 +23,7 @@ namespace asmjit {
 
 Runtime::Runtime() noexcept
   : _codeInfo(),
-    _runtimeType(kRuntimeNone),
-    _allocType(VirtMem::kAllocFreeable) {}
+    _runtimeType(kRuntimeNone) {}
 Runtime::~Runtime() noexcept {}
 
 // ============================================================================
@@ -100,7 +99,7 @@ Error JitRuntime::_add(void** dst, CodeHolder* code) noexcept {
     return DebugUtils::errored(kErrorNoCodeGenerated);
   }
 
-  void* p = _virtMemMgr.alloc(codeSize, getAllocType());
+  void* p = _virtMemMgr.alloc(codeSize);
   if (ASMJIT_UNLIKELY(!p)) {
     *dst = nullptr;
     return DebugUtils::errored(kErrorNoVirtualMemory);

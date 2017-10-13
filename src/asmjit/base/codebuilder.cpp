@@ -81,7 +81,7 @@ CBData* CodeBuilder::newDataNode(const void* data, uint32_t size) noexcept {
       return nullptr;
 
     if (data)
-      ::memcpy(cloned, data, size);
+      std::memcpy(cloned, data, size);
     data = cloned;
   }
 
@@ -98,7 +98,7 @@ CBConstPool* CodeBuilder::newConstPoolNode() noexcept {
 CBComment* CodeBuilder::newCommentNode(const char* s, size_t len) noexcept {
   if (s) {
     if (len == Globals::kNullTerminated)
-      len = ::strlen(s);
+      len = std::strlen(s);
 
     if (len > 0) {
       s = static_cast<char*>(_dataZone.dup(s, len, true));
@@ -428,7 +428,7 @@ Error CodeBuilder::bind(const Label& label) {
 ASMJIT_FAVOR_SIZE CBPass* CodeBuilder::getPassByName(const char* name) const noexcept {
   for (uint32_t i = 0, len = _passes.getLength(); i < len; i++) {
     CBPass* pass = _passes[i];
-    if (::strcmp(pass->getName(), name) == 0)
+    if (std::strcmp(pass->getName(), name) == 0)
       return pass;
   }
   return nullptr;
@@ -585,7 +585,7 @@ Error CodeBuilder::_emit(uint32_t instId, const Operand_& o0, const Operand_& o1
 
   const char* inlineComment = getInlineComment();
   if (inlineComment)
-    node->setInlineComment(static_cast<char*>(_dataZone.dup(inlineComment, ::strlen(inlineComment), true)));
+    node->setInlineComment(static_cast<char*>(_dataZone.dup(inlineComment, std::strlen(inlineComment), true)));
 
   resetInstOptions();
   resetExtraReg();
@@ -596,7 +596,7 @@ Error CodeBuilder::_emit(uint32_t instId, const Operand_& o0, const Operand_& o1
 }
 
 Error CodeBuilder::_emit(uint32_t instId, const Operand_& o0, const Operand_& o1, const Operand_& o2, const Operand_& o3, const Operand_& o4, const Operand_& o5) {
-  uint32_t opCount = 6;
+  uint32_t opCount = Globals::kMaxOpCount;
   if (o5.isNone()) {
     opCount = 5;
     if (o4.isNone())
@@ -611,7 +611,7 @@ Error CodeBuilder::_emit(uint32_t instId, const Operand_& o0, const Operand_& o1
     // Strict validation.
 #if !defined(ASMJIT_DISABLE_INST_API)
     if (hasEmitterOption(kOptionStrictValidation)) {
-      Operand_ opArray[6];
+      Operand_ opArray[Globals::kMaxOpCount];
       opArray[0].copyFrom(o0);
       opArray[1].copyFrom(o1);
       opArray[2].copyFrom(o2);
@@ -657,7 +657,7 @@ Error CodeBuilder::_emit(uint32_t instId, const Operand_& o0, const Operand_& o1
 
   const char* inlineComment = getInlineComment();
   if (inlineComment)
-    node->setInlineComment(static_cast<char*>(_dataZone.dup(inlineComment, ::strlen(inlineComment), true)));
+    node->setInlineComment(static_cast<char*>(_dataZone.dup(inlineComment, std::strlen(inlineComment), true)));
 
   resetInstOptions();
   resetExtraReg();

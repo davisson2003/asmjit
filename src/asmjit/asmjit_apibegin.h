@@ -43,14 +43,4 @@
 # pragma warning(disable: 4355) // this used in base member initializer list
 # pragma warning(disable: 4480) // specifying underlying type for enum
 # pragma warning(disable: 4800) // forcing value to bool 'true' or 'false'
-# if _MSC_VER < 1900
-#  if !defined(vsnprintf)
-#   define ASMJIT_UNDEF_VSNPRINTF
-#   define vsnprintf _vsnprintf
-#  endif
-#  if !defined(snprintf)
-#   define ASMJIT_UNDEF_SNPRINTF
-#   define snprintf _snprintf
-#  endif
-# endif
 #endif

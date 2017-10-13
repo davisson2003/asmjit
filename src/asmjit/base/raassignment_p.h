@@ -79,7 +79,7 @@ public:
 
     ASMJIT_INLINE void copyFrom(const PhysToWorkMap* other, uint32_t count) noexcept {
       size_t size = sizeOf(count);
-      ::memcpy(this, other, size);
+      std::memcpy(this, other, size);
     }
 
     RARegMask assigned;                  //!< Assigned registers (each bit represents one physical reg).
@@ -104,7 +104,7 @@ public:
     ASMJIT_INLINE void copyFrom(const WorkToPhysMap* other, uint32_t count) noexcept {
       size_t size = sizeOf(count);
       if (ASMJIT_LIKELY(size))
-        ::memcpy(this, other, size);
+        std::memcpy(this, other, size);
     }
 
     uint8_t physIds[1 /* ... */];        //!< WorkReg to PhysReg mapping
@@ -302,8 +302,8 @@ public:
   // --------------------------------------------------------------------------
 
   ASMJIT_INLINE void copyFrom(const PhysToWorkMap* physToWorkMap, const WorkToPhysMap* workToPhysMap) noexcept {
-    ::memcpy(_physToWorkMap, physToWorkMap, PhysToWorkMap::sizeOf(_layout.physTotal));
-    ::memcpy(_workToPhysMap, workToPhysMap, WorkToPhysMap::sizeOf(_layout.workCount));
+    std::memcpy(_physToWorkMap, physToWorkMap, PhysToWorkMap::sizeOf(_layout.physTotal));
+    std::memcpy(_workToPhysMap, workToPhysMap, WorkToPhysMap::sizeOf(_layout.workCount));
   }
 
   ASMJIT_INLINE void copyFrom(const RAAssignment& other) noexcept {

@@ -24,18 +24,3 @@
 #if ASMJIT_CC_GCC
 # pragma GCC diagnostic pop
 #endif
-
-// [MSC]
-#if ASMJIT_CC_MSC
-# pragma warning(pop)
-# if _MSC_VER < 1900
-#  if defined(ASMJIT_UNDEF_VSNPRINTF)
-#   undef vsnprintf
-#   undef ASMJIT_UNDEF_VSNPRINTF
-#  endif
-#  if defined(ASMJIT_UNDEF_SNPRINTF)
-#   undef snprintf
-#   undef ASMJIT_UNDEF_SNPRINTF
-#  endif
-# endif
-#endif

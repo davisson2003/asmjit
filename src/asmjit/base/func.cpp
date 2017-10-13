@@ -66,13 +66,13 @@ ASMJIT_FAVOR_SIZE Error FuncDetail::init(const FuncSignature& sign) {
   const uint8_t* args = sign.getArgs();
   for (uint32_t i = 0; i < argCount; i++) {
     FuncValue& arg = _args[i];
-    arg.init(TypeId::deabstract(args[i], deabstractDelta));
+    arg.initTypeId(TypeId::deabstract(args[i], deabstractDelta));
   }
   _argCount = uint8_t(argCount);
 
   uint32_t ret = sign.getRet();
   if (ret != TypeId::kVoid) {
-    _rets[0].init(TypeId::deabstract(ret, deabstractDelta));
+    _rets[0].initTypeId(TypeId::deabstract(ret, deabstractDelta));
     _retCount = 1;
   }
 

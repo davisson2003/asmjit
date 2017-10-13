@@ -17,6 +17,7 @@
 #include "../base/codeholder.h"
 #include "../base/codeemitter.h"
 #include "../base/logging.h"
+#include "../base/stringbuilder.h"
 #include "../base/stringutils.h"
 
 #if defined(ASMJIT_BUILD_X86)
@@ -42,7 +43,7 @@ namespace asmjit {
 
 Logger::Logger() noexcept {
   _options = 0;
-  ::memset(_indentation, 0, ASMJIT_ARRAY_SIZE(_indentation));
+  std::memset(_indentation, 0, ASMJIT_ARRAY_SIZE(_indentation));
 }
 Logger::~Logger() noexcept {}
 
@@ -52,8 +53,8 @@ Logger::~Logger() noexcept {}
 
 Error Logger::logf(const char* fmt, ...) noexcept {
   Error err;
+  std::va_list ap;
 
-  va_list ap;
   va_start(ap, fmt);
   err = logv(fmt, ap);
   va_end(ap);
@@ -61,42 +62,29 @@ Error Logger::logf(const char* fmt, ...) noexcept {
   return err;
 }
 
-Error Logger::logv(const char* fmt, va_list ap) noexcept {
-  char buf[1024];
-  size_t len = vsnprintf(buf, sizeof(buf), fmt, ap);
-
-  if (len >= sizeof(buf))
-    len = sizeof(buf) - 1;
-  return log(buf, len);
+Error Logger::logv(const char* fmt, std::va_list ap) noexcept {
+  StringBuilderTmp<2048> sb;
+  ASMJIT_PROPAGATE(sb.appendFormatVA(fmt, ap));
+  return log(sb);
 }
 
 Error Logger::logBinary(const void* data, size_t size) noexcept {
-  static const char prefix[] = ".data ";
-  static const char hex[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+  static const char prefix[] = ".db ";
 
-  const uint8_t* s = static_cast<const uint8_t*>(data);
+  StringBuilderTmp<256> sb;
+  sb.appendString(prefix, ASMJIT_ARRAY_SIZE(prefix) - 1);
+
   size_t i = size;
-
-  char buffer[128];
-  ::memcpy(buffer, prefix, ASMJIT_ARRAY_SIZE(prefix) - 1);
+  const uint8_t* s = static_cast<const uint8_t*>(data);
 
   while (i) {
     uint32_t n = uint32_t(std::min<size_t>(i, 16));
-    char* p = buffer + ASMJIT_ARRAY_SIZE(prefix) - 1;
-
+    sb.truncate(ASMJIT_ARRAY_SIZE(prefix) - 1);
+    sb.appendHex(s, n);
+    sb.appendChar('\n');
+    ASMJIT_PROPAGATE(log(sb));
+    s += n;
     i -= n;
-    do {
-      uint32_t c = s[0];
-
-      p[0] = hex[c >> 4];
-      p[1] = hex[c & 15];
-
-      p += 2;
-      s += 1;
-    } while (--n);
-
-    *p++ = '\n';
-    ASMJIT_PROPAGATE(log(buffer, (size_t)(p - buffer)));
   }
 
   return kErrorOk;
@@ -107,12 +95,12 @@ Error Logger::logBinary(const void* data, size_t size) noexcept {
 // ============================================================================
 
 void Logger::setIndentation(const char* indentation) noexcept {
-  ::memset(_indentation, 0, ASMJIT_ARRAY_SIZE(_indentation));
+  std::memset(_indentation, 0, ASMJIT_ARRAY_SIZE(_indentation));
   if (!indentation)
     return;
 
   size_t length = StringUtils::strLen(indentation, ASMJIT_ARRAY_SIZE(_indentation) - 1);
-  ::memcpy(_indentation, indentation, length);
+  std::memcpy(_indentation, indentation, length);
 }
 
 // ============================================================================
@@ -250,8 +238,7 @@ Error Logging::formatInstruction(
   return kErrorInvalidArch;
 }
 
-#if !defined(ASMJIT_DISABLE_BUILDER)
-static Error formatTypeId(StringBuilder& sb, uint32_t typeId) noexcept {
+Error Logging::formatTypeId(StringBuilder& sb, uint32_t typeId) noexcept {
   if (typeId == TypeId::kVoid)
     return sb.appendString("void");
 
@@ -286,17 +273,19 @@ static Error formatTypeId(StringBuilder& sb, uint32_t typeId) noexcept {
 
   uint32_t elementSize = TypeId::sizeOf(elementId);
   if (typeSize > elementSize) {
-    unsigned int numElements = typeSize / elementSize;
-    return sb.appendFormat("%sx%u", typeName, numElements);
+    uint32_t numElements = typeSize / elementSize;
+    return sb.appendFormat("%sx%u", typeName, unsigned(numElements));
   }
   else {
     return sb.appendString(typeName);
   }
+
 }
 
+#if !defined(ASMJIT_DISABLE_BUILDER)
 static Error formatFuncValue(StringBuilder& sb, uint32_t logOptions, const CodeEmitter* emitter, FuncValue value) noexcept {
   uint32_t typeId = value.getTypeId();
-  ASMJIT_PROPAGATE(formatTypeId(sb, typeId));
+  ASMJIT_PROPAGATE(Logging::formatTypeId(sb, typeId));
 
   if (value.isReg()) {
     ASMJIT_PROPAGATE(sb.appendChar('@'));
@@ -429,12 +418,11 @@ Error Logging::formatNode(
     case CBNode::kNodeFunc: {
       const CCFunc* node = node_->as<CCFunc>();
 
-      ASMJIT_PROPAGATE(sb.appendString("[Func] "));
       ASMJIT_PROPAGATE(formatLabel(sb, logOptions, cb, node->getId()));
       ASMJIT_PROPAGATE(sb.appendString(": "));
 
       ASMJIT_PROPAGATE(formatFuncRets(sb, logOptions, cb, node->getDetail(), nullptr));
-      ASMJIT_PROPAGATE(sb.appendString("("));
+      ASMJIT_PROPAGATE(sb.appendString(" Func("));
       ASMJIT_PROPAGATE(formatFuncArgs(sb, logOptions, cb, node->getDetail(), node->getArgs()));
       ASMJIT_PROPAGATE(sb.appendString(")"));
       break;

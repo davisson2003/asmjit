@@ -220,32 +220,7 @@ struct Operand_ {
   //! \internal
   //!
   //! Initialize the operand from `other` (used by operator overloads).
-  inline void copyFrom(const Operand_& other) noexcept { ::memcpy(this, &other, sizeof(Operand_)); }
-
-  // TODO: Remove
-  /*
-  //! \internal
-  ASMJIT_INLINE void _init_packed_d0_d1(uint32_t d0, uint32_t d1) noexcept {
-    if (ASMJIT_ARCH_64BIT) {
-      _packed64[0] = IntUtils::pack64_2x32(d0, d1);
-    }
-    else {
-      _packed32[0] = d0;
-      _packed32[1] = d1;
-    }
-  }
-
-  //! \internal
-  ASMJIT_INLINE void _init_packed_d2_d3(uint32_t d2, uint32_t d3) noexcept {
-    if (ASMJIT_ARCH_64BIT) {
-      _packed64[1] = IntUtils::pack64_2x32(d2, d3);
-    }
-    else {
-      _packed32[2] = d2;
-      _packed32[3] = d3;
-    }
-  }
-  */
+  inline void copyFrom(const Operand_& other) noexcept { std::memcpy(this, &other, sizeof(Operand_)); }
 
   //! Reset the `Operand` to none.
   //!
@@ -257,7 +232,7 @@ struct Operand_ {
   //!
   //! In other words, reset operands have all members set to zero. Reset operand
   //! must match the Operand state right after its construction. Alternatively,
-  //! if you have an array of operands, you can simply use `memset()`.
+  //! if you have an array of operands, you can simply use `std::memset()`.
   //!
   //! ```
   //! using namespace asmjit;
@@ -272,7 +247,7 @@ struct Operand_ {
   //! b.reset();
   //! assert(a == b);
   //!
-  //! memset(&b, 0, sizeof(Operand));
+  //! std::memset(&b, 0, sizeof(Operand));
   //! assert(a == b);
   //! ```
   inline void reset() noexcept {
@@ -297,44 +272,44 @@ struct Operand_ {
   // --------------------------------------------------------------------------
 
   //! Get whether the operand matches the given signature `sign`.
-  constexpr bool hasSignature(uint32_t signature) const noexcept { return _signature == signature; }
+  constexpr bool hasSignature(uint32_t signature) const noexcept { return _any.signature == signature; }
   //! Get whether the operand matches a signature of the `other` operand.
-  constexpr bool hasSignature(const Operand_& other) const noexcept { return _signature == other.getSignature(); }
+  constexpr bool hasSignature(const Operand_& other) const noexcept { return _any.signature == other.getSignature(); }
 
   //! Get a 32-bit operand signature.
   //!
   //! Signature is first 4 bytes of the operand data. It's used mostly for
   //! operand checking as it's much faster to check 4 bytes at once than having
   //! to check these bytes individually.
-  constexpr uint32_t getSignature() const noexcept { return _signature; }
+  constexpr uint32_t getSignature() const noexcept { return _any.signature; }
 
   //! Set the operand signature (see \ref getSignature).
   //!
   //! Improper use of `setSignature()` can lead to hard-to-debug errors.
-  inline void setSignature(uint32_t signature) noexcept { _signature = signature; }
+  inline void setSignature(uint32_t signature) noexcept { _any.signature = signature; }
 
   //! Checks if the signature contains at least one bit set of `bits`.
-  constexpr bool _hasSignatureData(uint32_t bits) const noexcept { return (_signature & bits) != 0; }
+  constexpr bool _hasSignatureData(uint32_t bits) const noexcept { return (_any.signature & bits) != 0; }
   //! Unpacks information from operand's signature.
-  constexpr uint32_t _getSignatureData(uint32_t bits, uint32_t shift) const noexcept { return (_signature >> shift) & bits; }
+  constexpr uint32_t _getSignatureData(uint32_t bits, uint32_t shift) const noexcept { return (_any.signature >> shift) & bits; }
 
   //! \internal
   //!
   //! Packs information to operand's signature.
   inline void _setSignatureData(uint32_t value, uint32_t bits, uint32_t shift) noexcept {
     ASMJIT_ASSERT(value <= bits);
-    _signature = (_signature & ~(bits << shift)) | (value << shift);
+    _any.signature = (_any.signature & ~(bits << shift)) | (value << shift);
   }
 
-  inline void _addSignatureData(uint32_t data) noexcept { _signature |= data; }
+  inline void _addSignatureData(uint32_t data) noexcept { _any.signature |= data; }
 
   //! Clears specified bits in operand's signature.
-  inline void _clearSignatureData(uint32_t bits, uint32_t shift) noexcept { _signature &= ~(bits << shift); }
+  inline void _clearSignatureData(uint32_t bits, uint32_t shift) noexcept { _any.signature &= ~(bits << shift); }
 
   //! Get type of the operand, see \ref OpType.
   constexpr uint32_t getOp() const noexcept { return _getSignatureData(kSignatureOpBits, kSignatureOpShift); }
   //! Get whether the operand is none (\ref kOpNone).
-  constexpr bool isNone() const noexcept { return _signature == 0; }
+  constexpr bool isNone() const noexcept { return _any.signature == 0; }
   //! Get whether the operand is a register (\ref kOpReg).
   constexpr bool isReg() const noexcept { return getOp() == kOpReg; }
   //! Get whether the operand is a memory location (\ref kOpMem).
@@ -386,7 +361,7 @@ struct Operand_ {
 
   //! Get whether the operand is a register matching `rType`.
   constexpr bool isReg(uint32_t rType) const noexcept {
-    return (_signature & (kSignatureOpMask | kSignatureRegTypeMask)) ==
+    return (_any.signature & (kSignatureOpMask | kSignatureRegTypeMask)) ==
            ((kOpReg << kSignatureOpShift) | (rType << kSignatureRegTypeShift));
   }
 
@@ -412,15 +387,14 @@ struct Operand_ {
   // --------------------------------------------------------------------------
 
   union {
+    uint32_t _p32[4];                    //!< Operand packed into four 32-bit integers.
+    uint64_t _p64[2];                    //!< Operand packed into two 64-bit integers.
+
     AnyData _any;                        //!< Generic data.
     RegData _reg;                        //!< Physical or virtual register data.
     MemData _mem;                        //!< Memory address data.
     ImmData _imm;                        //!< Immediate value data.
     LabelData _label;                    //!< Label data.
-
-    uint32_t _p32[4];                    //!< Operand packed into four 32-bit integers.
-    uint64_t _p64[2];                    //!< Operand packed into two 64-bit integers.
-    uint32_t _signature;                 //!< Operand signature (first 32-bits).
   };
 };
 
@@ -436,14 +410,19 @@ public:
   // --------------------------------------------------------------------------
 
   //! Create \ref Operand_::kOpNone operand (all values initialized to zeros).
-  constexpr Operand() noexcept : Operand_({{{ kOpNone, 0, 0, 0 }}}) {}
+  constexpr Operand() noexcept
+    : Operand_{{{ kOpNone, 0U, 0U, 0U }}} {}
   //! Create a cloned `other` operand.
-  constexpr Operand(const Operand& other) noexcept : Operand_(other) {}
+  constexpr Operand(const Operand& other) noexcept
+    : Operand_(other) {}
   //! Create a cloned `other` operand.
-  explicit constexpr Operand(const Operand_& other) : Operand_(other) {}
+  explicit constexpr Operand(const Operand_& other)
+    : Operand_(other) {}
 
   //! Create an operand initialized to raw `[p0, p1, p2, p3]` values.
-  constexpr Operand(Globals::Init_, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) noexcept : Operand_({{{ p0, p1, p2, p3 }}}) {}
+  constexpr Operand(Globals::Init_, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) noexcept
+    : Operand_{{{ p0, p1, p2, p3 }}} {}
+
   //! Create an uninitialized operand (dangerous).
   explicit inline Operand(Globals::NoInit_) noexcept {}
 
@@ -630,10 +609,10 @@ public:                                                                       \
 //! and `RegInfo` just provides easy way to access it.
 struct RegInfo {
   inline void reset() noexcept { _signature = 0; }
-
-  constexpr uint32_t getSignature() const noexcept { return _signature; }
   inline void setSignature(uint32_t signature) noexcept { _signature = signature; }
 
+  constexpr uint32_t isValid() const noexcept { return _signature != 0; }
+  constexpr uint32_t getSignature() const noexcept { return _signature; }
   constexpr uint32_t getOp() const noexcept { return (_signature >> Operand::kSignatureOpShift) & Operand::kSignatureOpBits; }
   constexpr uint32_t getType() const noexcept { return (_signature >> Operand::kSignatureRegTypeShift) & Operand::kSignatureRegTypeBits; }
   constexpr uint32_t getGroup() const noexcept { return (_signature >> Operand::kSignatureRegGroupShift) & Operand::kSignatureRegGroupBits; }
@@ -681,7 +660,6 @@ public:
     kGroupCount     = 16                  //!< Count of register classes used by physical registers.
   };
 
-
   enum Id : uint32_t {
     kIdBad          = 0xFFU               //!< None or any register (mostly internal).
   };
@@ -696,7 +674,7 @@ public:
   constexpr Reg(const Reg& other) noexcept : Operand(other) {}
 
   //! Create a new register operand compatible with `other`, but with a different `rId`.
-  constexpr Reg(const Reg& other, uint32_t rId) noexcept : Operand(Globals::Init, other._signature, rId, 0, 0) {}
+  constexpr Reg(const Reg& other, uint32_t rId) noexcept : Operand(Globals::Init, other._any.signature, rId, 0, 0) {}
   //! Create a register initialized to `signature` and `rId`.
   constexpr Reg(uint32_t signature, uint32_t rId) noexcept : Operand(Globals::Init, signature, rId, 0, 0) {}
 
@@ -707,7 +685,7 @@ public:
   // --------------------------------------------------------------------------
 
   //! Get whether the register is valid (either virtual or physical).
-  constexpr bool isValid() const noexcept { return _signature != 0; }
+  constexpr bool isValid() const noexcept { return _any.signature != 0; }
   //! Get whether this is a physical register.
   constexpr bool isPhysReg() const noexcept { return _reg.id < kIdBad; }
   //! Get whether this is a virtual register (used by \ref CodeCompiler).
@@ -725,9 +703,9 @@ public:
   constexpr bool isSame(const Reg& other) const noexcept { return _p64[0] == other._p64[0]; }
 
   //! Get whether the register type matches `type` - same as `isReg(type)`, provided for convenience.
-  constexpr bool isType(uint32_t type) const noexcept { return (_signature & kSignatureRegTypeMask) == (type << kSignatureRegTypeShift); }
+  constexpr bool isType(uint32_t type) const noexcept { return (_any.signature & kSignatureRegTypeMask) == (type << kSignatureRegTypeShift); }
   //! Get whether the register group matches `group`.
-  constexpr bool isGroup(uint32_t group) const noexcept { return (_signature & kSignatureRegGroupMask) == (group << kSignatureRegGroupShift); }
+  constexpr bool isGroup(uint32_t group) const noexcept { return (_any.signature & kSignatureRegGroupMask) == (group << kSignatureRegGroupShift); }
 
   //! Get whether the register is a general purpose register (any size).
   constexpr bool isGp() const noexcept { return isGroup(kGroupGp); }
@@ -770,7 +748,7 @@ public:
 
   //! Set register's `signature` and `rId`.
   inline void setSignatureAndId(uint32_t signature, uint32_t rId) noexcept {
-    _signature = signature;
+    _reg.signature = signature;
     _reg.id = rId;
   }
 
@@ -966,24 +944,24 @@ public:
   inline void setWrt() noexcept { setAddrType(kAddrTypeWrt); }
 
   constexpr bool isRegHome() const noexcept { return _hasSignatureData(kSignatureMemRegHomeFlag); }
-  inline void setRegHome() noexcept { _signature |= kSignatureMemRegHomeFlag; }
-  inline void clearRegHome() noexcept { _signature &= ~kSignatureMemRegHomeFlag; }
+  inline void setRegHome() noexcept { _any.signature |= kSignatureMemRegHomeFlag; }
+  inline void clearRegHome() noexcept { _any.signature &= ~kSignatureMemRegHomeFlag; }
 
   //! Get whether the memory operand has a BASE register or label specified.
-  constexpr bool hasBase() const noexcept { return (_signature & kSignatureMemBaseTypeMask) != 0; }
+  constexpr bool hasBase() const noexcept { return (_any.signature & kSignatureMemBaseTypeMask) != 0; }
   //! Get whether the memory operand has an INDEX register specified.
-  constexpr bool hasIndex() const noexcept { return (_signature & kSignatureMemIndexTypeMask) != 0; }
+  constexpr bool hasIndex() const noexcept { return (_any.signature & kSignatureMemIndexTypeMask) != 0; }
   //! Get whether the memory operand has BASE and INDEX register.
-  constexpr bool hasBaseOrIndex() const noexcept { return (_signature & kSignatureMemBaseIndexMask) != 0; }
+  constexpr bool hasBaseOrIndex() const noexcept { return (_any.signature & kSignatureMemBaseIndexMask) != 0; }
   //! Get whether the memory operand has BASE and INDEX register.
-  constexpr bool hasBaseAndIndex() const noexcept { return (_signature & kSignatureMemBaseTypeMask) != 0 && (_signature & kSignatureMemIndexTypeMask) != 0; }
+  constexpr bool hasBaseAndIndex() const noexcept { return (_any.signature & kSignatureMemBaseTypeMask) != 0 && (_any.signature & kSignatureMemIndexTypeMask) != 0; }
 
   //! Get whether the BASE operand is a register (registers start after `kLabelTag`).
-  constexpr bool hasBaseReg() const noexcept { return (_signature & kSignatureMemBaseTypeMask) > (Label::kLabelTag << kSignatureMemBaseTypeShift); }
+  constexpr bool hasBaseReg() const noexcept { return (_any.signature & kSignatureMemBaseTypeMask) > (Label::kLabelTag << kSignatureMemBaseTypeShift); }
   //! Get whether the BASE operand is a label.
-  constexpr bool hasBaseLabel() const noexcept { return (_signature & kSignatureMemBaseTypeMask) == (Label::kLabelTag << kSignatureMemBaseTypeShift); }
+  constexpr bool hasBaseLabel() const noexcept { return (_any.signature & kSignatureMemBaseTypeMask) == (Label::kLabelTag << kSignatureMemBaseTypeShift); }
   //! Get whether the INDEX operand is a register (registers start after `kLabelTag`).
-  constexpr bool hasIndexReg() const noexcept { return (_signature & kSignatureMemIndexTypeMask) > (Label::kLabelTag << kSignatureMemIndexTypeShift); }
+  constexpr bool hasIndexReg() const noexcept { return (_any.signature & kSignatureMemIndexTypeMask) > (Label::kLabelTag << kSignatureMemIndexTypeShift); }
 
   //! Get type of a BASE register (0 if this memory operand doesn't use the BASE register).
   //!

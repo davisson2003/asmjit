@@ -199,7 +199,7 @@ struct Inst {
   struct IRWInfo {
     uint32_t flags;
     ORWInfo extraReg;
-    ORWInfo operands[6];
+    ORWInfo operands[Globals::kMaxOpCount];
   };
 
   // --------------------------------------------------------------------------

@@ -15,6 +15,7 @@
 #include "../asmjit_apibegin.h"
 
 namespace asmjit {
+namespace StringUtils {
 
 //! \addtogroup asmjit_base
 //! \{
@@ -23,59 +24,58 @@ namespace asmjit {
 // [asmjit::StringUtils]
 // ============================================================================
 
-namespace StringUtils {
-  template<typename T>
-  static constexpr T toLower(T c) noexcept { return c ^ (T(c >= T('A') && c <= T('Z')) << 5); }
+template<typename T>
+static constexpr T toLower(T c) noexcept { return c ^ (T(c >= T('A') && c <= T('Z')) << 5); }
 
-  template<typename T>
-  static constexpr T toUpper(T c) noexcept { return c ^ (T(c >= T('a') && c <= T('z')) << 5); }
+template<typename T>
+static constexpr T toUpper(T c) noexcept { return c ^ (T(c >= T('a') && c <= T('z')) << 5); }
 
-  // \internal
-  static constexpr uint32_t hashRound(uint32_t hash, uint32_t c) noexcept { return hash * 65599 + c; }
+// \internal
+static constexpr uint32_t hashRound(uint32_t hash, uint32_t c) noexcept { return hash * 65599 + c; }
 
-  // Get a hash of the given string `str` of `len` length. Length must be valid
-  // as this function doesn't check for a null terminator and allows it in the
-  // middle of the string.
-  static inline uint32_t hashString(const char* str, size_t len) noexcept {
-    uint32_t hVal = 0;
-    for (uint32_t i = 0; i < len; i++)
-      hVal = hashRound(hVal, uint8_t(str[i]));
-    return hVal;
-  }
+// Get a hash of the given string `str` of `len` length. Length must be valid
+// as this function doesn't check for a null terminator and allows it in the
+// middle of the string.
+static inline uint32_t hashString(const char* str, size_t len) noexcept {
+  uint32_t hVal = 0;
+  for (uint32_t i = 0; i < len; i++)
+    hVal = hashRound(hVal, uint8_t(str[i]));
+  return hVal;
+}
 
-  static ASMJIT_INLINE size_t strLen(const char* s, size_t maxlen) noexcept {
-    size_t i;
-    for (i = 0; i < maxlen && s[i] != '\0'; i++)
-      continue;
-    return i;
-  }
+static ASMJIT_INLINE size_t strLen(const char* s, size_t maxlen) noexcept {
+  size_t i;
+  for (i = 0; i < maxlen && s[i] != '\0'; i++)
+    continue;
+  return i;
+}
 
-  static ASMJIT_INLINE const char* findPackedString(const char* p, uint32_t id) noexcept {
-    uint32_t i = 0;
-    while (i < id) {
-      while (p[0])
-        p++;
+static ASMJIT_INLINE const char* findPackedString(const char* p, uint32_t id) noexcept {
+  uint32_t i = 0;
+  while (i < id) {
+    while (p[0])
       p++;
-      i++;
-    }
-    return p;
+    p++;
+    i++;
   }
+  return p;
+}
 
-  //! Compare two instruction names.
-  //!
-  //! `a` is a null terminated instruction name from arch-specific `nameData[]` table.
-  //! `b` is a non-null terminated instruction name passed to `???Inst::getIdByName()`.
-  static ASMJIT_INLINE int cmpInstName(const char* a, const char* b, size_t len) noexcept {
-    for (size_t i = 0; i < len; i++) {
-      int c = int(uint8_t(a[i])) - int(uint8_t(b[i]));
-      if (c != 0) return c;
-    }
-    return int(a[len]);
+//! Compare two instruction names.
+//!
+//! `a` is a null terminated instruction name from arch-specific `nameData[]` table.
+//! `b` is a non-null terminated instruction name passed to `???Inst::getIdByName()`.
+static ASMJIT_INLINE int cmpInstName(const char* a, const char* b, size_t len) noexcept {
+  for (size_t i = 0; i < len; i++) {
+    int c = int(uint8_t(a[i])) - int(uint8_t(b[i]));
+    if (c != 0) return c;
   }
-} // StringUtils namespace
+  return int(a[len]);
+}
 
 //! \}
 
+} // StringUtils namespace
 } // asmjit namespace
 
 // [Api-End]

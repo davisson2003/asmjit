@@ -25,7 +25,7 @@ namespace asmjit {
 // [asmjit::RAStackAllocator - Slots]
 // ============================================================================
 
-RAStackSlot* RAStackAllocator::newSlot(uint32_t size, uint32_t alignment, uint32_t flags) noexcept {
+RAStackSlot* RAStackAllocator::newSlot(uint32_t baseRegId, uint32_t size, uint32_t alignment, uint32_t flags) noexcept {
   if (ASMJIT_UNLIKELY(_slots.willGrow(getAllocator(), 1) != kErrorOk))
     return nullptr;
 
@@ -33,12 +33,16 @@ RAStackSlot* RAStackAllocator::newSlot(uint32_t size, uint32_t alignment, uint32
   if (ASMJIT_UNLIKELY(!slot))
     return nullptr;
 
-  slot->size = size;
-  slot->alignment = std::max<uint32_t>(alignment, 1);
-  slot->flags = flags;
-  slot->usage = 0;
-  slot->weight = 0;
-  slot->offset = 0;
+  slot->_baseRegId = uint8_t(baseRegId);
+  slot->_alignment = uint8_t(std::max<uint32_t>(alignment, 1));
+  slot->_reserved[0] = 0;
+  slot->_reserved[1] = 0;
+  slot->_useCount = 0;
+  slot->_size = size;
+  slot->_flags = flags;
+
+  slot->_weight = 0;
+  slot->_offset = 0;
 
   _alignment = std::max<uint32_t>(_alignment, alignment);
   _slots.appendUnsafe(slot);
@@ -46,19 +50,19 @@ RAStackSlot* RAStackAllocator::newSlot(uint32_t size, uint32_t alignment, uint32
 }
 
 // ============================================================================
-// [asmjit::RAStackAllocator - Calculation]
+// [asmjit::RAStackAllocator - Utilities]
 // ============================================================================
 
 struct RAStackGap {
-  ASMJIT_INLINE RAStackGap() noexcept
+  inline RAStackGap() noexcept
     : offset(0),
       size(0) {}
 
-  ASMJIT_INLINE RAStackGap(uint32_t offset, uint32_t size) noexcept
+  inline RAStackGap(uint32_t offset, uint32_t size) noexcept
     : offset(offset),
       size(size) {}
 
-  ASMJIT_INLINE RAStackGap(const RAStackGap& other) noexcept
+  inline RAStackGap(const RAStackGap& other) noexcept
     : offset(other.offset),
       size(other.size) {}
 
@@ -67,7 +71,7 @@ struct RAStackGap {
 };
 
 struct RAStackSlot_GetWeight {
-  inline uint32_t get(const RAStackSlot* item) const noexcept { return item->weight; }
+  inline uint32_t get(const RAStackSlot* item) const noexcept { return item->getWeight(); }
 };
 
 Error RAStackAllocator::calculateStackFrame() noexcept {
@@ -87,14 +91,14 @@ Error RAStackAllocator::calculateStackFrame() noexcept {
   for (i = 0; i < numSlots; i++) {
     RAStackSlot* slot = _slots[i];
 
-    uint32_t alignment = slot->alignment;
+    uint32_t alignment = slot->getAlignment();
     ASMJIT_ASSERT(alignment > 0);
 
     uint32_t power = IntUtils::ctz(alignment);
     uint64_t weight;
 
     if (slot->isRegHome())
-      weight = kBaseRegWeight + (uint64_t(slot->usage) * (7 - power));
+      weight = kBaseRegWeight + (uint64_t(slot->getUseCount()) * (7 - power));
     else
       weight = power;
 
@@ -103,7 +107,7 @@ Error RAStackAllocator::calculateStackFrame() noexcept {
     if (weight > 0xFFFFFFFFU)
       weight = 0xFFFFFFFFU;
 
-    slot->usage = uint32_t(weight);
+    slot->setWeight(uint32_t(weight));
   }
 
   // STEP 2:
@@ -126,8 +130,9 @@ Error RAStackAllocator::calculateStackFrame() noexcept {
 
   for (i = 0; i < numSlots; i++) {
     RAStackSlot* slot = _slots[i];
+    if (slot->isStackArg()) continue;
 
-    uint32_t slotAlignment = slot->alignment;
+    uint32_t slotAlignment = slot->getAlignment();
     uint32_t alignedOffset = IntUtils::alignUp(offset, slotAlignment);
 
     // Try to find a slot within gaps first, before advancing the `offset`.
@@ -138,7 +143,7 @@ Error RAStackAllocator::calculateStackFrame() noexcept {
 
     // Try to find a slot within gaps first.
     {
-      uint32_t slotSize = slot->size;
+      uint32_t slotSize = slot->getSize();
       if (slotSize < (1U << uint32_t(ASMJIT_ARRAY_SIZE(gaps)))) {
         // Iterate from the lowest to the highest possible.
         uint32_t index = IntUtils::ctz(slotSize);
@@ -147,7 +152,7 @@ Error RAStackAllocator::calculateStackFrame() noexcept {
             RAStackGap gap = gaps[index].pop();
 
             ASMJIT_ASSERT(IntUtils::isAligned(gap.offset, slotAlignment));
-            slot->offset = int32_t(gap.offset);
+            slot->setOffset(int32_t(gap.offset));
 
             gapSize = gap.size - slotSize;
             gapOffset = gap.offset - slotSize;
@@ -184,12 +189,22 @@ Error RAStackAllocator::calculateStackFrame() noexcept {
 
     if (!foundGap) {
       ASMJIT_ASSERT(IntUtils::isAligned(offset, slotAlignment));
-      slot->offset = int32_t(offset);
-      offset += slot->size;
+      slot->setOffset(int32_t(offset));
+      offset += slot->getSize();
     }
   }
 
   _stackSize = IntUtils::alignUp(offset, _alignment);
+  return kErrorOk;
+}
+
+Error RAStackAllocator::adjustSlotOffsets(int32_t offset) noexcept {
+  uint32_t count = getSlotCount();
+  for (uint32_t i = 0; i < count; i++) {
+    RAStackSlot* slot = _slots[i];
+    if (!slot->isStackArg())
+      slot->_offset += offset;
+  }
   return kErrorOk;
 }
 

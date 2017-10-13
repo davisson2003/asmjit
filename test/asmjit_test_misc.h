@@ -18,7 +18,6 @@ namespace asmtest {
 // and fully functional.
 static void generateAlphaBlend(asmjit::X86Compiler& cc) {
   using namespace asmjit;
-  using namespace asmjit::x86;
 
   X86Gp dst = cc.newIntPtr("dst");
   X86Gp src = cc.newIntPtr("src");
@@ -37,17 +36,17 @@ static void generateAlphaBlend(asmjit::X86Compiler& cc) {
   Label L_LargeEnd  = cc.newLabel();
   Label L_DataPool  = cc.newLabel();
 
-  cc.addFunc(FuncSignature3<void, void*, const void*, size_t>(cc.getCodeInfo().getCdeclCallConv()));
+  cc.addFunc(FuncSignatureT<void, void*, const void*, size_t>(cc.getCodeInfo().getCdeclCallConv()));
 
   cc.setArg(0, dst);
   cc.setArg(1, src);
   cc.setArg(2, i);
 
   // How many pixels have to be processed to make the loop aligned.
-  cc.lea(t, ptr(L_DataPool));
+  cc.lea(t, x86::ptr(L_DataPool));
   cc.xorps(vzero, vzero);
-  cc.movaps(v0080, ptr(t, 0));
-  cc.movaps(v0101, ptr(t, 16));
+  cc.movaps(v0080, x86::ptr(t, 0));
+  cc.movaps(v0101, x86::ptr(t, 16));
 
   cc.xor_(j, j);
   cc.sub(j, dst);
@@ -55,7 +54,7 @@ static void generateAlphaBlend(asmjit::X86Compiler& cc) {
   cc.shr(j, 2);
   cc.jz(L_SmallEnd);
 
-  cc.cmp(j, i);  
+  cc.cmp(j, i);
   cc.cmovg(j, i); // j = min(i, j).
   cc.sub(i, j);   // i -= j.
 
@@ -66,8 +65,8 @@ static void generateAlphaBlend(asmjit::X86Compiler& cc) {
     X86Xmm y0 = cc.newXmm("y0");
     X86Xmm a0 = cc.newXmm("a0");
 
-    cc.movd(y0, ptr(src));
-    cc.movd(x0, ptr(dst));
+    cc.movd(y0, x86::ptr(src));
+    cc.movd(x0, x86::ptr(dst));
 
     cc.pcmpeqb(a0, a0);
     cc.pxor(a0, y0);
@@ -84,7 +83,7 @@ static void generateAlphaBlend(asmjit::X86Compiler& cc) {
     cc.paddw(x0, y0);
     cc.packuswb(x0, x0);
 
-    cc.movd(ptr(dst), x0);
+    cc.movd(x86::ptr(dst), x0);
 
     cc.add(dst, 4);
     cc.add(src, 4);
@@ -113,8 +112,8 @@ static void generateAlphaBlend(asmjit::X86Compiler& cc) {
     X86Xmm a0 = cc.newXmm("a0");
     X86Xmm a1 = cc.newXmm("a1");
 
-    cc.movups(y0, ptr(src));
-    cc.movaps(x0, ptr(dst));
+    cc.movups(y0, x86::ptr(src));
+    cc.movaps(x0, x86::ptr(dst));
 
     cc.pcmpeqb(a0, a0);
     cc.xorps(a0, y0);
@@ -145,7 +144,7 @@ static void generateAlphaBlend(asmjit::X86Compiler& cc) {
     cc.packuswb(x0, x1);
 
     cc.paddw(x0, y0);
-    cc.movaps(ptr(dst), x0);
+    cc.movaps(x86::ptr(dst), x0);
 
     cc.add(dst, 16);
 

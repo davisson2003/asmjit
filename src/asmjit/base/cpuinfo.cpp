@@ -390,9 +390,9 @@ ASMJIT_FAVOR_SIZE static void x86DetectCpuInfo(CpuInfo* cpuInfo) noexcept {
   x86CallCpuId(&regs, 0x0);
 
   maxId = regs.eax;
-  ::memcpy(cpuInfo->_vendorString + 0, &regs.ebx, 4);
-  ::memcpy(cpuInfo->_vendorString + 4, &regs.edx, 4);
-  ::memcpy(cpuInfo->_vendorString + 8, &regs.ecx, 4);
+  std::memcpy(cpuInfo->_vendorString + 0, &regs.ebx, 4);
+  std::memcpy(cpuInfo->_vendorString + 4, &regs.edx, 4);
+  std::memcpy(cpuInfo->_vendorString + 8, &regs.ecx, 4);
   cpuInfo->_vendorId = x86GetCpuVendorID(regs.ebx, regs.edx, regs.ecx);
 
   // --------------------------------------------------------------------------

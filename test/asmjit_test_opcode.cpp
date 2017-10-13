@@ -9,9 +9,8 @@
 // are grouped by category and then sorted alphabetically.
 
 // [Dependencies]
-#include <stdio.h>
+#include <cstdio>
 #include <stdlib.h>
-#include <string.h>
 
 #include "./asmjit.h"
 #include "./asmjit_test_opcode.h"
@@ -39,7 +38,7 @@ static const char* archTypeToString(uint32_t archType) {
 
 struct TestErrorHandler : public ErrorHandler {
   virtual void handleError(Error err, const char* message, CodeEmitter* origin) {
-    printf("ERROR 0x%08X: %s\n", err, message);
+    std::printf("ERROR 0x%08X: %s\n", err, message);
   }
 };
 
@@ -59,7 +58,7 @@ int main(int argc, char* argv[]) {
   for (int i = 0; i < ASMJIT_ARRAY_SIZE(infoList); i++) {
     const OpcodeDumpInfo& info = infoList[i];
 
-    printf("Opcodes [ARCH=%s REX1=%s REX2=%s]\n",
+    std::printf("Opcodes [ARCH=%s REX1=%s REX2=%s]\n",
       archTypeToString(info.archType),
       info.useRex1 ? "true" : "false",
       info.useRex2 ? "true" : "false");

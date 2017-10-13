@@ -91,10 +91,10 @@ public:
   //! Log a content of a `StringBuilder` `str`.
   ASMJIT_INLINE Error log(const StringBuilder& str) noexcept { return _log(str.getData(), str.getLength()); }
 
-  //! Format the message by using `sprintf()` and then send to `log()`.
+  //! Format the message by using `std::snprintf()` and then send to `log()`.
   ASMJIT_API Error logf(const char* fmt, ...) noexcept;
-  //! Format the message by using `vsprintf()` and then send to `log()`.
-  ASMJIT_API Error logv(const char* fmt, va_list ap) noexcept;
+  //! Format the message by using `std::vsnprintf()` and then send to `log()`.
+  ASMJIT_API Error logv(const char* fmt, std::va_list ap) noexcept;
   //! Log binary data.
   ASMJIT_API Error logBinary(const void* data, size_t size) noexcept;
 
@@ -124,7 +124,7 @@ public:
   // [Members]
   // --------------------------------------------------------------------------
 
-  //! Options, see \ref LoggerOption.
+  //! Options, see \ref Options.
   uint32_t _options;
 
   //! Indentation.
@@ -255,6 +255,10 @@ struct Logging {
     const CodeEmitter* emitter,
     uint32_t archType,
     const Inst::Detail& detail, const Operand_* operands, uint32_t count) noexcept;
+
+  ASMJIT_API static Error formatTypeId(
+    StringBuilder& sb,
+    uint32_t typeId) noexcept;
 
 #if !defined(ASMJIT_DISABLE_BUILDER)
   ASMJIT_API static Error formatNode(

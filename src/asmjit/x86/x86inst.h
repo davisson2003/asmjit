@@ -2119,11 +2119,11 @@ struct X86Inst {
   //! Contains a sequence of operands' combinations and other metadata that defines
   //! a single instruction. This data is used by instruction validator.
   struct ISignature {
-    uint8_t opCount  : 3;                //!< Count of operands in `opIndex` (0..6).
-    uint8_t archMask : 2;                //!< Architecture mask of this record.
-    uint8_t implicit : 3;                //!< Number of implicit operands.
-    uint8_t reserved;                    //!< Reserved for future use.
-    uint8_t operands[6];                 //!< Indexes to `OSignature` table.
+    uint8_t opCount  : 3;                   //!< Count of operands in `opIndex` (0..6).
+    uint8_t archMask : 2;                   //!< Architecture mask of this record.
+    uint8_t implicit : 3;                   //!< Number of implicit operands.
+    uint8_t reserved;                       //!< Reserved for future use.
+    uint8_t operands[Globals::kMaxOpCount]; //!< Indexes to `OSignature` table.
   };
 
   //! Common data - aggregated data that is shared across many instructions.

@@ -70,7 +70,7 @@ struct RAStrategy {
   };
 
   ASMJIT_INLINE RAStrategy() noexcept { reset(); }
-  ASMJIT_INLINE void reset() noexcept { ::memset(this, 0, sizeof(*this)); }
+  ASMJIT_INLINE void reset() noexcept { std::memset(this, 0, sizeof(*this)); }
 
   ASMJIT_INLINE uint32_t getType() const noexcept { return _type; }
   ASMJIT_INLINE void setType(uint32_t type) noexcept { _type = uint8_t(type); }
@@ -97,7 +97,7 @@ struct RAArchTraits {
   // --------------------------------------------------------------------------
 
   ASMJIT_INLINE RAArchTraits() noexcept { reset(); }
-  ASMJIT_INLINE void reset() noexcept { ::memset(_flags, 0, sizeof(_flags)); }
+  ASMJIT_INLINE void reset() noexcept { std::memset(_flags, 0, sizeof(_flags)); }
 
   // --------------------------------------------------------------------------
   // [Accessors]
@@ -323,9 +323,9 @@ struct RARegsStats {
   };
 
   enum Mask : uint32_t {
-    kMaskUsed        = 0xFF << kIndexUsed,
-    kMaskFixed       = 0xFF << kIndexFixed,
-    kMaskClobbered   = 0xFF << kIndexClobbered
+    kMaskUsed        = 0xFFU << kIndexUsed,
+    kMaskFixed       = 0xFFU << kIndexFixed,
+    kMaskClobbered   = 0xFFU << kIndexClobbered
   };
 
   ASMJIT_INLINE void reset() noexcept { _packed = 0; }
@@ -851,7 +851,7 @@ struct RATiedReg {
   // --------------------------------------------------------------------------
 
   ASMJIT_INLINE RATiedReg& operator=(const RATiedReg& other) noexcept {
-    ::memcpy(this, &other, sizeof(RATiedReg));
+    std::memcpy(this, &other, sizeof(RATiedReg));
     return *this;
   }
 
@@ -889,12 +889,17 @@ public:
   };
 
   enum Flags : uint32_t {
-    kFlagCoalesced        = 0x00000001U,
-    kFlagStackPreferred   = 0x00000002U, //!< Stack allocation is preferred.
-    kFlagStackUsed        = 0x00000010U, //!< Stack slot has to be allocated.
+    kFlagCoalesced        = 0x00000001U, //!< Has been coalesced to another WorkReg.
+    kFlagStackUsed        = 0x00000002U, //!< Stack slot has to be allocated.
+    kFlagStackPreferred   = 0x00000004U, //!< Stack allocation is preferred.
+    kFlagStackArgToStack  = 0x00000008U, //!< Marked for stack argument reassignment.
 
     // TODO: Used?
     kFlagDirtyStats       = 0x80000000U
+  };
+
+  enum ArgIndex : uint32_t {
+    kNoArgIndex      = 0xFFU
   };
 
   // --------------------------------------------------------------------------
@@ -910,6 +915,7 @@ public:
       _info(vReg->getInfo()),
       _flags(kFlagDirtyStats),
       _allocatedMask(0),
+      _argIndex(kNoArgIndex),
       _homeId(Reg::kIdBad),
       _liveSpans(),
       _liveStats(),
@@ -919,55 +925,56 @@ public:
   // [Accessors]
   // --------------------------------------------------------------------------
 
-  ASMJIT_INLINE uint32_t getWorkId() const noexcept { return _workId; }
-  ASMJIT_INLINE uint32_t getVirtId() const noexcept { return _virtId; }
+  inline uint32_t getWorkId() const noexcept { return _workId; }
+  inline uint32_t getVirtId() const noexcept { return _virtId; }
 
-  ASMJIT_INLINE const char* getName() const noexcept { return _virtReg->getName(); }
-  ASMJIT_INLINE uint32_t getNameLength() const noexcept { return _virtReg->getNameLength(); }
+  inline const char* getName() const noexcept { return _virtReg->getName(); }
+  inline uint32_t getNameLength() const noexcept { return _virtReg->getNameLength(); }
 
-  ASMJIT_INLINE uint32_t getTypeId() const noexcept { return _virtReg->getTypeId(); }
+  inline uint32_t getTypeId() const noexcept { return _virtReg->getTypeId(); }
 
-  ASMJIT_INLINE bool hasFlag(uint32_t flag) const noexcept { return (_flags & flag) != 0; }
+  inline bool hasFlag(uint32_t flag) const noexcept { return (_flags & flag) != 0; }
+  inline uint32_t getFlags() const noexcept { return _flags; }
+  inline void addFlags(uint32_t flags) noexcept { _flags |= flags; }
 
-  ASMJIT_INLINE uint32_t getFlags() const noexcept { return _flags; }
-  ASMJIT_INLINE void addFlags(uint32_t flags) noexcept { _flags |= flags; }
+  inline bool isStackUsed() const noexcept { return hasFlag(kFlagStackUsed); }
+  inline void markStackUsed() noexcept { addFlags(kFlagStackUsed); }
 
-
-
-  ASMJIT_INLINE bool isStackUsed() const noexcept { return hasFlag(kFlagStackUsed); }
-  ASMJIT_INLINE void markStackUsed() noexcept { addFlags(kFlagStackUsed); }
-
-  ASMJIT_INLINE bool isStackPreferred() const noexcept { return hasFlag(kFlagStackPreferred); }
-  ASMJIT_INLINE void markStackPreferred() noexcept { addFlags(kFlagStackPreferred); }
+  inline bool isStackPreferred() const noexcept { return hasFlag(kFlagStackPreferred); }
+  inline void markStackPreferred() noexcept { addFlags(kFlagStackPreferred); }
 
   //! Get whether this RAWorkReg has been coalesced with another one (cannot be used anymore).
-  ASMJIT_INLINE bool isCoalesced() const noexcept { return hasFlag(kFlagCoalesced); }
+  inline bool isCoalesced() const noexcept { return hasFlag(kFlagCoalesced); }
 
-  ASMJIT_INLINE const RegInfo& getInfo() const noexcept { return _info; }
-  ASMJIT_INLINE uint32_t getGroup() const noexcept { return _info.getGroup(); }
+  inline const RegInfo& getInfo() const noexcept { return _info; }
+  inline uint32_t getGroup() const noexcept { return _info.getGroup(); }
 
-  ASMJIT_INLINE VirtReg* getVirtReg() const noexcept { return _virtReg; }
+  inline VirtReg* getVirtReg() const noexcept { return _virtReg; }
 
-  ASMJIT_INLINE bool hasTiedReg() const noexcept { return _tiedReg != nullptr; }
-  ASMJIT_INLINE RATiedReg* getTiedReg() const noexcept { return _tiedReg; }
-  ASMJIT_INLINE void setTiedReg(RATiedReg* tiedReg) noexcept { _tiedReg = tiedReg; }
-  ASMJIT_INLINE void resetTiedReg() noexcept { _tiedReg = nullptr; }
+  inline bool hasTiedReg() const noexcept { return _tiedReg != nullptr; }
+  inline RATiedReg* getTiedReg() const noexcept { return _tiedReg; }
+  inline void setTiedReg(RATiedReg* tiedReg) noexcept { _tiedReg = tiedReg; }
+  inline void resetTiedReg() noexcept { _tiedReg = nullptr; }
 
-  ASMJIT_INLINE bool hasStackSlot() const noexcept { return _stackSlot != nullptr; }
-  ASMJIT_INLINE RAStackSlot* getStackSlot() const noexcept { return _stackSlot; }
+  inline bool hasStackSlot() const noexcept { return _stackSlot != nullptr; }
+  inline RAStackSlot* getStackSlot() const noexcept { return _stackSlot; }
 
-  ASMJIT_INLINE LiveRegSpans& getLiveSpans() noexcept { return _liveSpans; }
-  ASMJIT_INLINE const LiveRegSpans& getLiveSpans() const noexcept { return _liveSpans; }
+  inline LiveRegSpans& getLiveSpans() noexcept { return _liveSpans; }
+  inline const LiveRegSpans& getLiveSpans() const noexcept { return _liveSpans; }
 
-  ASMJIT_INLINE RALiveStats& getLiveStats() noexcept { return _liveStats; }
-  ASMJIT_INLINE const RALiveStats& getLiveStats() const noexcept { return _liveStats; }
+  inline RALiveStats& getLiveStats() noexcept { return _liveStats; }
+  inline const RALiveStats& getLiveStats() const noexcept { return _liveStats; }
 
-  ASMJIT_INLINE bool hasHomeId() const noexcept { return _homeId != Reg::kIdBad; }
-  ASMJIT_INLINE uint32_t getHomeId() const noexcept { return _homeId; }
-  ASMJIT_INLINE void setHomeId(uint32_t physId) noexcept { _homeId = uint8_t(physId); }
+  inline bool hasArgIndex() const noexcept { return _argIndex != kNoArgIndex; }
+  inline uint32_t getArgIndex() const noexcept { return _argIndex; }
+  inline void setArgIndex(uint32_t index) noexcept { _argIndex = uint8_t(index); }
 
-  ASMJIT_INLINE uint32_t getAllocatedMask() const noexcept { return _allocatedMask; }
-  ASMJIT_INLINE void addAllocatedMask(uint32_t mask) noexcept { _allocatedMask |= mask; }
+  inline bool hasHomeId() const noexcept { return _homeId != Reg::kIdBad; }
+  inline uint32_t getHomeId() const noexcept { return _homeId; }
+  inline void setHomeId(uint32_t physId) noexcept { _homeId = uint8_t(physId); }
+
+  inline uint32_t getAllocatedMask() const noexcept { return _allocatedMask; }
+  inline void addAllocatedMask(uint32_t mask) noexcept { _allocatedMask |= mask; }
 
   // --------------------------------------------------------------------------
   // [Members]
@@ -983,6 +990,8 @@ public:
   RegInfo _info;                         //!< Copy of a signature used by `VirtReg`.
   uint32_t _flags;                       //!< RAPass specific flags used during analysis and allocation.
   uint32_t _allocatedMask;               //!< IDs of all physical registers this WorkReg has been allocated to.
+
+  uint8_t _argIndex;                     //!< Argument index (or kNoStackArgIndex if none).
   uint8_t _homeId;                       //!< Global home register ID (if any).
 
   LiveRegSpans _liveSpans;               //!< Live spans of the `VirtReg`.

@@ -355,7 +355,7 @@ public:
       hVal(hVal) {}
 
   inline bool matches(const LabelEntry* entry) const noexcept {
-    return entry->getNameLength() == len && ::memcmp(entry->getName(), key, len) == 0;
+    return entry->getNameLength() == len && std::memcmp(entry->getName(), key, len) == 0;
   }
 
   const char* key;
@@ -415,7 +415,7 @@ Error CodeHolder::newLabelId(uint32_t& idOut) noexcept {
   LabelEntry* le = _allocator.allocZeroedT<LabelEntry>();
 
   if (ASMJIT_UNLIKELY(!le))
-    return DebugUtils::errored(kErrorNoHeapMemory);;
+    return DebugUtils::errored(kErrorNoHeapMemory);
 
   uint32_t id = Operand::packId(index);
   le->_setId(id);
@@ -551,7 +551,7 @@ size_t CodeHolder::relocate(void* _dst, uint64_t baseAddress) const noexcept {
 
   // We will copy the exact size of the generated code. Extra code for trampolines
   // is generated on-the-fly by the relocator (this code doesn't exist at the moment).
-  ::memcpy(dst, section->_buffer._data, minCodeSize);
+  std::memcpy(dst, section->_buffer._data, minCodeSize);
 
   // Trampoline offset from the beginning of dst/baseAddress.
   size_t trampOffset = minCodeSize;

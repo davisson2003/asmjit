@@ -167,7 +167,7 @@ void* Zone::allocZeroed(size_t size) noexcept {
   void* p = alloc(size);
   if (ASMJIT_UNLIKELY(!p))
     return p;
-  return ::memset(p, 0, size);
+  return std::memset(p, 0, size);
 }
 
 void* Zone::dup(const void* data, size_t size, bool nullTerminate) noexcept {
@@ -178,7 +178,7 @@ void* Zone::dup(const void* data, size_t size, bool nullTerminate) noexcept {
   uint8_t* m = allocT<uint8_t>(size + nullTerminate);
   if (ASMJIT_UNLIKELY(!m)) return nullptr;
 
-  ::memcpy(m, data, size);
+  std::memcpy(m, data, size);
   if (nullTerminate) m[size] = '\0';
 
   return static_cast<void*>(m);
@@ -190,14 +190,13 @@ char* Zone::sformat(const char* fmt, ...) noexcept {
 
   char buf[512];
   size_t len;
+  std::va_list ap;
 
-  va_list ap;
   va_start(ap, fmt);
-
-  len = vsnprintf(buf, ASMJIT_ARRAY_SIZE(buf) - 1, fmt, ap);
-  buf[len++] = 0;
-
+  len = std::vsnprintf(buf, ASMJIT_ARRAY_SIZE(buf) - 1, fmt, ap);
   va_end(ap);
+
+  buf[len++] = 0;
   return static_cast<char*>(dup(buf, len));
 }
 
@@ -229,7 +228,7 @@ void ZoneAllocator::reset(Zone* zone) noexcept {
   }
 
   // Zero the entire class and initialize to the given `zone`.
-  ::memset(this, 0, sizeof(*this));
+  std::memset(this, 0, sizeof(*this));
   _zone = zone;
 }
 
@@ -249,7 +248,6 @@ void* ZoneAllocator::_alloc(size_t size, size_t& allocatedSize) noexcept {
 
     if (p) {
       _slots[slot] = reinterpret_cast<Slot*>(p)->next;
-      //printf("ALLOCATED %p of size %d (SLOT %d)\n", p, int(size), slot);
       return p;
     }
 
@@ -258,7 +256,6 @@ void* ZoneAllocator::_alloc(size_t size, size_t& allocatedSize) noexcept {
 
     if (ASMJIT_LIKELY(remain >= size)) {
       _zone->setCursor(p + size);
-      //printf("ALLOCATED %p of size %d (SLOT %d)\n", p, int(size), slot);
       return p;
     }
     else {
@@ -284,7 +281,6 @@ void* ZoneAllocator::_alloc(size_t size, size_t& allocatedSize) noexcept {
         return nullptr;
       }
 
-      //printf("ALLOCATED %p of size %d (SLOT %d)\n", p, int(size), slot);
       return p;
     }
   }
@@ -319,7 +315,6 @@ void* ZoneAllocator::_alloc(size_t size, size_t& allocatedSize) noexcept {
     reinterpret_cast<DynamicBlock**>(p)[-1] = block;
 
     allocatedSize = size;
-    //printf("ALLOCATED DYNAMIC %p of size %d\n", p, int(size));
     return p;
   }
 }
@@ -329,13 +324,12 @@ void* ZoneAllocator::_allocZeroed(size_t size, size_t& allocatedSize) noexcept {
 
   void* p = _alloc(size, allocatedSize);
   if (ASMJIT_UNLIKELY(!p)) return p;
-  return ::memset(p, 0, allocatedSize);
+  return std::memset(p, 0, allocatedSize);
 }
 
 void ZoneAllocator::_releaseDynamic(void* p, size_t size) noexcept {
   ASMJIT_UNUSED(size);
   ASMJIT_ASSERT(isInitialized());
-  //printf("RELEASING DYNAMIC %p of size %d\n", p, int(size));
 
   // Pointer to `DynamicBlock` is stored at [-1].
   DynamicBlock* block = reinterpret_cast<DynamicBlock**>(p)[-1];
@@ -413,7 +407,7 @@ Error ZoneVectorBase::_reserve(ZoneAllocator* allocator, uint32_t sizeOfT, uint3
 
   void* oldData = _data;
   if (_length)
-    ::memcpy(newData, oldData, size_t(_length) * sizeOfT);
+    std::memcpy(newData, oldData, size_t(_length) * sizeOfT);
 
   if (oldData)
     allocator->release(oldData, size_t(oldCapacity) * sizeOfT);
@@ -434,7 +428,7 @@ Error ZoneVectorBase::_resize(ZoneAllocator* allocator, uint32_t sizeOfT, uint32
   }
 
   if (length < n)
-    ::memset(static_cast<uint8_t*>(_data) + size_t(length) * sizeOfT, 0, size_t(n - length) * sizeOfT);
+    std::memset(static_cast<uint8_t*>(_data) + size_t(length) * sizeOfT, 0, size_t(n - length) * sizeOfT);
 
   _length = n;
   return kErrorOk;

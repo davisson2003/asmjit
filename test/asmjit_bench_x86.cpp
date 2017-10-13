@@ -5,9 +5,8 @@
 // Zlib - See LICENSE.md file in the package.
 
 // [Dependencies]
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 
 #include "./asmjit.h"
 #include "./asmjit_test_misc.h"
@@ -98,7 +97,7 @@ static void benchX86(uint32_t archType) {
     perf.end();
   }
 
-  printf("%-12s (%s) | Time: %-6u [ms] | Speed: %7.3f [MB/s]\n",
+  std::printf("%-12s (%s) | Time: %-6u [ms] | Speed: %7.3f [MB/s]\n",
     "X86Assembler", archName, perf.best, mbps(perf.best, asmOutputSize));
 
   // --------------------------------------------------------------------------
@@ -122,7 +121,7 @@ static void benchX86(uint32_t archType) {
     perf.end();
   }
 
-  printf("%-12s (%s) | Time: %-6u [ms] | Speed: %7.3f [MB/s]\n",
+  std::printf("%-12s (%s) | Time: %-6u [ms] | Speed: %7.3f [MB/s]\n",
     "X86Builder", archName, perf.best, mbps(perf.best, cbOutputSize));
 
   // --------------------------------------------------------------------------
@@ -142,7 +141,7 @@ static void benchX86(uint32_t archType) {
     perf.end();
   }
 
-  printf("%-12s (%s) | Time: %-6u [ms] | Speed: N/A\n",
+  std::printf("%-12s (%s) | Time: %-6u [ms] | Speed: N/A\n",
     "X86Builder*", archName, perf.best);
 
   // --------------------------------------------------------------------------
@@ -172,7 +171,7 @@ static void benchX86(uint32_t archType) {
     perf.end();
   }
 
-  printf("%-12s (%s) | Time: %-6u [ms] | Speed: %7.3f [MB/s]\n",
+  std::printf("%-12s (%s) | Time: %-6u [ms] | Speed: %7.3f [MB/s]\n",
     "X86Compiler", archName, perf.best, mbps(perf.best, ccOutputSize));
 }
 #endif
@@ -182,5 +181,6 @@ int main(int argc, char* argv[]) {
   benchX86(ArchInfo::kTypeX86);
   benchX86(ArchInfo::kTypeX64);
 #endif
+
   return 0;
 }

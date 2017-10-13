@@ -35,7 +35,7 @@ UNIT(base_algorithm) {
     int arr1[kArraySize] = { 0, 1, -1, 19, 22, 14, -4, 9, 12, 13, -2 };
     int arr2[kArraySize];
 
-    ::memcpy(arr2, arr1, kArraySize * sizeof(int));
+    std::memcpy(arr2, arr1, kArraySize * sizeof(int));
 
     Algorithm::iSortT(arr1, kArraySize);
     Algorithm::qSortT(arr2, kArraySize);
@@ -72,7 +72,7 @@ UNIT(base_algorithm) {
     float arr1[kArraySize] = { 1.0f, 0.0f, 3.0f, -1.0f, std::numeric_limits<float>::quiet_NaN() };
     float arr2[kArraySize] = { };
 
-    ::memcpy(arr2, arr1, kArraySize * sizeof(float));
+    std::memcpy(arr2, arr1, kArraySize * sizeof(float));
 
     // We don't test as it's undefined where the NaN would be.
     Algorithm::iSortT(arr1, kArraySize);

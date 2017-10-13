@@ -214,7 +214,7 @@ void Assembler::_emitLog(
 
   sb.appendString(logger->getIndentation());
 
-  Operand_ operands[6];
+  Operand_ operands[Globals::kMaxOpCount];
   operands[0].copyFrom(o0);
   operands[1].copyFrom(o1);
   operands[2].copyFrom(o2);
@@ -232,7 +232,7 @@ void Assembler::_emitLog(
   Logging::formatInstruction(
     sb, logOptions,
     this, getArchType(),
-    Inst::Detail(instId, options, _extraReg), operands, 6);
+    Inst::Detail(instId, options, _extraReg), operands, Globals::kMaxOpCount);
 
   if ((logOptions & Logger::kOptionBinaryForm) != 0)
     Logging::formatLine(sb, _bufferPtr, size_t(emittedSize), relSize, imLen, getInlineComment());
@@ -250,7 +250,7 @@ Error Assembler::_emitFailed(
   sb.appendString(DebugUtils::errorAsString(err));
   sb.appendString(": ");
 
-  Operand_ operands[6];
+  Operand_ operands[Globals::kMaxOpCount];
   operands[0].copyFrom(o0);
   operands[1].copyFrom(o1);
   operands[2].copyFrom(o2);
@@ -268,7 +268,7 @@ Error Assembler::_emitFailed(
   Logging::formatInstruction(
     sb, 0,
     this, getArchType(),
-    Inst::Detail(instId, options, _extraReg), operands, 6);
+    Inst::Detail(instId, options, _extraReg), operands, Globals::kMaxOpCount);
 
   resetInstOptions();
   resetExtraReg();
@@ -291,7 +291,7 @@ Error Assembler::embed(const void* data, uint32_t size) {
       return reportError(err);
   }
 
-  ::memcpy(_bufferPtr, data, size);
+  std::memcpy(_bufferPtr, data, size);
   _bufferPtr += size;
 
 #if !defined(ASMJIT_DISABLE_LOGGING)
@@ -346,7 +346,7 @@ Error Assembler::embedLabel(const Label& label) {
   }
 
   // Emit dummy DWORD/QWORD depending on the address size.
-  ::memset(_bufferPtr, 0, size);
+  std::memset(_bufferPtr, 0, size);
   _bufferPtr += size;
 
   return kErrorOk;

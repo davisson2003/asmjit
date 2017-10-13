@@ -222,8 +222,8 @@ public:
   // [Serialize]
   // --------------------------------------------------------------------------
 
-  //! Serialize everything theis `CodeBuilder` or `::CodeCompiler` contains to
-  //! another `CodeEmitter`, which is usually an `Assembler` instance.
+  //! Serialize everything the `CodeBuilder` or `CodeCompiler` contains to
+  //! another `CodeEmitter`, which would usually be `Assembler`.
   ASMJIT_API Error serialize(CodeEmitter* dst);
 
   // --------------------------------------------------------------------------
@@ -481,12 +481,11 @@ public:
     //! a part of the instruction. Minimum embedded operands is 4, but in 32-bit
     //! more pointers are smaller and we can embed 5. The rest (up to 6 operands)
     //! is always stored in `CBInstEx`.
-    kBaseOpCapacity = uint32_t((128 - sizeof(CBNode) - sizeof(Inst::Detail)) / sizeof(Operand_)),
-    kExtendedOpCapacity = 6
+    kBaseOpCapacity = uint32_t((128 - sizeof(CBNode) - sizeof(Inst::Detail)) / sizeof(Operand_))
   };
 
   static inline uint32_t capacityOfOpCount(uint32_t opCount) noexcept {
-    return opCount <= kBaseOpCapacity ? kBaseOpCapacity : kExtendedOpCapacity;
+    return opCount <= kBaseOpCapacity ? kBaseOpCapacity : Globals::kMaxOpCount;
   }
 
   static inline size_t nodeSizeOfOpCapacity(uint32_t opCapacity) noexcept {
@@ -661,15 +660,15 @@ public:
   // --------------------------------------------------------------------------
 
   //! Create a new `CBInstEx` instance.
-  inline CBInstEx(CodeBuilder* cb, uint32_t instId, uint32_t options, uint32_t opCapacity = 6) noexcept
+  inline CBInstEx(CodeBuilder* cb, uint32_t instId, uint32_t options, uint32_t opCapacity = Globals::kMaxOpCount) noexcept
     : CBInst(cb, instId, options, opCapacity) {}
 
   // --------------------------------------------------------------------------
   // [Members]
   // --------------------------------------------------------------------------
 
-  //! Continued `_opArray[]` to hold up to 6 (maximum) operands.
-  Operand_ _opArrayEx[kExtendedOpCapacity - kBaseOpCapacity];
+  //! Continued `_opArray[]` to hold up to `kMaxOpCount` operands.
+  Operand_ _opArrayEx[Globals::kMaxOpCount - kBaseOpCapacity];
 };
 
 // ============================================================================
@@ -698,7 +697,8 @@ public:
     : CBNode(cb, kNodeData, kFlagIsData) {
 
     if (size <= kInlineBufferSize) {
-      if (data) ::memcpy(_buf, data, size);
+      if (data)
+        std::memcpy(_buf, data, size);
     }
     else {
       _externalPtr = static_cast<uint8_t*>(data);

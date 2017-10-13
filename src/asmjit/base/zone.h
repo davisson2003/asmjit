@@ -327,11 +327,11 @@ public:
   //!
   //! NOTE: To use it, you must first `init()` it.
   ASMJIT_INLINE ZoneAllocator() noexcept {
-    ::memset(this, 0, sizeof(*this));
+    std::memset(this, 0, sizeof(*this));
   }
   //! Create a new `ZoneAllocator` initialized to use `zone`.
   explicit ASMJIT_INLINE ZoneAllocator(Zone* zone) noexcept {
-    ::memset(this, 0, sizeof(*this));
+    std::memset(this, 0, sizeof(*this));
     _zone = zone;
   }
   //! Destroy the `ZoneAllocator`.
@@ -464,7 +464,6 @@ public:
 
     uint32_t slot;
     if (_getSlotIndex(size, slot)) {
-      //printf("RELEASING %p of size %d (SLOT %u)\n", p, int(size), slot);
       static_cast<Slot*>(p)->next = static_cast<Slot*>(_slots[slot]);
       _slots[slot] = static_cast<Slot*>(p);
     }
@@ -959,8 +958,8 @@ public:
     if (ASMJIT_UNLIKELY(_length == _capacity))
       ASMJIT_PROPAGATE(grow(allocator, 1));
 
-    ::memmove(static_cast<T*>(_data) + 1, _data, size_t(_length) * sizeof(T));
-    ::memcpy(_data, &item, sizeof(T));
+    std::memmove(static_cast<T*>(_data) + 1, _data, size_t(_length) * sizeof(T));
+    std::memcpy(_data, &item, sizeof(T));
 
     _length++;
     return kErrorOk;
@@ -974,8 +973,8 @@ public:
       ASMJIT_PROPAGATE(grow(allocator, 1));
 
     T* dst = static_cast<T*>(_data) + index;
-    ::memmove(dst + 1, dst, size_t(_length - index) * sizeof(T));
-    ::memcpy(dst, &item, sizeof(T));
+    std::memmove(dst + 1, dst, size_t(_length - index) * sizeof(T));
+    std::memcpy(dst, &item, sizeof(T));
     _length++;
 
     return kErrorOk;
@@ -986,7 +985,7 @@ public:
     if (ASMJIT_UNLIKELY(_length == _capacity))
       ASMJIT_PROPAGATE(grow(allocator, 1));
 
-    ::memcpy(static_cast<T*>(_data) + _length, &item, sizeof(T));
+    std::memcpy(static_cast<T*>(_data) + _length, &item, sizeof(T));
     _length++;
 
     return kErrorOk;
@@ -998,7 +997,7 @@ public:
       ASMJIT_PROPAGATE(grow(allocator, count));
 
     if (count) {
-      ::memcpy(static_cast<T*>(_data) + _length, other._data, size_t(count) * sizeof(T));
+      std::memcpy(static_cast<T*>(_data) + _length, other._data, size_t(count) * sizeof(T));
       _length += count;
     }
 
@@ -1015,9 +1014,9 @@ public:
     T* data = static_cast<T*>(_data);
 
     if (_length)
-      ::memmove(data + 1, data, size_t(_length) * sizeof(T));
+      std::memmove(data + 1, data, size_t(_length) * sizeof(T));
 
-    ::memcpy(data, &item, sizeof(T));
+    std::memcpy(data, &item, sizeof(T));
     _length++;
   }
 
@@ -1029,7 +1028,7 @@ public:
   ASMJIT_INLINE void appendUnsafe(const T& item) noexcept {
     ASMJIT_ASSERT(_length < _capacity);
 
-    ::memcpy(static_cast<T*>(_data) + _length, &item, sizeof(T));
+    std::memcpy(static_cast<T*>(_data) + _length, &item, sizeof(T));
     _length++;
   }
 
@@ -1039,7 +1038,7 @@ public:
     ASMJIT_ASSERT(_capacity - _length >= count);
 
     if (count) {
-      ::memcpy(static_cast<T*>(_data) + _length, other._data, size_t(count) * sizeof(T));
+      std::memcpy(static_cast<T*>(_data) + _length, other._data, size_t(count) * sizeof(T));
       _length += count;
     }
   }
@@ -1067,7 +1066,9 @@ public:
 
     T* data = static_cast<T*>(_data) + i;
     uint32_t count = --_length - i;
-    if (count) ::memmove(data, data + 1, size_t(count) * sizeof(T));
+    
+    if (count)
+      std::memmove(data, data + 1, size_t(count) * sizeof(T));
   }
 
   ASMJIT_INLINE T pop() noexcept {

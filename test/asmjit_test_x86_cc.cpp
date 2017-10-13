@@ -5,9 +5,9 @@
 // Zlib - See LICENSE.md file in the package.
 
 // [Dependencies]
+#include <cstring>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <setjmp.h>
 
 #include "./asmjit.h"
@@ -27,7 +27,7 @@ public:
 
   bool hasArg(const char* arg) {
     for (int i = 1; i < _argc; i++)
-      if (::strcmp(_argv[i], arg) == 0)
+      if (std::strcmp(_argv[i], arg) == 0)
         return true;
     return false;
   }
@@ -42,7 +42,7 @@ public:
 
 class SimpleErrorHandler : public ErrorHandler {
 public:
-  inline SimpleErrorHandler() : _err(kErrorOk) {}
+  SimpleErrorHandler() : _err(kErrorOk) {}
   virtual void handleError(Error err, const char* message, CodeEmitter* origin) {
     ASMJIT_UNUSED(origin);
     _err = err;
@@ -160,10 +160,10 @@ int X86TestApp::run() {
   stringLogger.addOptions(logOptions);
 #endif
 
-  SimpleErrorHandler errorHandler;
   for (i = 0; i < count; i++) {
     JitRuntime runtime;
     CodeHolder code;
+    SimpleErrorHandler errorHandler;
 
     code.init(runtime.getCodeInfo());
     code.setErrorHandler(&errorHandler);
@@ -240,7 +240,7 @@ int X86TestApp::run() {
 #endif
 
       fprintf(file, "[Status]\n");
-      fprintf(file, "  ERROR: %s (0x%08X)\n", errorHandler._message.getData(), unsigned(err));
+      fprintf(file, "  ERROR 0x%08X: %s\n", unsigned(err), errorHandler._message.getData());
 
       _returnCode = 1;
     }
@@ -268,7 +268,7 @@ public:
   }
 
   static void add(X86TestApp& app) {
-    for (uint32_t i = 0; i <= 14; i++) {
+    for (uint32_t i = 0; i <= 16; i++) {
       for (uint32_t a = 16; a <= 32; a += 16) {
         app.add(new X86Test_AlignBase(i, a, true));
         app.add(new X86Test_AlignBase(i, a, false));
@@ -328,6 +328,14 @@ public:
     typedef int (*Func6)(int, int, int, int, int, int);
     typedef int (*Func7)(int, int, int, int, int, int, int);
     typedef int (*Func8)(int, int, int, int, int, int, int, int);
+    typedef int (*Func9)(int, int, int, int, int, int, int, int, int);
+    typedef int (*Func10)(int, int, int, int, int, int, int, int, int, int);
+    typedef int (*Func11)(int, int, int, int, int, int, int, int, int, int, int);
+    typedef int (*Func12)(int, int, int, int, int, int, int, int, int, int, int, int);
+    typedef int (*Func13)(int, int, int, int, int, int, int, int, int, int, int, int, int);
+    typedef int (*Func14)(int, int, int, int, int, int, int, int, int, int, int, int, int, int);
+    typedef int (*Func15)(int, int, int, int, int, int, int, int, int, int, int, int, int, int, int);
+    typedef int (*Func16)(int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int);
 
     unsigned int resultRet = 0;
     unsigned int expectRet = 0;
@@ -369,6 +377,38 @@ public:
         resultRet = ptr_as_func<Func8>(_func)(1, 2, 3, 4, 5, 6, 7, 8);
         expectRet = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8;
         break;
+      case 9:
+        resultRet = ptr_as_func<Func9>(_func)(1, 2, 3, 4, 5, 6, 7, 8, 9);
+        expectRet = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9;
+        break;
+      case 10:
+        resultRet = ptr_as_func<Func10>(_func)(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        expectRet = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10;
+        break;
+      case 11:
+        resultRet = ptr_as_func<Func11>(_func)(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
+        expectRet = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11;
+        break;
+      case 12:
+        resultRet = ptr_as_func<Func12>(_func)(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+        expectRet = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12;
+        break;
+      case 13:
+        resultRet = ptr_as_func<Func13>(_func)(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13);
+        expectRet = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13;
+        break;
+      case 14:
+        resultRet = ptr_as_func<Func14>(_func)(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14);
+        expectRet = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13 + 14;
+        break;
+      case 15:
+        resultRet = ptr_as_func<Func15>(_func)(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+        expectRet = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13 + 14 + 15;
+        break;
+      case 16:
+        resultRet = ptr_as_func<Func16>(_func)(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16);
+        expectRet = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11 + 12 + 13 + 14 + 15 + 16;
+        break;
     }
 
     result.setFormat("ret={%u, %u}", resultRet >> 28, resultRet & 0x0FFFFFFFU);
@@ -380,6 +420,32 @@ public:
   uint32_t _argCount;
   uint32_t _alignment;
   bool _preserveFP;
+};
+
+// ============================================================================
+// [X86Test_NoCode]
+// ============================================================================
+
+class X86Test_NoCode : public X86Test {
+public:
+  X86Test_NoCode() : X86Test("NoCode") {}
+
+  static void add(X86TestApp& app) {
+    app.add(new X86Test_NoCode());
+  }
+
+  virtual void compile(X86Compiler& cc) {
+    cc.addFunc(FuncSignatureT<void>(CallConv::kIdHost));
+    cc.endFunc();
+  }
+
+  virtual bool run(void* _func, StringBuilder& result, StringBuilder& expect) {
+    typedef void(*Func)(void);
+    Func func = ptr_as_func<Func>(_func);
+
+    func();
+    return true;
+  }
 };
 
 // ============================================================================
@@ -395,7 +461,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature0<void>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void>(CallConv::kIdHost));
     cc.align(kAlignCode, 0);
     cc.align(kAlignCode, 1);
     cc.endFunc();
@@ -406,6 +472,72 @@ public:
     Func func = ptr_as_func<Func>(_func);
 
     func();
+    return true;
+  }
+};
+
+// ============================================================================
+// [X86Test_JumpMerge]
+// ============================================================================
+
+class X86Test_JumpMerge : public X86Test {
+public:
+  X86Test_JumpMerge() : X86Test("JumpMerge") {}
+
+  static void add(X86TestApp& app) {
+    app.add(new X86Test_JumpMerge());
+  }
+
+  virtual void compile(X86Compiler& cc) {
+    cc.addFunc(FuncSignatureT<void, int*, int>(CallConv::kIdHost));
+
+    Label L0 = cc.newLabel();
+    Label L1 = cc.newLabel();
+    Label L2 = cc.newLabel();
+    Label LEnd = cc.newLabel();
+
+    X86Gp dst = cc.newInt32("dst");
+    X86Gp val = cc.newInt32("val");
+
+    cc.setArg(0, dst);
+    cc.setArg(1, val);
+
+    cc.cmp(val, 0);
+    cc.je(L0);
+
+    cc.cmp(val, 1);
+    cc.je(L1);
+
+    cc.cmp(val, 2);
+    cc.je(L2);
+
+    cc.mov(x86::dword_ptr(dst), val);
+    cc.jmp(LEnd);
+
+    // On purpose. This tests whether the CFG constructs a single basic-block
+    // from multiple labels next to each other.
+    cc.bind(L0);
+    cc.bind(L1);
+    cc.bind(L2);
+    cc.mov(x86::dword_ptr(dst), 0);
+
+    cc.bind(LEnd);
+    cc.endFunc();
+  }
+
+  virtual bool run(void* _func, StringBuilder& result, StringBuilder& expect) {
+    typedef void(*Func)(int*, int);
+    Func func = ptr_as_func<Func>(_func);
+
+    int arr[5] = { -1, -1, -1, -1, -1 };
+    int exp[5] = {  0,  0,  0,  3,  4 };
+
+    for (int i = 0; i < 5; i++)
+      func(&arr[i], i);
+
+    result.setFormat("ret={%d, %d, %d, %d, %d}", arr[0], arr[1], arr[2], arr[3], arr[4]);
+    expect.setFormat("ret={%d, %d, %d, %d, %d}", exp[0], exp[1], exp[2], exp[3], exp[4]);
+
     return true;
   }
 };
@@ -423,7 +555,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature0<void>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void>(CallConv::kIdHost));
 
     Label L1 = cc.newLabel();
     Label L2 = cc.newLabel();
@@ -438,8 +570,6 @@ public:
     cc.jmp(L1);
 
     cc.bind(L3);
-
-    cc.ret();
     cc.endFunc();
   }
 
@@ -465,7 +595,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature0<int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int>(CallConv::kIdHost));
     for (uint32_t i = 0; i < 1000; i++) {
       Label L = cc.newLabel();
       cc.jmp(L);
@@ -506,7 +636,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature0<void>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void>(CallConv::kIdHost));
 
     Label L_1 = cc.newLabel();
     Label L_2 = cc.newLabel();
@@ -569,7 +699,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature0<void>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void>(CallConv::kIdHost));
 
     Label L_1 = cc.newLabel();
     Label L_2 = cc.newLabel();
@@ -616,7 +746,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature0<int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int>(CallConv::kIdHost));
 
     X86Gp v0 = cc.newInt32("v0");
     X86Gp v1 = cc.newInt32("v1");
@@ -669,7 +799,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature2<void, int*, int*>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void, int*, int*>(CallConv::kIdHost));
 
     X86Gp a0 = cc.newIntPtr("a0");
     X86Gp a1 = cc.newIntPtr("a1");
@@ -739,7 +869,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature1<void, int*>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void, int*>(CallConv::kIdHost));
 
     X86Gp a = cc.newIntPtr("a");
     X86Gp v[32];
@@ -803,7 +933,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature4<void, int*, int*, int, int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void, int*, int*, int, int>(CallConv::kIdHost));
 
     X86Gp dstHi = cc.newIntPtr("dstHi");
     X86Gp dstLo = cc.newIntPtr("dstLo");
@@ -859,7 +989,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature2<void, int*, const int*>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void, int*, const int*>(CallConv::kIdHost));
 
     X86Gp dst = cc.newIntPtr("dst");
     X86Gp src = cc.newIntPtr("src");
@@ -913,7 +1043,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature2<int, int, int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int, int, int>(CallConv::kIdHost));
 
     X86Gp a = cc.newInt32("a");
     X86Gp b = cc.newInt32("b");
@@ -959,7 +1089,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature3<void, int, int, char*>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void, int, int, char*>(CallConv::kIdHost));
 
     X86Gp src0 = cc.newInt32("src0");
     X86Gp src1 = cc.newInt32("src1");
@@ -1010,7 +1140,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature4<void, int*, int, int, int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void, int*, int, int, int>(CallConv::kIdHost));
 
     X86Gp dst = cc.newIntPtr("dst");
     X86Gp var = cc.newInt32("var");
@@ -1062,7 +1192,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature1<uint32_t, uint32_t*>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<uint32_t, uint32_t*>(CallConv::kIdHost));
 
     X86Gp rPtr = cc.newUIntPtr("rPtr");
     X86Gp rSum = cc.newUInt32("rSum");
@@ -1151,7 +1281,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature3<void, void*, void*, size_t>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void, void*, void*, size_t>(CallConv::kIdHost));
 
     X86Gp dst = cc.newIntPtr("dst");
     X86Gp src = cc.newIntPtr("src");
@@ -1193,7 +1323,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature2<int, int, int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int, int, int>(CallConv::kIdHost));
 
     X86Gp v1 = cc.newInt32("v1");
     X86Gp v2 = cc.newInt32("v2");
@@ -1245,7 +1375,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature2<int, int, int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int, int, int>(CallConv::kIdHost));
 
     X86Gp v1 = cc.newInt32("v1");
     X86Gp v2 = cc.newInt32("v2");
@@ -1306,7 +1436,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature2<int, int, int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int, int, int>(CallConv::kIdHost));
 
     X86Gp v1 = cc.newInt32("v1");
     X86Gp v2 = cc.newInt32("v2");
@@ -1367,7 +1497,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature2<int, int, int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int, int, int>(CallConv::kIdHost));
 
     X86Gp v1 = cc.newInt32("v1");
     X86Gp v2 = cc.newInt32("v2");
@@ -1436,7 +1566,7 @@ public:
     X86Gp x = cc.newInt8("x");
     X86Gp y = cc.newInt32("y");
 
-    cc.addFunc(FuncSignature1<int, char>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int, char>(CallConv::kIdHost));
     cc.setArg(0, x);
 
     cc.movsx(y, x);
@@ -1472,7 +1602,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature3<int, int, int, int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int, int, int, int>(CallConv::kIdHost));
 
     X86Gp x = cc.newInt32("x");
     cc.setArg(2, x);
@@ -1508,7 +1638,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature8<void, void*, void*, void*, void*, void*, void*, void*, void*>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void, void*, void*, void*, void*, void*, void*, void*, void*>(CallConv::kIdHost));
 
     uint32_t i;
     X86Gp var[8];
@@ -1567,7 +1697,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature8<void, float, float, float, float, float, float, float, void*>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void, float, float, float, float, float, float, float, void*>(CallConv::kIdHost));
 
     uint32_t i;
 
@@ -1621,7 +1751,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature8<void, double, double, double, double, double, double, double, void*>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void, double, double, double, double, double, double, double, void*>(CallConv::kIdHost));
 
     uint32_t i;
 
@@ -1675,7 +1805,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature1<float, float>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<float, float>(CallConv::kIdHost));
 
     X86Xmm x = cc.newXmmSs("x");
     cc.setArg(0, x);
@@ -1711,7 +1841,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature2<float, float, float>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<float, float, float>(CallConv::kIdHost));
 
     X86Xmm x = cc.newXmmSs("x");
     X86Xmm y = cc.newXmmSs("y");
@@ -1752,7 +1882,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature1<double, double>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<double, double>(CallConv::kIdHost));
 
     X86Xmm x = cc.newXmmSd("x");
     cc.setArg(0, x);
@@ -1787,7 +1917,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature2<double, double, double>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<double, double, double>(CallConv::kIdHost));
 
     X86Xmm x = cc.newXmmSd("x");
     X86Xmm y = cc.newXmmSd("y");
@@ -1830,7 +1960,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature0<int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int>(CallConv::kIdHost));
 
     X86Mem stack = cc.newStack(kSize, 1);
     stack.setSize(1);
@@ -1905,7 +2035,7 @@ public:
     Label L_Loop = cc.newLabel();                   // Create base labels we use
     Label L_Exit = cc.newLabel();                   // in our function.
 
-    cc.addFunc(FuncSignature3<void, uint32_t*, const uint32_t*, size_t>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void, uint32_t*, const uint32_t*, size_t>(CallConv::kIdHost));
     cc.setArg(0, dst);
     cc.setArg(1, src);
     cc.setArg(2, cnt);
@@ -1983,7 +2113,7 @@ public:
     X86Gp a = cc.newInt32("a");
     X86Gp b = cc.newInt32("b");
 
-    cc.addFunc(FuncSignature3<int, int, int, int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int, int, int, int>(CallConv::kIdHost));
     cc.setArg(0, cond);
     cc.setArg(1, a);
     cc.setArg(2, b);
@@ -2075,8 +2205,8 @@ public:
     uint32_t* dstBuffer = (uint32_t*)IntUtils::alignUp<intptr_t>((intptr_t)_dstBuffer, 16);
     uint32_t* srcBuffer = (uint32_t*)IntUtils::alignUp<intptr_t>((intptr_t)_srcBuffer, 16);
 
-    ::memcpy(dstBuffer, dstConstData, sizeof(dstConstData));
-    ::memcpy(srcBuffer, srcConstData, sizeof(srcConstData));
+    std::memcpy(dstBuffer, dstConstData, sizeof(dstConstData));
+    std::memcpy(srcBuffer, srcConstData, sizeof(srcConstData));
 
     uint32_t i;
     uint32_t expBuffer[kCount];
@@ -2124,7 +2254,7 @@ public:
     X86Gp v1 = cc.newInt32("v1");
     X86Gp v2 = cc.newInt32("v2");
 
-    cc.addFunc(FuncSignature3<int, int, int, int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int, int, int, int>(CallConv::kIdHost));
     cc.setArg(0, v0);
     cc.setArg(1, v1);
     cc.setArg(2, v2);
@@ -2138,7 +2268,7 @@ public:
     X86Gp fn = cc.newIntPtr("fn");
     cc.mov(fn, imm_ptr(calledFunc));
 
-    CCFuncCall* call = cc.call(fn, FuncSignature3<int, int, int, int>(CallConv::kIdHost));
+    CCFuncCall* call = cc.call(fn, FuncSignatureT<int, int, int, int>(CallConv::kIdHost));
     call->setArg(0, v2);
     call->setArg(1, v1);
     call->setArg(2, v0);
@@ -2179,7 +2309,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature0<int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int>(CallConv::kIdHost));
 
     const int kTokenSize = 32;
 
@@ -2199,19 +2329,19 @@ public:
     cc.lea(p2, s2);
 
     // Try to corrupt the stack if wrongly allocated.
-    call = cc.call(imm_ptr((void*)memcpy), FuncSignature3<void*, void*, void*, size_t>(CallConv::kIdHostCDecl));
+    call = cc.call(imm_ptr((void*)std::memcpy), FuncSignatureT<void*, void*, void*, size_t>(CallConv::kIdHostCDecl));
     call->setArg(0, p1);
     call->setArg(1, imm_ptr(token));
     call->setArg(2, imm(kTokenSize));
     call->setRet(0, p1);
 
-    call = cc.call(imm_ptr((void*)memcpy), FuncSignature3<void*, void*, void*, size_t>(CallConv::kIdHostCDecl));
+    call = cc.call(imm_ptr((void*)std::memcpy), FuncSignatureT<void*, void*, void*, size_t>(CallConv::kIdHostCDecl));
     call->setArg(0, p2);
     call->setArg(1, imm_ptr(token));
     call->setArg(2, imm(kTokenSize));
     call->setRet(0, p2);
 
-    call = cc.call(imm_ptr((void*)memcmp), FuncSignature3<int, void*, void*, size_t>(CallConv::kIdHostCDecl));
+    call = cc.call(imm_ptr((void*)std::memcmp), FuncSignatureT<int, void*, void*, size_t>(CallConv::kIdHostCDecl));
     call->setArg(0, p1);
     call->setArg(1, p2);
     call->setArg(2, imm(kTokenSize));
@@ -2262,17 +2392,17 @@ public:
     X86Gp var = cc.newInt32("var");
     X86Gp fn = cc.newIntPtr("fn");
 
-    cc.addFunc(FuncSignature1<int, int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int, int>(CallConv::kIdHost));
     cc.setArg(0, var);
 
     cc.mov(fn, imm_ptr(calledFunc));
     CCFuncCall* call;
 
-    call = cc.call(fn, FuncSignature1<int, int>(CallConv::kIdHostFastCall));
+    call = cc.call(fn, FuncSignatureT<int, int>(CallConv::kIdHostFastCall));
     call->setArg(0, var);
     call->setRet(0, var);
 
-    call = cc.call(fn, FuncSignature1<int, int>(CallConv::kIdHostFastCall));
+    call = cc.call(fn, FuncSignatureT<int, int>(CallConv::kIdHostFastCall));
     call->setArg(0, var);
     call->setRet(0, var);
 
@@ -2300,6 +2430,104 @@ public:
 };
 
 // ============================================================================
+// [X86Test_FuncCallLight]
+// ============================================================================
+
+class X86Test_FuncCallLight : public X86Test {
+public:
+  X86Test_FuncCallLight() : X86Test("FuncCallLight") {}
+
+  static void add(X86TestApp& app) {
+    app.add(new X86Test_FuncCallLight());
+  }
+
+  virtual void compile(X86Compiler& cc) {
+    FuncSignatureT<void, const void*, const void*, const void*, const void*, void*> funcSig(CallConv::kIdHostCDecl);
+    FuncSignatureT<X86Xmm, X86Xmm, X86Xmm> fastSig(CallConv::kIdHostLightCall2);
+
+    CCFunc* func = cc.newFunc(funcSig);
+    CCFunc* fast = cc.newFunc(fastSig);
+
+    {
+      X86Gp aPtr = cc.newIntPtr("aPtr");
+      X86Gp bPtr = cc.newIntPtr("bPtr");
+      X86Gp cPtr = cc.newIntPtr("cPtr");
+      X86Gp dPtr = cc.newIntPtr("dPtr");
+      X86Gp pOut = cc.newIntPtr("pOut");
+
+      X86Xmm aXmm = cc.newXmm("aXmm");
+      X86Xmm bXmm = cc.newXmm("bXmm");
+      X86Xmm cXmm = cc.newXmm("cXmm");
+      X86Xmm dXmm = cc.newXmm("dXmm");
+
+      cc.addFunc(func);
+
+      cc.setArg(0, aPtr);
+      cc.setArg(1, bPtr);
+      cc.setArg(2, cPtr);
+      cc.setArg(3, dPtr);
+      cc.setArg(4, pOut);
+
+      cc.movups(aXmm, x86::ptr(aPtr));
+      cc.movups(bXmm, x86::ptr(bPtr));
+      cc.movups(cXmm, x86::ptr(cPtr));
+      cc.movups(dXmm, x86::ptr(dPtr));
+
+      X86Xmm xXmm = cc.newXmm("xXmm");
+      X86Xmm yXmm = cc.newXmm("yXmm");
+
+      CCFuncCall* call1 = cc.call(fast->getLabel(), fastSig);
+      call1->setArg(0, aXmm);
+      call1->setArg(1, bXmm);
+      call1->setRet(0, xXmm);
+
+      CCFuncCall* call2 = cc.call(fast->getLabel(), fastSig);
+      call2->setArg(0, cXmm);
+      call2->setArg(1, dXmm);
+      call2->setRet(0, yXmm);
+
+      cc.pmullw(xXmm, yXmm);
+      cc.movups(x86::ptr(pOut), xXmm);
+
+      cc.endFunc();
+    }
+
+    {
+      X86Xmm aXmm = cc.newXmm("aXmm");
+      X86Xmm bXmm = cc.newXmm("bXmm");
+
+      cc.addFunc(fast);
+      cc.setArg(0, aXmm);
+      cc.setArg(1, bXmm);
+      cc.paddw(aXmm, bXmm);
+      cc.ret(aXmm);
+      cc.endFunc();
+    }
+  }
+
+  virtual bool run(void* _func, StringBuilder& result, StringBuilder& expect) {
+    typedef void (*Func)(const void*, const void*, const void*, const void*, void*);
+
+    Func func = ptr_as_func<Func>(_func);
+
+    int16_t a[8] = { 0, 1, 2, 3, 4, 5, 6, 7 };
+    int16_t b[8] = { 7, 6, 5, 4, 3, 2, 1, 0 };
+    int16_t c[8] = { 1, 3, 9, 7, 5, 4, 2, 1 };
+    int16_t d[8] = { 2, 0,-6,-4,-2,-1, 1, 2 };
+
+    int16_t o[8];
+    int oExp = 7 * 3;
+
+    func(a, b, c, d, o);
+
+    result.setFormat("ret={%02X %02X %02X %02X %02X %02X %02X %02X}", o[0], o[1], o[2], o[3], o[4], o[5], o[6], o[7]);
+    expect.setFormat("ret={%02X %02X %02X %02X %02X %02X %02X %02X}", oExp, oExp, oExp, oExp, oExp, oExp, oExp, oExp);
+
+    return result == expect;
+  }
+};
+
+// ============================================================================
 // [X86Test_FuncCallManyArgs]
 // ============================================================================
 
@@ -2316,7 +2544,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature0<int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int>(CallConv::kIdHost));
 
     // Prepare.
     X86Gp fn = cc.newIntPtr("fn");
@@ -2344,7 +2572,7 @@ public:
     cc.mov(vj, 0x1E);
 
     // Call function.
-    CCFuncCall* call = cc.call(fn, FuncSignature10<int, int, int, int, int, int, int, int, int, int, int>(CallConv::kIdHost));
+    CCFuncCall* call = cc.call(fn, FuncSignatureT<int, int, int, int, int, int, int, int, int, int, int>(CallConv::kIdHost));
     call->setArg(0, va);
     call->setArg(1, vb);
     call->setArg(2, vc);
@@ -2392,7 +2620,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature0<int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int>(CallConv::kIdHost));
 
     // Prepare.
     X86Gp fn = cc.newIntPtr("fn");
@@ -2402,7 +2630,7 @@ public:
     cc.mov(a, 3);
 
     // Call function.
-    CCFuncCall* call = cc.call(fn, FuncSignature10<int, int, int, int, int, int, int, int, int, int, int>(CallConv::kIdHost));
+    CCFuncCall* call = cc.call(fn, FuncSignatureT<int, int, int, int, int, int, int, int, int, int, int>(CallConv::kIdHost));
     call->setArg(0, a);
     call->setArg(1, a);
     call->setArg(2, a);
@@ -2446,7 +2674,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature0<int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int>(CallConv::kIdHost));
 
     // Prepare.
     X86Gp fn = cc.newIntPtr("fn");
@@ -2455,7 +2683,7 @@ public:
     cc.mov(fn, imm_ptr(X86Test_FuncCallManyArgs::calledFunc));
 
     // Call function.
-    CCFuncCall* call = cc.call(fn, FuncSignature10<int, int, int, int, int, int, int, int, int, int, int>(CallConv::kIdHost));
+    CCFuncCall* call = cc.call(fn, FuncSignatureT<int, int, int, int, int, int, int, int, int, int, int>(CallConv::kIdHost));
     call->setArg(0, imm(0x03));
     call->setArg(1, imm(0x12));
     call->setArg(2, imm(0xA0));
@@ -2512,7 +2740,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature0<int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int>(CallConv::kIdHost));
 
     // Prepare.
     X86Gp fn = cc.newIntPtr("fn");
@@ -2521,7 +2749,7 @@ public:
     cc.mov(fn, imm_ptr(calledFunc));
 
     // Call function.
-    CCFuncCall* call = cc.call(fn, FuncSignature10<int, void*, void*, void*, void*, void*, void*, void*, void*, void*, void*>(CallConv::kIdHost));
+    CCFuncCall* call = cc.call(fn, FuncSignatureT<int, void*, void*, void*, void*, void*, void*, void*, void*, void*, void*>(CallConv::kIdHost));
     call->setArg(0, imm(0x01));
     call->setArg(1, imm(0x02));
     call->setArg(2, imm(0x03));
@@ -2569,7 +2797,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature2<float, float, float>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<float, float, float>(CallConv::kIdHost));
 
     X86Xmm a = cc.newXmmSs("a");
     X86Xmm b = cc.newXmmSs("b");
@@ -2583,7 +2811,7 @@ public:
     cc.mov(fn, imm_ptr(calledFunc));
 
     // Call function.
-    CCFuncCall* call = cc.call(fn, FuncSignature2<float, float, float>(CallConv::kIdHost));
+    CCFuncCall* call = cc.call(fn, FuncSignatureT<float, float, float>(CallConv::kIdHost));
 
     call->setArg(0, a);
     call->setArg(1, b);
@@ -2624,7 +2852,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature2<double, double, double>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<double, double, double>(CallConv::kIdHost));
 
     X86Xmm a = cc.newXmmSd("a");
     X86Xmm b = cc.newXmmSd("b");
@@ -2636,7 +2864,7 @@ public:
     X86Gp fn = cc.newIntPtr("fn");
     cc.mov(fn, imm_ptr(calledFunc));
 
-    CCFuncCall* call = cc.call(fn, FuncSignature2<double, double, double>(CallConv::kIdHost));
+    CCFuncCall* call = cc.call(fn, FuncSignatureT<double, double, double>(CallConv::kIdHost));
 
     call->setArg(0, a);
     call->setArg(1, b);
@@ -2680,7 +2908,7 @@ public:
     CCFuncCall* call;
     X86Gp result;
 
-    cc.addFunc(FuncSignature3<int, int, int, int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int, int, int, int>(CallConv::kIdHost));
     cc.setArg(0, x);
     cc.setArg(1, y);
     cc.setArg(2, op);
@@ -2700,7 +2928,7 @@ public:
     cc.bind(opAdd);
     result = cc.newInt32("result_1");
 
-    call = cc.call((uint64_t)calledFuncAdd, FuncSignature2<int, int, int>(CallConv::kIdHost));
+    call = cc.call((uint64_t)calledFuncAdd, FuncSignatureT<int, int, int>(CallConv::kIdHost));
     call->setArg(0, x);
     call->setArg(1, y);
     call->setRet(0, result);
@@ -2709,7 +2937,7 @@ public:
     cc.bind(opMul);
     result = cc.newInt32("result_2");
 
-    call = cc.call((uint64_t)calledFuncMul, FuncSignature2<int, int, int>(CallConv::kIdHost));
+    call = cc.call((uint64_t)calledFuncMul, FuncSignatureT<int, int, int>(CallConv::kIdHost));
     call->setArg(0, x);
     call->setArg(1, y);
     call->setRet(0, result);
@@ -2764,7 +2992,7 @@ public:
     X86Gp acc0 = cc.newInt32("acc0");
     X86Gp acc1 = cc.newInt32("acc1");
 
-    cc.addFunc(FuncSignature1<int, int*>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int, int*>(CallConv::kIdHost));
     cc.setArg(0, buf);
 
     cc.mov(acc0, 0);
@@ -2779,7 +3007,7 @@ public:
       cc.mov(ptr, buf);
       cc.mov(idx, int(i));
 
-      call = cc.call((uint64_t)calledFunc, FuncSignature2<int, int*, int>(CallConv::kIdHostFastCall));
+      call = cc.call((uint64_t)calledFunc, FuncSignatureT<int, int*, int>(CallConv::kIdHostFastCall));
       call->setArg(0, ptr);
       call->setArg(1, idx);
       call->setRet(0, ret);
@@ -2789,7 +3017,7 @@ public:
       cc.mov(ptr, buf);
       cc.mov(idx, int(i));
 
-      call = cc.call((uint64_t)calledFunc, FuncSignature2<int, int*, int>(CallConv::kIdHostFastCall));
+      call = cc.call((uint64_t)calledFunc, FuncSignatureT<int, int*, int>(CallConv::kIdHostFastCall));
       call->setArg(0, ptr);
       call->setArg(1, idx);
       call->setRet(0, ret);
@@ -2834,7 +3062,7 @@ public:
     X86Gp val = cc.newInt32("val");
     Label skip = cc.newLabel();
 
-    CCFunc* func = cc.addFunc(FuncSignature1<int, int>(CallConv::kIdHost));
+    CCFunc* func = cc.addFunc(FuncSignatureT<int, int>(CallConv::kIdHost));
     cc.setArg(0, val);
 
     cc.cmp(val, 1);
@@ -2844,7 +3072,7 @@ public:
     cc.mov(tmp, val);
     cc.dec(tmp);
 
-    CCFuncCall* call = cc.call(func->getLabel(), FuncSignature1<int, int>(CallConv::kIdHost));
+    CCFuncCall* call = cc.call(func->getLabel(), FuncSignatureT<int, int>(CallConv::kIdHost));
     call->setArg(0, tmp);
     call->setRet(0, tmp);
     cc.mul(cc.newInt32(), val, tmp);
@@ -2883,7 +3111,7 @@ public:
   static void dummy(int a, int b) {}
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature2<int, int, int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int, int, int>(CallConv::kIdHost));
 
     X86Gp a = cc.newInt32("a");
     X86Gp b = cc.newInt32("b");
@@ -2892,7 +3120,7 @@ public:
     cc.setArg(0, a);
     cc.setArg(1, b);
 
-    CCFuncCall* call = cc.call(imm_ptr(dummy), FuncSignature2<void, int, int>(CallConv::kIdHost));
+    CCFuncCall* call = cc.call(imm_ptr(dummy), FuncSignatureT<void, int, int>(CallConv::kIdHost));
     call->setArg(0, a);
     call->setArg(1, b);
 
@@ -2929,7 +3157,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    CCFunc* func = cc.addFunc(FuncSignature1<double, const double*>(CallConv::kIdHost));
+    CCFunc* func = cc.addFunc(FuncSignatureT<double, const double*>(CallConv::kIdHost));
 
     X86Gp p = cc.newIntPtr("p");
     X86Gp fn = cc.newIntPtr("fn");
@@ -2941,7 +3169,7 @@ public:
     cc.movsd(arg, x86::ptr(p));
     cc.mov(fn, imm_ptr(op));
 
-    CCFuncCall* call = cc.call(fn, FuncSignature1<double, double>(CallConv::kIdHost));
+    CCFuncCall* call = cc.call(fn, FuncSignatureT<double, double>(CallConv::kIdHost));
     call->setArg(0, arg);
     call->setRet(0, ret);
 
@@ -2980,7 +3208,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    CCFunc* func = cc.addFunc(FuncSignature1<double, const double*>(CallConv::kIdHost));
+    CCFunc* func = cc.addFunc(FuncSignatureT<double, const double*>(CallConv::kIdHost));
 
     X86Gp p = cc.newIntPtr("p");
     X86Gp fn = cc.newIntPtr("fn");
@@ -2992,7 +3220,7 @@ public:
     cc.movsd(arg, x86::ptr(p));
     cc.mov(fn, imm_ptr(op));
 
-    CCFuncCall* call = cc.call(fn, FuncSignature1<double, double>(CallConv::kIdHost));
+    CCFuncCall* call = cc.call(fn, FuncSignatureT<double, double>(CallConv::kIdHost));
     call->setArg(0, arg);
     call->setRet(0, ret);
 
@@ -3081,7 +3309,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature0<int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int>(CallConv::kIdHost));
 
     X86Gp pFn = cc.newIntPtr("pFn");
     X86Gp vars[16];
@@ -3099,7 +3327,7 @@ public:
       cc.mov(vars[i], 1);
     }
 
-    cc.call(pFn, FuncSignature0<void>(CallConv::kIdHost));
+    cc.call(pFn, FuncSignatureT<void>(CallConv::kIdHost));
     for (i = 1; i < regCount; i++)
       if (vars[i].isValid())
         cc.add(vars[0], vars[i]);
@@ -3137,7 +3365,7 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature0<int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int>(CallConv::kIdHost));
 
     X86Gp v0 = cc.newInt32("v0");
     X86Gp v1 = cc.newInt32("v1");
@@ -3179,7 +3407,7 @@ struct X86Test_MiscMultiRet : public X86Test {
   }
 
   virtual void compile(X86Compiler& cc) {
-    cc.addFunc(FuncSignature3<int, int, int, int>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<int, int, int, int>(CallConv::kIdHost));
 
     X86Gp op = cc.newInt32("op");
     X86Gp a = cc.newInt32("a");
@@ -3272,8 +3500,8 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    CCFunc* f1 = cc.newFunc(FuncSignature2<int, int, int>(CallConv::kIdHost));
-    CCFunc* f2 = cc.newFunc(FuncSignature2<int, int, int>(CallConv::kIdHost));
+    CCFunc* f1 = cc.newFunc(FuncSignatureT<int, int, int>(CallConv::kIdHost));
+    CCFunc* f2 = cc.newFunc(FuncSignatureT<int, int, int>(CallConv::kIdHost));
 
     {
       X86Gp a = cc.newInt32("a");
@@ -3283,7 +3511,7 @@ public:
       cc.setArg(0, a);
       cc.setArg(1, b);
 
-      CCFuncCall* call = cc.call(f2->getLabel(), FuncSignature2<int, int, int>(CallConv::kIdHost));
+      CCFuncCall* call = cc.call(f2->getLabel(), FuncSignatureT<int, int, int>(CallConv::kIdHost));
       call->setArg(0, a);
       call->setArg(1, b);
       call->setRet(0, a);
@@ -3322,104 +3550,6 @@ public:
 };
 
 // ============================================================================
-// [X86Test_MiscFastEval]
-// ============================================================================
-
-class X86Test_MiscFastEval : public X86Test {
-public:
-  X86Test_MiscFastEval() : X86Test("MiscFastEval") {}
-
-  static void add(X86TestApp& app) {
-    app.add(new X86Test_MiscFastEval());
-  }
-
-  virtual void compile(X86Compiler& cc) {
-    FuncSignature5<void, const void*, const void*, const void*, const void*, void*> funcSig(CallConv::kIdHostCDecl);
-    FuncSignature2<X86Xmm, X86Xmm, X86Xmm> fastSig(CallConv::kIdHostFastEval2);
-
-    CCFunc* func = cc.newFunc(funcSig);
-    CCFunc* fast = cc.newFunc(fastSig);
-
-    {
-      X86Gp aPtr = cc.newIntPtr("aPtr");
-      X86Gp bPtr = cc.newIntPtr("bPtr");
-      X86Gp cPtr = cc.newIntPtr("cPtr");
-      X86Gp dPtr = cc.newIntPtr("dPtr");
-      X86Gp pOut = cc.newIntPtr("pOut");
-
-      X86Xmm aXmm = cc.newXmm("aXmm");
-      X86Xmm bXmm = cc.newXmm("bXmm");
-      X86Xmm cXmm = cc.newXmm("cXmm");
-      X86Xmm dXmm = cc.newXmm("dXmm");
-
-      cc.addFunc(func);
-
-      cc.setArg(0, aPtr);
-      cc.setArg(1, bPtr);
-      cc.setArg(2, cPtr);
-      cc.setArg(3, dPtr);
-      cc.setArg(4, pOut);
-
-      cc.movups(aXmm, x86::ptr(aPtr));
-      cc.movups(bXmm, x86::ptr(bPtr));
-      cc.movups(cXmm, x86::ptr(cPtr));
-      cc.movups(dXmm, x86::ptr(dPtr));
-
-      X86Xmm xXmm = cc.newXmm("xXmm");
-      X86Xmm yXmm = cc.newXmm("yXmm");
-
-      CCFuncCall* call1 = cc.call(fast->getLabel(), fastSig);
-      call1->setArg(0, aXmm);
-      call1->setArg(1, bXmm);
-      call1->setRet(0, xXmm);
-
-      CCFuncCall* call2 = cc.call(fast->getLabel(), fastSig);
-      call2->setArg(0, cXmm);
-      call2->setArg(1, dXmm);
-      call2->setRet(0, yXmm);
-
-      cc.pmullw(xXmm, yXmm);
-      cc.movups(x86::ptr(pOut), xXmm);
-
-      cc.endFunc();
-    }
-
-    {
-      X86Xmm aXmm = cc.newXmm("aXmm");
-      X86Xmm bXmm = cc.newXmm("bXmm");
-
-      cc.addFunc(fast);
-      cc.setArg(0, aXmm);
-      cc.setArg(1, bXmm);
-      cc.paddw(aXmm, bXmm);
-      cc.ret(aXmm);
-      cc.endFunc();
-    }
-  }
-
-  virtual bool run(void* _func, StringBuilder& result, StringBuilder& expect) {
-    typedef void (*Func)(const void*, const void*, const void*, const void*, void*);
-
-    Func func = ptr_as_func<Func>(_func);
-
-    int16_t a[8] = { 0, 1, 2, 3, 4, 5, 6, 7 };
-    int16_t b[8] = { 7, 6, 5, 4, 3, 2, 1, 0 };
-    int16_t c[8] = { 1, 3, 9, 7, 5, 4, 2, 1 };
-    int16_t d[8] = { 2, 0,-6,-4,-2,-1, 1, 2 };
-
-    int16_t o[8];
-    int oExp = 7 * 3;
-
-    func(a, b, c, d, o);
-
-    result.setFormat("ret={%02X %02X %02X %02X %02X %02X %02X %02X}", o[0], o[1], o[2], o[3], o[4], o[5], o[6], o[7]);
-    expect.setFormat("ret={%02X %02X %02X %02X %02X %02X %02X %02X}", oExp, oExp, oExp, oExp, oExp, oExp, oExp, oExp);
-
-    return result == expect;
-  }
-};
-
-// ============================================================================
 // [X86Test_MiscUnfollow]
 // ============================================================================
 
@@ -3439,7 +3569,7 @@ public:
     // arguments will be passed by registers and there won't be any stack
     // misalignment when we call the `handler()`. This was failing on OSX
     // when targeting 32-bit.
-    cc.addFunc(FuncSignature2<void, int, void*>(CallConv::kIdHostFastCall));
+    cc.addFunc(FuncSignatureT<void, int, void*>(CallConv::kIdHostFastCall));
 
     X86Gp a = cc.newInt32("a");
     X86Gp b = cc.newIntPtr("b");
@@ -3491,17 +3621,19 @@ int main(int argc, char* argv[]) {
   app.handleArgs(argc, argv);
   app.showInfo();
 
-  // Align.
-  app.addT<X86Test_AlignBase>();
+  // Base tests.
+  app.addT<X86Test_NoCode>();
   app.addT<X86Test_AlignNone>();
+  app.addT<X86Test_AlignBase>();
 
-  // Jump.
+  // Jump tests.
+  app.addT<X86Test_JumpMerge>();
   app.addT<X86Test_JumpCross>();
   app.addT<X86Test_JumpMany>();
   app.addT<X86Test_JumpUnreachable1>();
   app.addT<X86Test_JumpUnreachable2>();
 
-  // Alloc.
+  // Alloc tests.
   app.addT<X86Test_AllocBase>();
   app.addT<X86Test_AllocMany1>();
   app.addT<X86Test_AllocMany2>();
@@ -3531,11 +3663,12 @@ int main(int argc, char* argv[]) {
   app.addT<X86Test_AllocExtraBlock>();
   app.addT<X86Test_AllocAlphaBlend>();
 
-  // Call.
+  // Function call tests.
   app.addT<X86Test_FuncCallBase1>();
-
   app.addT<X86Test_FuncCallBase2>();
   app.addT<X86Test_FuncCallFast>();
+
+  app.addT<X86Test_FuncCallLight>();
   app.addT<X86Test_FuncCallManyArgs>();
   app.addT<X86Test_FuncCallDuplicateArgs>();
   app.addT<X86Test_FuncCallImmArgs>();
@@ -3551,12 +3684,11 @@ int main(int argc, char* argv[]) {
   app.addT<X86Test_FuncCallMisc4>();
   app.addT<X86Test_FuncCallMisc5>();
 
-  // Misc.
+  // Miscellaneous tests.
   app.addT<X86Test_MiscConstPool>();
   app.addT<X86Test_MiscMultiRet>();
   app.addT<X86Test_MiscMultiFunc>();
-  app.addT<X86Test_MiscFastEval>();
   app.addT<X86Test_MiscUnfollow>();
-
+ 
   return app.run();
 }

@@ -526,7 +526,7 @@ Error X86Assembler::_emit(uint32_t instId, const Operand_& o0, const Operand_& o
     // Strict validation.
 #if !defined(ASMJIT_DISABLE_INST_API)
     if (hasEmitterOption(kOptionStrictValidation)) {
-      Operand_ opArray[6];
+      Operand_ opArray[Globals::kMaxOpCount];
 
       opArray[0].copyFrom(o0);
       opArray[1].copyFrom(o1);
@@ -542,7 +542,7 @@ Error X86Assembler::_emit(uint32_t instId, const Operand_& o0, const Operand_& o
         opArray[5].reset();
       }
 
-      err = Inst::validate(getArchType(), Inst::Detail(instId, options, _extraReg), opArray, 6);
+      err = Inst::validate(getArchType(), Inst::Detail(instId, options, _extraReg), opArray, Globals::kMaxOpCount);
       if (ASMJIT_UNLIKELY(err)) goto Failed;
     }
 #endif

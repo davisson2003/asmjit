@@ -30,27 +30,52 @@ namespace asmjit {
 //! Stack slot.
 struct RAStackSlot {
   enum Flags : uint32_t {
-    kIsRegHome = 0x01
+    // TODO: kFlagRegHome is apparently not used, but isRegHome() is.
+    kFlagRegHome          = 0x00000001U, //!< Stack slot is register home slot.
+    kFlagStackArg         = 0x00000002U  //!< Stack slot position matches argument passed via stack.
+  };
+
+  enum ArgIndex : uint32_t {
+    kNoArgIndex = 0xFF
   };
 
   // --------------------------------------------------------------------------
   // [Accessors]
   // --------------------------------------------------------------------------
 
-  ASMJIT_INLINE bool isRegHome() const noexcept { return (flags & kIsRegHome) != 0; }
-  ASMJIT_INLINE void addUsage(uint32_t count = 1) noexcept { usage += count; }
+  inline uint32_t getBaseRegId() const noexcept { return _baseRegId; }
+  inline void setBaseRegId(uint32_t id) noexcept { _baseRegId = uint8_t(id); }
+
+  inline uint32_t getSize() const noexcept { return _size; }
+  inline uint32_t getAlignment() const noexcept { return _alignment; }
+
+  inline uint32_t getFlags() const noexcept { return _flags; }
+  inline void addFlags(uint32_t flags) noexcept { _flags |= flags; }
+  inline bool isRegHome() const noexcept { return (_flags & kFlagRegHome) != 0; }
+  inline bool isStackArg() const noexcept { return (_flags & kFlagStackArg) != 0; }
+
+  inline uint32_t getUseCount() const noexcept { return _useCount; }
+  inline void addUseCount(uint32_t n = 1) noexcept { _useCount += n; }
+
+  inline uint32_t getWeight() const noexcept { return _weight; }
+  inline void setWeight(int32_t weight) noexcept { _weight = weight; }
+
+  inline int32_t getOffset() const noexcept { return _offset; }
+  inline void setOffset(int32_t offset) noexcept { _offset = offset; }
 
   // --------------------------------------------------------------------------
   // [Members]
   // --------------------------------------------------------------------------
 
-  uint32_t size;                         //!< Size of memory required by the slot.
-  uint32_t alignment;                    //!< Minimum alignment required by the slot.
-  uint32_t flags;                        //!< Slot flags.
-  uint32_t usage;                        //!< Usage counter (one unit equals one memory operation).
+  uint8_t _baseRegId;                    //!< Base register used to address the stack.
+  uint8_t _alignment;                    //!< Minimum alignment required by the slot.
+  uint8_t _reserved[2];                  //!< Reserved for future use.
+  uint32_t _size;                        //!< Size of memory required by the slot.
+  uint32_t _flags;                       //!< Slot flags.
 
-  uint32_t weight;                       //!< Weight of the slot (calculated by `calculateStackFrame()`).
-  int32_t offset;                        //!< Stack offset (calculated by `calculateStackFrame()`).
+  uint32_t _useCount;                    //!< Usage counter (one unit equals one memory access).
+  uint32_t _weight;                      //!< Weight of the slot (calculated by `calculateStackFrame()`).
+  int32_t _offset;                       //!< Stack offset (calculated by `calculateStackFrame()`).
 };
 
 typedef ZoneVector<RAStackSlot*> RAStackSlots;
@@ -110,13 +135,14 @@ struct RAStackAllocator {
   // [Slots]
   // --------------------------------------------------------------------------
 
-  RAStackSlot* newSlot(uint32_t size, uint32_t alignment, uint32_t flags = 0) noexcept;
+  RAStackSlot* newSlot(uint32_t baseRegId, uint32_t size, uint32_t alignment, uint32_t flags = 0) noexcept;
 
   // --------------------------------------------------------------------------
-  // [Calculation]
+  // [Utilities]
   // --------------------------------------------------------------------------
 
   Error calculateStackFrame() noexcept;
+  Error adjustSlotOffsets(int32_t offset) noexcept;
 
   // --------------------------------------------------------------------------
   // [Members]

@@ -20,6 +20,23 @@ namespace asmjit {
 //! \{
 
 // ============================================================================
+// [asmjit::Types]
+// ============================================================================
+
+using std::int8_t;
+using std::int16_t;
+using std::int32_t;
+using std::int64_t;
+using std::intptr_t;
+
+using std::uint8_t;
+using std::uint16_t;
+using std::uint32_t;
+using std::uint64_t;
+using std::uintptr_t;
+using std::size_t;
+
+// ============================================================================
 // [asmjit::Globals]
 // ============================================================================
 
@@ -41,20 +58,20 @@ constexpr uint32_t kBitWordSize = uint32_t(sizeof(BitWord)) * 8;
 //! Returned by `indexOf()` and similar when working with containers that use 32-bit index/length.
 constexpr uint32_t kNotFound = ~uint32_t(0);
 
+//! Maximum number of operands per single instruction.
+constexpr uint32_t kMaxOpCount = 6;
+
 //! Invalid base address.
 constexpr uint64_t kNoBaseAddress = ~uint64_t(0);
 
 //! The length of the string is not known, but the string is null terminated.
 constexpr size_t kNullTerminated = ~size_t(0);
 
-
-//! Global definitions.
-enum Defs : uint32_t {
   //! Host memory allocator overhead.
-  kAllocOverhead = int32_t(sizeof(intptr_t) * 4),
-  //! Aggressive growing strategy threshold.
-  kAllocThreshold = 8192 * 1024
-};
+constexpr uint32_t kAllocOverhead = int32_t(sizeof(intptr_t) * 4);
+
+//! Aggressive growing strategy threshold.
+constexpr uint32_t kAllocThreshold = 8388608;
 
 enum Limits : uint32_t {
   //! Maximum number of physical registers AsmJit can use, per group.
@@ -235,9 +252,9 @@ namespace AsmJitInternal {
   static inline void* reallocMemory(void* p, size_t size) noexcept { return ASMJIT_CUSTOM_REALLOC(p, size); }
   static inline void releaseMemory(void* p) noexcept { ASMJIT_CUSTOM_FREE(p); }
 #elif !defined(ASMJIT_CUSTOM_ALLOC) && !defined(ASMJIT_CUSTOM_REALLOC) && !defined(ASMJIT_CUSTOM_FREE)
-  static inline void* allocMemory(size_t size) noexcept { return ::malloc(size); }
-  static inline void* reallocMemory(void* p, size_t size) noexcept { return ::realloc(p, size); }
-  static inline void releaseMemory(void* p) noexcept { ::free(p); }
+  static inline void* allocMemory(size_t size) noexcept { return std::malloc(size); }
+  static inline void* reallocMemory(void* p, size_t size) noexcept { return std::realloc(p, size); }
+  static inline void releaseMemory(void* p) noexcept { std::free(p); }
 #else
 # error "[asmjit] You must provide either none or all of ASMJIT_CUSTOM_[ALLOC|REALLOC|FREE]"
 #endif
@@ -297,7 +314,7 @@ ASMJIT_API void ASMJIT_NORETURN assertionFailed(const char* file, int line, cons
 # define ASMJIT_NOT_REACHED()                                        \
   do {                                                               \
     ::asmjit::DebugUtils::assertionFailed(__FILE__, __LINE__,        \
-      "ASMJIT_NOT_REACHED has been reached");                        \
+      "'ASMJIT_NOT_REACHED' reached");                               \
     ASMJIT_ASSUME(0);                                                \
   } while (0)
 #else

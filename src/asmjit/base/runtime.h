@@ -98,8 +98,7 @@ public:
 
   CodeInfo _codeInfo;                    //!< Basic information about the Runtime's code.
   uint8_t _runtimeType;                  //!< Type of the runtime.
-  uint8_t _allocType;                    //!< Type of the allocator the Runtime uses.
-  uint8_t _reserved[6];                  //!< \internal
+  uint8_t _reserved[7];                  //!< \internal
 };
 
 // ============================================================================
@@ -123,11 +122,6 @@ public:
   // --------------------------------------------------------------------------
   // [Accessors]
   // --------------------------------------------------------------------------
-
-  //! Get the type of allocation.
-  ASMJIT_INLINE uint32_t getAllocType() const noexcept { return _allocType; }
-  //! Set the type of allocation.
-  ASMJIT_INLINE void setAllocType(uint32_t allocType) noexcept { _allocType = uint8_t(allocType); }
 
   //! Get `VirtMemManager` of the runtime.
   ASMJIT_INLINE VirtMemManager* getVirtMemManager() const noexcept { return const_cast<VirtMemManager*>(&_virtMemMgr); }

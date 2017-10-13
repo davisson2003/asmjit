@@ -187,9 +187,13 @@ public:
     setId(rId);
   }
 
-  static ASMJIT_INLINE uint32_t groupOf(uint32_t type) noexcept;
+  static ASMJIT_INLINE uint32_t groupOf(uint32_t rType) noexcept;
   template<uint32_t Type>
   static ASMJIT_INLINE uint32_t groupOfT() noexcept { return X86RegTraits<Type>::kGroup; }
+
+  static ASMJIT_INLINE uint32_t typeIdOf(uint32_t rType) noexcept;
+  template<uint32_t Type>
+  static ASMJIT_INLINE uint32_t typeIdOfT() noexcept { return X86RegTraits<Type>::kTypeId; }
 
   static ASMJIT_INLINE uint32_t signatureOf(uint32_t rType) noexcept;
   template<uint32_t Type>
@@ -461,7 +465,7 @@ public:
   //! Set the memory operand's shift (aka scale) constant.
   inline void setShift(uint32_t shift) noexcept { _setSignatureData(shift, kSignatureMemShiftBits, kSignatureMemShiftShift); }
   //! Reset the memory operand's shift (aka scale) constant to zero.
-  inline void resetShift() noexcept { _signature &= ~kSignatureMemShiftMask; }
+  inline void resetShift() noexcept { _any.signature &= ~kSignatureMemShiftMask; }
 
   //! Get whether the memory operand has a segment override.
   constexpr bool hasSegment() const noexcept { return _hasSignatureData(kSignatureMemSegmentMask); }
@@ -475,7 +479,7 @@ public:
   //! Set the segment override to `id`.
   inline void setSegment(uint32_t rId) noexcept { _setSignatureData(rId, kSignatureMemSegmentBits, kSignatureMemSegmentShift); }
   //! Reset the segment override.
-  inline void resetSegment() noexcept { _signature &= ~kSignatureMemSegmentMask; }
+  inline void resetSegment() noexcept { _any.signature &= ~kSignatureMemSegmentMask; }
 
   // --------------------------------------------------------------------------
   // [Operator Overload]
@@ -494,15 +498,20 @@ struct X86OpData {
 };
 ASMJIT_VARAPI const X86OpData x86OpData;
 
+ASMJIT_INLINE uint32_t X86Reg::groupOf(uint32_t rType) noexcept {
+  ASMJIT_ASSERT(rType <= Reg::kRegMax);
+  return x86OpData.archRegs.regInfo[rType].getGroup();
+}
+
+ASMJIT_INLINE uint32_t X86Reg::typeIdOf(uint32_t rType) noexcept {
+  ASMJIT_ASSERT(rType <= Reg::kRegMax);
+  return x86OpData.archRegs.regTypeToTypeId[rType];
+}
+
 // ... X86Reg methods that require `x86OpData`.
 ASMJIT_INLINE uint32_t X86Reg::signatureOf(uint32_t rType) noexcept {
   ASMJIT_ASSERT(rType <= Reg::kRegMax);
   return x86OpData.archRegs.regInfo[rType].getSignature();
-}
-
-ASMJIT_INLINE uint32_t X86Reg::groupOf(uint32_t rType) noexcept {
-  ASMJIT_ASSERT(rType <= Reg::kRegMax);
-  return x86OpData.archRegs.regInfo[rType].getGroup();
 }
 
 // ============================================================================
@@ -515,283 +524,283 @@ namespace regs {
 namespace {
 
 //! Create an 8-bit low GPB register operand.
-constexpr X86GpbLo gpb(uint32_t rId) noexcept { return X86GpbLo(rId); }
+static constexpr X86GpbLo gpb(uint32_t rId) noexcept { return X86GpbLo(rId); }
 //! Create an 8-bit low GPB register operand.
-constexpr X86GpbLo gpb_lo(uint32_t rId) noexcept { return X86GpbLo(rId); }
+static constexpr X86GpbLo gpb_lo(uint32_t rId) noexcept { return X86GpbLo(rId); }
 //! Create an 8-bit high GPB register operand.
-constexpr X86GpbHi gpb_hi(uint32_t rId) noexcept { return X86GpbHi(rId); }
+static constexpr X86GpbHi gpb_hi(uint32_t rId) noexcept { return X86GpbHi(rId); }
 //! Create a 16-bit GPW register operand.
-constexpr X86Gpw gpw(uint32_t rId) noexcept { return X86Gpw(rId); }
+static constexpr X86Gpw gpw(uint32_t rId) noexcept { return X86Gpw(rId); }
 //! Create a 32-bit GPD register operand.
-constexpr X86Gpd gpd(uint32_t rId) noexcept { return X86Gpd(rId); }
+static constexpr X86Gpd gpd(uint32_t rId) noexcept { return X86Gpd(rId); }
 //! Create a 64-bit GPQ register operand (X64).
-constexpr X86Gpq gpq(uint32_t rId) noexcept { return X86Gpq(rId); }
+static constexpr X86Gpq gpq(uint32_t rId) noexcept { return X86Gpq(rId); }
 //! Create an 80-bit Fp register operand.
-constexpr X86Fp fp(uint32_t rId) noexcept { return X86Fp(rId); }
+static constexpr X86Fp fp(uint32_t rId) noexcept { return X86Fp(rId); }
 //! Create a 64-bit Mm register operand.
-constexpr X86Mm mm(uint32_t rId) noexcept { return X86Mm(rId); }
+static constexpr X86Mm mm(uint32_t rId) noexcept { return X86Mm(rId); }
 //! Create a 64-bit K register operand.
-constexpr X86KReg k(uint32_t rId) noexcept { return X86KReg(rId); }
+static constexpr X86KReg k(uint32_t rId) noexcept { return X86KReg(rId); }
 //! Create a 128-bit XMM register operand.
-constexpr X86Xmm xmm(uint32_t rId) noexcept { return X86Xmm(rId); }
+static constexpr X86Xmm xmm(uint32_t rId) noexcept { return X86Xmm(rId); }
 //! Create a 256-bit YMM register operand.
-constexpr X86Ymm ymm(uint32_t rId) noexcept { return X86Ymm(rId); }
+static constexpr X86Ymm ymm(uint32_t rId) noexcept { return X86Ymm(rId); }
 //! Create a 512-bit ZMM register operand.
-constexpr X86Zmm zmm(uint32_t rId) noexcept { return X86Zmm(rId); }
+static constexpr X86Zmm zmm(uint32_t rId) noexcept { return X86Zmm(rId); }
 //! Create a 128-bit bound register operand.
-constexpr X86Bnd bnd(uint32_t rId) noexcept { return X86Bnd(rId); }
+static constexpr X86Bnd bnd(uint32_t rId) noexcept { return X86Bnd(rId); }
 //! Create a 32-bit or 64-bit control register operand.
-constexpr X86CReg cr(uint32_t rId) noexcept { return X86CReg(rId); }
+static constexpr X86CReg cr(uint32_t rId) noexcept { return X86CReg(rId); }
 //! Create a 32-bit or 64-bit debug register operand.
-constexpr X86DReg dr(uint32_t rId) noexcept { return X86DReg(rId); }
+static constexpr X86DReg dr(uint32_t rId) noexcept { return X86DReg(rId); }
 
-constexpr X86Gp al(X86GpbLo::kSignature, X86Gp::kIdAx);
-constexpr X86Gp bl(X86GpbLo::kSignature, X86Gp::kIdBx);
-constexpr X86Gp cl(X86GpbLo::kSignature, X86Gp::kIdCx);
-constexpr X86Gp dl(X86GpbLo::kSignature, X86Gp::kIdDx);
-constexpr X86Gp spl(X86GpbLo::kSignature, X86Gp::kIdSp);
-constexpr X86Gp bpl(X86GpbLo::kSignature, X86Gp::kIdBp);
-constexpr X86Gp sil(X86GpbLo::kSignature, X86Gp::kIdSi);
-constexpr X86Gp dil(X86GpbLo::kSignature, X86Gp::kIdDi);
-constexpr X86Gp r8b(X86GpbLo::kSignature, X86Gp::kIdR8);
-constexpr X86Gp r9b(X86GpbLo::kSignature, X86Gp::kIdR9);
-constexpr X86Gp r10b(X86GpbLo::kSignature, X86Gp::kIdR10);
-constexpr X86Gp r11b(X86GpbLo::kSignature, X86Gp::kIdR11);
-constexpr X86Gp r12b(X86GpbLo::kSignature, X86Gp::kIdR12);
-constexpr X86Gp r13b(X86GpbLo::kSignature, X86Gp::kIdR13);
-constexpr X86Gp r14b(X86GpbLo::kSignature, X86Gp::kIdR14);
-constexpr X86Gp r15b(X86GpbLo::kSignature, X86Gp::kIdR15);
+static constexpr X86Gp al(X86GpbLo::kSignature, X86Gp::kIdAx);
+static constexpr X86Gp bl(X86GpbLo::kSignature, X86Gp::kIdBx);
+static constexpr X86Gp cl(X86GpbLo::kSignature, X86Gp::kIdCx);
+static constexpr X86Gp dl(X86GpbLo::kSignature, X86Gp::kIdDx);
+static constexpr X86Gp spl(X86GpbLo::kSignature, X86Gp::kIdSp);
+static constexpr X86Gp bpl(X86GpbLo::kSignature, X86Gp::kIdBp);
+static constexpr X86Gp sil(X86GpbLo::kSignature, X86Gp::kIdSi);
+static constexpr X86Gp dil(X86GpbLo::kSignature, X86Gp::kIdDi);
+static constexpr X86Gp r8b(X86GpbLo::kSignature, X86Gp::kIdR8);
+static constexpr X86Gp r9b(X86GpbLo::kSignature, X86Gp::kIdR9);
+static constexpr X86Gp r10b(X86GpbLo::kSignature, X86Gp::kIdR10);
+static constexpr X86Gp r11b(X86GpbLo::kSignature, X86Gp::kIdR11);
+static constexpr X86Gp r12b(X86GpbLo::kSignature, X86Gp::kIdR12);
+static constexpr X86Gp r13b(X86GpbLo::kSignature, X86Gp::kIdR13);
+static constexpr X86Gp r14b(X86GpbLo::kSignature, X86Gp::kIdR14);
+static constexpr X86Gp r15b(X86GpbLo::kSignature, X86Gp::kIdR15);
 
-constexpr X86Gp ah(X86GpbHi::kSignature, X86Gp::kIdAx);
-constexpr X86Gp bh(X86GpbHi::kSignature, X86Gp::kIdBx);
-constexpr X86Gp ch(X86GpbHi::kSignature, X86Gp::kIdCx);
-constexpr X86Gp dh(X86GpbHi::kSignature, X86Gp::kIdDx);
+static constexpr X86Gp ah(X86GpbHi::kSignature, X86Gp::kIdAx);
+static constexpr X86Gp bh(X86GpbHi::kSignature, X86Gp::kIdBx);
+static constexpr X86Gp ch(X86GpbHi::kSignature, X86Gp::kIdCx);
+static constexpr X86Gp dh(X86GpbHi::kSignature, X86Gp::kIdDx);
 
-constexpr X86Gp ax(X86Gpw::kSignature, X86Gp::kIdAx);
-constexpr X86Gp bx(X86Gpw::kSignature, X86Gp::kIdBx);
-constexpr X86Gp cx(X86Gpw::kSignature, X86Gp::kIdCx);
-constexpr X86Gp dx(X86Gpw::kSignature, X86Gp::kIdDx);
-constexpr X86Gp sp(X86Gpw::kSignature, X86Gp::kIdSp);
-constexpr X86Gp bp(X86Gpw::kSignature, X86Gp::kIdBp);
-constexpr X86Gp si(X86Gpw::kSignature, X86Gp::kIdSi);
-constexpr X86Gp di(X86Gpw::kSignature, X86Gp::kIdDi);
-constexpr X86Gp r8w(X86Gpw::kSignature, X86Gp::kIdR8);
-constexpr X86Gp r9w(X86Gpw::kSignature, X86Gp::kIdR9);
-constexpr X86Gp r10w(X86Gpw::kSignature, X86Gp::kIdR10);
-constexpr X86Gp r11w(X86Gpw::kSignature, X86Gp::kIdR11);
-constexpr X86Gp r12w(X86Gpw::kSignature, X86Gp::kIdR12);
-constexpr X86Gp r13w(X86Gpw::kSignature, X86Gp::kIdR13);
-constexpr X86Gp r14w(X86Gpw::kSignature, X86Gp::kIdR14);
-constexpr X86Gp r15w(X86Gpw::kSignature, X86Gp::kIdR15);
+static constexpr X86Gp ax(X86Gpw::kSignature, X86Gp::kIdAx);
+static constexpr X86Gp bx(X86Gpw::kSignature, X86Gp::kIdBx);
+static constexpr X86Gp cx(X86Gpw::kSignature, X86Gp::kIdCx);
+static constexpr X86Gp dx(X86Gpw::kSignature, X86Gp::kIdDx);
+static constexpr X86Gp sp(X86Gpw::kSignature, X86Gp::kIdSp);
+static constexpr X86Gp bp(X86Gpw::kSignature, X86Gp::kIdBp);
+static constexpr X86Gp si(X86Gpw::kSignature, X86Gp::kIdSi);
+static constexpr X86Gp di(X86Gpw::kSignature, X86Gp::kIdDi);
+static constexpr X86Gp r8w(X86Gpw::kSignature, X86Gp::kIdR8);
+static constexpr X86Gp r9w(X86Gpw::kSignature, X86Gp::kIdR9);
+static constexpr X86Gp r10w(X86Gpw::kSignature, X86Gp::kIdR10);
+static constexpr X86Gp r11w(X86Gpw::kSignature, X86Gp::kIdR11);
+static constexpr X86Gp r12w(X86Gpw::kSignature, X86Gp::kIdR12);
+static constexpr X86Gp r13w(X86Gpw::kSignature, X86Gp::kIdR13);
+static constexpr X86Gp r14w(X86Gpw::kSignature, X86Gp::kIdR14);
+static constexpr X86Gp r15w(X86Gpw::kSignature, X86Gp::kIdR15);
 
-constexpr X86Gp eax(X86Gpd::kSignature, X86Gp::kIdAx);
-constexpr X86Gp ebx(X86Gpd::kSignature, X86Gp::kIdBx);
-constexpr X86Gp ecx(X86Gpd::kSignature, X86Gp::kIdCx);
-constexpr X86Gp edx(X86Gpd::kSignature, X86Gp::kIdDx);
-constexpr X86Gp esp(X86Gpd::kSignature, X86Gp::kIdSp);
-constexpr X86Gp ebp(X86Gpd::kSignature, X86Gp::kIdBp);
-constexpr X86Gp esi(X86Gpd::kSignature, X86Gp::kIdSi);
-constexpr X86Gp edi(X86Gpd::kSignature, X86Gp::kIdDi);
-constexpr X86Gp r8d(X86Gpd::kSignature, X86Gp::kIdR8);
-constexpr X86Gp r9d(X86Gpd::kSignature, X86Gp::kIdR9);
-constexpr X86Gp r10d(X86Gpd::kSignature, X86Gp::kIdR10);
-constexpr X86Gp r11d(X86Gpd::kSignature, X86Gp::kIdR11);
-constexpr X86Gp r12d(X86Gpd::kSignature, X86Gp::kIdR12);
-constexpr X86Gp r13d(X86Gpd::kSignature, X86Gp::kIdR13);
-constexpr X86Gp r14d(X86Gpd::kSignature, X86Gp::kIdR14);
-constexpr X86Gp r15d(X86Gpd::kSignature, X86Gp::kIdR15);
+static constexpr X86Gp eax(X86Gpd::kSignature, X86Gp::kIdAx);
+static constexpr X86Gp ebx(X86Gpd::kSignature, X86Gp::kIdBx);
+static constexpr X86Gp ecx(X86Gpd::kSignature, X86Gp::kIdCx);
+static constexpr X86Gp edx(X86Gpd::kSignature, X86Gp::kIdDx);
+static constexpr X86Gp esp(X86Gpd::kSignature, X86Gp::kIdSp);
+static constexpr X86Gp ebp(X86Gpd::kSignature, X86Gp::kIdBp);
+static constexpr X86Gp esi(X86Gpd::kSignature, X86Gp::kIdSi);
+static constexpr X86Gp edi(X86Gpd::kSignature, X86Gp::kIdDi);
+static constexpr X86Gp r8d(X86Gpd::kSignature, X86Gp::kIdR8);
+static constexpr X86Gp r9d(X86Gpd::kSignature, X86Gp::kIdR9);
+static constexpr X86Gp r10d(X86Gpd::kSignature, X86Gp::kIdR10);
+static constexpr X86Gp r11d(X86Gpd::kSignature, X86Gp::kIdR11);
+static constexpr X86Gp r12d(X86Gpd::kSignature, X86Gp::kIdR12);
+static constexpr X86Gp r13d(X86Gpd::kSignature, X86Gp::kIdR13);
+static constexpr X86Gp r14d(X86Gpd::kSignature, X86Gp::kIdR14);
+static constexpr X86Gp r15d(X86Gpd::kSignature, X86Gp::kIdR15);
 
-constexpr X86Gp rax(X86Gpq::kSignature, X86Gp::kIdAx);
-constexpr X86Gp rbx(X86Gpq::kSignature, X86Gp::kIdBx);
-constexpr X86Gp rcx(X86Gpq::kSignature, X86Gp::kIdCx);
-constexpr X86Gp rdx(X86Gpq::kSignature, X86Gp::kIdDx);
-constexpr X86Gp rsp(X86Gpq::kSignature, X86Gp::kIdSp);
-constexpr X86Gp rbp(X86Gpq::kSignature, X86Gp::kIdBp);
-constexpr X86Gp rsi(X86Gpq::kSignature, X86Gp::kIdSi);
-constexpr X86Gp rdi(X86Gpq::kSignature, X86Gp::kIdDi);
-constexpr X86Gp r8(X86Gpq::kSignature, X86Gp::kIdR8);
-constexpr X86Gp r9(X86Gpq::kSignature, X86Gp::kIdR9);
-constexpr X86Gp r10(X86Gpq::kSignature, X86Gp::kIdR10);
-constexpr X86Gp r11(X86Gpq::kSignature, X86Gp::kIdR11);
-constexpr X86Gp r12(X86Gpq::kSignature, X86Gp::kIdR12);
-constexpr X86Gp r13(X86Gpq::kSignature, X86Gp::kIdR13);
-constexpr X86Gp r14(X86Gpq::kSignature, X86Gp::kIdR14);
-constexpr X86Gp r15(X86Gpq::kSignature, X86Gp::kIdR15);
+static constexpr X86Gp rax(X86Gpq::kSignature, X86Gp::kIdAx);
+static constexpr X86Gp rbx(X86Gpq::kSignature, X86Gp::kIdBx);
+static constexpr X86Gp rcx(X86Gpq::kSignature, X86Gp::kIdCx);
+static constexpr X86Gp rdx(X86Gpq::kSignature, X86Gp::kIdDx);
+static constexpr X86Gp rsp(X86Gpq::kSignature, X86Gp::kIdSp);
+static constexpr X86Gp rbp(X86Gpq::kSignature, X86Gp::kIdBp);
+static constexpr X86Gp rsi(X86Gpq::kSignature, X86Gp::kIdSi);
+static constexpr X86Gp rdi(X86Gpq::kSignature, X86Gp::kIdDi);
+static constexpr X86Gp r8(X86Gpq::kSignature, X86Gp::kIdR8);
+static constexpr X86Gp r9(X86Gpq::kSignature, X86Gp::kIdR9);
+static constexpr X86Gp r10(X86Gpq::kSignature, X86Gp::kIdR10);
+static constexpr X86Gp r11(X86Gpq::kSignature, X86Gp::kIdR11);
+static constexpr X86Gp r12(X86Gpq::kSignature, X86Gp::kIdR12);
+static constexpr X86Gp r13(X86Gpq::kSignature, X86Gp::kIdR13);
+static constexpr X86Gp r14(X86Gpq::kSignature, X86Gp::kIdR14);
+static constexpr X86Gp r15(X86Gpq::kSignature, X86Gp::kIdR15);
 
-constexpr X86Xmm xmm0(X86Xmm::kSignature, 0);
-constexpr X86Xmm xmm1(X86Xmm::kSignature, 1);
-constexpr X86Xmm xmm2(X86Xmm::kSignature, 2);
-constexpr X86Xmm xmm3(X86Xmm::kSignature, 3);
-constexpr X86Xmm xmm4(X86Xmm::kSignature, 4);
-constexpr X86Xmm xmm5(X86Xmm::kSignature, 5);
-constexpr X86Xmm xmm6(X86Xmm::kSignature, 6);
-constexpr X86Xmm xmm7(X86Xmm::kSignature, 7);
-constexpr X86Xmm xmm8(X86Xmm::kSignature, 8);
-constexpr X86Xmm xmm9(X86Xmm::kSignature, 9);
-constexpr X86Xmm xmm10(X86Xmm::kSignature, 10);
-constexpr X86Xmm xmm11(X86Xmm::kSignature, 11);
-constexpr X86Xmm xmm12(X86Xmm::kSignature, 12);
-constexpr X86Xmm xmm13(X86Xmm::kSignature, 13);
-constexpr X86Xmm xmm14(X86Xmm::kSignature, 14);
-constexpr X86Xmm xmm15(X86Xmm::kSignature, 15);
-constexpr X86Xmm xmm16(X86Xmm::kSignature, 16);
-constexpr X86Xmm xmm17(X86Xmm::kSignature, 17);
-constexpr X86Xmm xmm18(X86Xmm::kSignature, 18);
-constexpr X86Xmm xmm19(X86Xmm::kSignature, 19);
-constexpr X86Xmm xmm20(X86Xmm::kSignature, 20);
-constexpr X86Xmm xmm21(X86Xmm::kSignature, 21);
-constexpr X86Xmm xmm22(X86Xmm::kSignature, 22);
-constexpr X86Xmm xmm23(X86Xmm::kSignature, 23);
-constexpr X86Xmm xmm24(X86Xmm::kSignature, 24);
-constexpr X86Xmm xmm25(X86Xmm::kSignature, 25);
-constexpr X86Xmm xmm26(X86Xmm::kSignature, 26);
-constexpr X86Xmm xmm27(X86Xmm::kSignature, 27);
-constexpr X86Xmm xmm28(X86Xmm::kSignature, 28);
-constexpr X86Xmm xmm29(X86Xmm::kSignature, 29);
-constexpr X86Xmm xmm30(X86Xmm::kSignature, 30);
-constexpr X86Xmm xmm31(X86Xmm::kSignature, 31);
+static constexpr X86Xmm xmm0(X86Xmm::kSignature, 0);
+static constexpr X86Xmm xmm1(X86Xmm::kSignature, 1);
+static constexpr X86Xmm xmm2(X86Xmm::kSignature, 2);
+static constexpr X86Xmm xmm3(X86Xmm::kSignature, 3);
+static constexpr X86Xmm xmm4(X86Xmm::kSignature, 4);
+static constexpr X86Xmm xmm5(X86Xmm::kSignature, 5);
+static constexpr X86Xmm xmm6(X86Xmm::kSignature, 6);
+static constexpr X86Xmm xmm7(X86Xmm::kSignature, 7);
+static constexpr X86Xmm xmm8(X86Xmm::kSignature, 8);
+static constexpr X86Xmm xmm9(X86Xmm::kSignature, 9);
+static constexpr X86Xmm xmm10(X86Xmm::kSignature, 10);
+static constexpr X86Xmm xmm11(X86Xmm::kSignature, 11);
+static constexpr X86Xmm xmm12(X86Xmm::kSignature, 12);
+static constexpr X86Xmm xmm13(X86Xmm::kSignature, 13);
+static constexpr X86Xmm xmm14(X86Xmm::kSignature, 14);
+static constexpr X86Xmm xmm15(X86Xmm::kSignature, 15);
+static constexpr X86Xmm xmm16(X86Xmm::kSignature, 16);
+static constexpr X86Xmm xmm17(X86Xmm::kSignature, 17);
+static constexpr X86Xmm xmm18(X86Xmm::kSignature, 18);
+static constexpr X86Xmm xmm19(X86Xmm::kSignature, 19);
+static constexpr X86Xmm xmm20(X86Xmm::kSignature, 20);
+static constexpr X86Xmm xmm21(X86Xmm::kSignature, 21);
+static constexpr X86Xmm xmm22(X86Xmm::kSignature, 22);
+static constexpr X86Xmm xmm23(X86Xmm::kSignature, 23);
+static constexpr X86Xmm xmm24(X86Xmm::kSignature, 24);
+static constexpr X86Xmm xmm25(X86Xmm::kSignature, 25);
+static constexpr X86Xmm xmm26(X86Xmm::kSignature, 26);
+static constexpr X86Xmm xmm27(X86Xmm::kSignature, 27);
+static constexpr X86Xmm xmm28(X86Xmm::kSignature, 28);
+static constexpr X86Xmm xmm29(X86Xmm::kSignature, 29);
+static constexpr X86Xmm xmm30(X86Xmm::kSignature, 30);
+static constexpr X86Xmm xmm31(X86Xmm::kSignature, 31);
 
-constexpr X86Ymm ymm0(X86Ymm::kSignature, 0);
-constexpr X86Ymm ymm1(X86Ymm::kSignature, 1);
-constexpr X86Ymm ymm2(X86Ymm::kSignature, 2);
-constexpr X86Ymm ymm3(X86Ymm::kSignature, 3);
-constexpr X86Ymm ymm4(X86Ymm::kSignature, 4);
-constexpr X86Ymm ymm5(X86Ymm::kSignature, 5);
-constexpr X86Ymm ymm6(X86Ymm::kSignature, 6);
-constexpr X86Ymm ymm7(X86Ymm::kSignature, 7);
-constexpr X86Ymm ymm8(X86Ymm::kSignature, 8);
-constexpr X86Ymm ymm9(X86Ymm::kSignature, 9);
-constexpr X86Ymm ymm10(X86Ymm::kSignature, 10);
-constexpr X86Ymm ymm11(X86Ymm::kSignature, 11);
-constexpr X86Ymm ymm12(X86Ymm::kSignature, 12);
-constexpr X86Ymm ymm13(X86Ymm::kSignature, 13);
-constexpr X86Ymm ymm14(X86Ymm::kSignature, 14);
-constexpr X86Ymm ymm15(X86Ymm::kSignature, 15);
-constexpr X86Ymm ymm16(X86Ymm::kSignature, 16);
-constexpr X86Ymm ymm17(X86Ymm::kSignature, 17);
-constexpr X86Ymm ymm18(X86Ymm::kSignature, 18);
-constexpr X86Ymm ymm19(X86Ymm::kSignature, 19);
-constexpr X86Ymm ymm20(X86Ymm::kSignature, 20);
-constexpr X86Ymm ymm21(X86Ymm::kSignature, 21);
-constexpr X86Ymm ymm22(X86Ymm::kSignature, 22);
-constexpr X86Ymm ymm23(X86Ymm::kSignature, 23);
-constexpr X86Ymm ymm24(X86Ymm::kSignature, 24);
-constexpr X86Ymm ymm25(X86Ymm::kSignature, 25);
-constexpr X86Ymm ymm26(X86Ymm::kSignature, 26);
-constexpr X86Ymm ymm27(X86Ymm::kSignature, 27);
-constexpr X86Ymm ymm28(X86Ymm::kSignature, 28);
-constexpr X86Ymm ymm29(X86Ymm::kSignature, 29);
-constexpr X86Ymm ymm30(X86Ymm::kSignature, 30);
-constexpr X86Ymm ymm31(X86Ymm::kSignature, 31);
+static constexpr X86Ymm ymm0(X86Ymm::kSignature, 0);
+static constexpr X86Ymm ymm1(X86Ymm::kSignature, 1);
+static constexpr X86Ymm ymm2(X86Ymm::kSignature, 2);
+static constexpr X86Ymm ymm3(X86Ymm::kSignature, 3);
+static constexpr X86Ymm ymm4(X86Ymm::kSignature, 4);
+static constexpr X86Ymm ymm5(X86Ymm::kSignature, 5);
+static constexpr X86Ymm ymm6(X86Ymm::kSignature, 6);
+static constexpr X86Ymm ymm7(X86Ymm::kSignature, 7);
+static constexpr X86Ymm ymm8(X86Ymm::kSignature, 8);
+static constexpr X86Ymm ymm9(X86Ymm::kSignature, 9);
+static constexpr X86Ymm ymm10(X86Ymm::kSignature, 10);
+static constexpr X86Ymm ymm11(X86Ymm::kSignature, 11);
+static constexpr X86Ymm ymm12(X86Ymm::kSignature, 12);
+static constexpr X86Ymm ymm13(X86Ymm::kSignature, 13);
+static constexpr X86Ymm ymm14(X86Ymm::kSignature, 14);
+static constexpr X86Ymm ymm15(X86Ymm::kSignature, 15);
+static constexpr X86Ymm ymm16(X86Ymm::kSignature, 16);
+static constexpr X86Ymm ymm17(X86Ymm::kSignature, 17);
+static constexpr X86Ymm ymm18(X86Ymm::kSignature, 18);
+static constexpr X86Ymm ymm19(X86Ymm::kSignature, 19);
+static constexpr X86Ymm ymm20(X86Ymm::kSignature, 20);
+static constexpr X86Ymm ymm21(X86Ymm::kSignature, 21);
+static constexpr X86Ymm ymm22(X86Ymm::kSignature, 22);
+static constexpr X86Ymm ymm23(X86Ymm::kSignature, 23);
+static constexpr X86Ymm ymm24(X86Ymm::kSignature, 24);
+static constexpr X86Ymm ymm25(X86Ymm::kSignature, 25);
+static constexpr X86Ymm ymm26(X86Ymm::kSignature, 26);
+static constexpr X86Ymm ymm27(X86Ymm::kSignature, 27);
+static constexpr X86Ymm ymm28(X86Ymm::kSignature, 28);
+static constexpr X86Ymm ymm29(X86Ymm::kSignature, 29);
+static constexpr X86Ymm ymm30(X86Ymm::kSignature, 30);
+static constexpr X86Ymm ymm31(X86Ymm::kSignature, 31);
 
-constexpr X86Zmm zmm0(X86Zmm::kSignature, 0);
-constexpr X86Zmm zmm1(X86Zmm::kSignature, 1);
-constexpr X86Zmm zmm2(X86Zmm::kSignature, 2);
-constexpr X86Zmm zmm3(X86Zmm::kSignature, 3);
-constexpr X86Zmm zmm4(X86Zmm::kSignature, 4);
-constexpr X86Zmm zmm5(X86Zmm::kSignature, 5);
-constexpr X86Zmm zmm6(X86Zmm::kSignature, 6);
-constexpr X86Zmm zmm7(X86Zmm::kSignature, 7);
-constexpr X86Zmm zmm8(X86Zmm::kSignature, 8);
-constexpr X86Zmm zmm9(X86Zmm::kSignature, 9);
-constexpr X86Zmm zmm10(X86Zmm::kSignature, 10);
-constexpr X86Zmm zmm11(X86Zmm::kSignature, 11);
-constexpr X86Zmm zmm12(X86Zmm::kSignature, 12);
-constexpr X86Zmm zmm13(X86Zmm::kSignature, 13);
-constexpr X86Zmm zmm14(X86Zmm::kSignature, 14);
-constexpr X86Zmm zmm15(X86Zmm::kSignature, 15);
-constexpr X86Zmm zmm16(X86Zmm::kSignature, 16);
-constexpr X86Zmm zmm17(X86Zmm::kSignature, 17);
-constexpr X86Zmm zmm18(X86Zmm::kSignature, 18);
-constexpr X86Zmm zmm19(X86Zmm::kSignature, 19);
-constexpr X86Zmm zmm20(X86Zmm::kSignature, 20);
-constexpr X86Zmm zmm21(X86Zmm::kSignature, 21);
-constexpr X86Zmm zmm22(X86Zmm::kSignature, 22);
-constexpr X86Zmm zmm23(X86Zmm::kSignature, 23);
-constexpr X86Zmm zmm24(X86Zmm::kSignature, 24);
-constexpr X86Zmm zmm25(X86Zmm::kSignature, 25);
-constexpr X86Zmm zmm26(X86Zmm::kSignature, 26);
-constexpr X86Zmm zmm27(X86Zmm::kSignature, 27);
-constexpr X86Zmm zmm28(X86Zmm::kSignature, 28);
-constexpr X86Zmm zmm29(X86Zmm::kSignature, 29);
-constexpr X86Zmm zmm30(X86Zmm::kSignature, 30);
-constexpr X86Zmm zmm31(X86Zmm::kSignature, 31);
+static constexpr X86Zmm zmm0(X86Zmm::kSignature, 0);
+static constexpr X86Zmm zmm1(X86Zmm::kSignature, 1);
+static constexpr X86Zmm zmm2(X86Zmm::kSignature, 2);
+static constexpr X86Zmm zmm3(X86Zmm::kSignature, 3);
+static constexpr X86Zmm zmm4(X86Zmm::kSignature, 4);
+static constexpr X86Zmm zmm5(X86Zmm::kSignature, 5);
+static constexpr X86Zmm zmm6(X86Zmm::kSignature, 6);
+static constexpr X86Zmm zmm7(X86Zmm::kSignature, 7);
+static constexpr X86Zmm zmm8(X86Zmm::kSignature, 8);
+static constexpr X86Zmm zmm9(X86Zmm::kSignature, 9);
+static constexpr X86Zmm zmm10(X86Zmm::kSignature, 10);
+static constexpr X86Zmm zmm11(X86Zmm::kSignature, 11);
+static constexpr X86Zmm zmm12(X86Zmm::kSignature, 12);
+static constexpr X86Zmm zmm13(X86Zmm::kSignature, 13);
+static constexpr X86Zmm zmm14(X86Zmm::kSignature, 14);
+static constexpr X86Zmm zmm15(X86Zmm::kSignature, 15);
+static constexpr X86Zmm zmm16(X86Zmm::kSignature, 16);
+static constexpr X86Zmm zmm17(X86Zmm::kSignature, 17);
+static constexpr X86Zmm zmm18(X86Zmm::kSignature, 18);
+static constexpr X86Zmm zmm19(X86Zmm::kSignature, 19);
+static constexpr X86Zmm zmm20(X86Zmm::kSignature, 20);
+static constexpr X86Zmm zmm21(X86Zmm::kSignature, 21);
+static constexpr X86Zmm zmm22(X86Zmm::kSignature, 22);
+static constexpr X86Zmm zmm23(X86Zmm::kSignature, 23);
+static constexpr X86Zmm zmm24(X86Zmm::kSignature, 24);
+static constexpr X86Zmm zmm25(X86Zmm::kSignature, 25);
+static constexpr X86Zmm zmm26(X86Zmm::kSignature, 26);
+static constexpr X86Zmm zmm27(X86Zmm::kSignature, 27);
+static constexpr X86Zmm zmm28(X86Zmm::kSignature, 28);
+static constexpr X86Zmm zmm29(X86Zmm::kSignature, 29);
+static constexpr X86Zmm zmm30(X86Zmm::kSignature, 30);
+static constexpr X86Zmm zmm31(X86Zmm::kSignature, 31);
 
-constexpr X86Mm mm0(0);
-constexpr X86Mm mm1(1);
-constexpr X86Mm mm2(2);
-constexpr X86Mm mm3(3);
-constexpr X86Mm mm4(4);
-constexpr X86Mm mm5(5);
-constexpr X86Mm mm6(6);
-constexpr X86Mm mm7(7);
+static constexpr X86Mm mm0(0);
+static constexpr X86Mm mm1(1);
+static constexpr X86Mm mm2(2);
+static constexpr X86Mm mm3(3);
+static constexpr X86Mm mm4(4);
+static constexpr X86Mm mm5(5);
+static constexpr X86Mm mm6(6);
+static constexpr X86Mm mm7(7);
 
-constexpr X86KReg k0(0);
-constexpr X86KReg k1(1);
-constexpr X86KReg k2(2);
-constexpr X86KReg k3(3);
-constexpr X86KReg k4(4);
-constexpr X86KReg k5(5);
-constexpr X86KReg k6(6);
-constexpr X86KReg k7(7);
+static constexpr X86KReg k0(0);
+static constexpr X86KReg k1(1);
+static constexpr X86KReg k2(2);
+static constexpr X86KReg k3(3);
+static constexpr X86KReg k4(4);
+static constexpr X86KReg k5(5);
+static constexpr X86KReg k6(6);
+static constexpr X86KReg k7(7);
 
-constexpr X86Rip rip(0);
+static constexpr X86Rip rip(0);
 
-constexpr X86Seg no_seg(X86Seg::kIdNone);
-constexpr X86Seg es(X86Seg::kIdEs);
-constexpr X86Seg cs(X86Seg::kIdCs);
-constexpr X86Seg ss(X86Seg::kIdSs);
-constexpr X86Seg ds(X86Seg::kIdDs);
-constexpr X86Seg fs(X86Seg::kIdFs);
-constexpr X86Seg gs(X86Seg::kIdGs);
+static constexpr X86Seg no_seg(X86Seg::kIdNone);
+static constexpr X86Seg es(X86Seg::kIdEs);
+static constexpr X86Seg cs(X86Seg::kIdCs);
+static constexpr X86Seg ss(X86Seg::kIdSs);
+static constexpr X86Seg ds(X86Seg::kIdDs);
+static constexpr X86Seg fs(X86Seg::kIdFs);
+static constexpr X86Seg gs(X86Seg::kIdGs);
 
-constexpr X86CReg cr0(0);
-constexpr X86CReg cr1(1);
-constexpr X86CReg cr2(2);
-constexpr X86CReg cr3(3);
-constexpr X86CReg cr4(4);
-constexpr X86CReg cr5(5);
-constexpr X86CReg cr6(6);
-constexpr X86CReg cr7(7);
-constexpr X86CReg cr8(8);
-constexpr X86CReg cr9(9);
-constexpr X86CReg cr10(10);
-constexpr X86CReg cr11(11);
-constexpr X86CReg cr12(12);
-constexpr X86CReg cr13(13);
-constexpr X86CReg cr14(14);
-constexpr X86CReg cr15(15);
+static constexpr X86CReg cr0(0);
+static constexpr X86CReg cr1(1);
+static constexpr X86CReg cr2(2);
+static constexpr X86CReg cr3(3);
+static constexpr X86CReg cr4(4);
+static constexpr X86CReg cr5(5);
+static constexpr X86CReg cr6(6);
+static constexpr X86CReg cr7(7);
+static constexpr X86CReg cr8(8);
+static constexpr X86CReg cr9(9);
+static constexpr X86CReg cr10(10);
+static constexpr X86CReg cr11(11);
+static constexpr X86CReg cr12(12);
+static constexpr X86CReg cr13(13);
+static constexpr X86CReg cr14(14);
+static constexpr X86CReg cr15(15);
 
-constexpr X86DReg dr0(0);
-constexpr X86DReg dr1(1);
-constexpr X86DReg dr2(2);
-constexpr X86DReg dr3(3);
-constexpr X86DReg dr4(4);
-constexpr X86DReg dr5(5);
-constexpr X86DReg dr6(6);
-constexpr X86DReg dr7(7);
-constexpr X86DReg dr8(8);
-constexpr X86DReg dr9(9);
-constexpr X86DReg dr10(10);
-constexpr X86DReg dr11(11);
-constexpr X86DReg dr12(12);
-constexpr X86DReg dr13(13);
-constexpr X86DReg dr14(14);
-constexpr X86DReg dr15(15);
+static constexpr X86DReg dr0(0);
+static constexpr X86DReg dr1(1);
+static constexpr X86DReg dr2(2);
+static constexpr X86DReg dr3(3);
+static constexpr X86DReg dr4(4);
+static constexpr X86DReg dr5(5);
+static constexpr X86DReg dr6(6);
+static constexpr X86DReg dr7(7);
+static constexpr X86DReg dr8(8);
+static constexpr X86DReg dr9(9);
+static constexpr X86DReg dr10(10);
+static constexpr X86DReg dr11(11);
+static constexpr X86DReg dr12(12);
+static constexpr X86DReg dr13(13);
+static constexpr X86DReg dr14(14);
+static constexpr X86DReg dr15(15);
 
-constexpr X86Fp fp0(0);
-constexpr X86Fp fp1(1);
-constexpr X86Fp fp2(2);
-constexpr X86Fp fp3(3);
-constexpr X86Fp fp4(4);
-constexpr X86Fp fp5(5);
-constexpr X86Fp fp6(6);
-constexpr X86Fp fp7(7);
+static constexpr X86Fp fp0(0);
+static constexpr X86Fp fp1(1);
+static constexpr X86Fp fp2(2);
+static constexpr X86Fp fp3(3);
+static constexpr X86Fp fp4(4);
+static constexpr X86Fp fp5(5);
+static constexpr X86Fp fp6(6);
+static constexpr X86Fp fp7(7);
 
-constexpr X86Bnd bnd0(0);
-constexpr X86Bnd bnd1(1);
-constexpr X86Bnd bnd2(2);
-constexpr X86Bnd bnd3(3);
+static constexpr X86Bnd bnd0(0);
+static constexpr X86Bnd bnd1(1);
+static constexpr X86Bnd bnd2(2);
+static constexpr X86Bnd bnd3(3);
 
 } // anonymous namespace
 } // regs namespace

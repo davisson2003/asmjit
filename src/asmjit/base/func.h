@@ -63,9 +63,9 @@ struct CallConv {
     //! inside a multimedia code like that don't use many registers internally,
     //! but are long enough to be called and not inlined. These functions are
     //! usually used to calculate trigonometric functions, logarithms, etc...
-    kIdFastEval2 = 10,
-    kIdFastEval3 = 11,
-    kIdFastEval4 = 12,
+    kIdLightCall2 = 10,
+    kIdLightCall3 = 11,
+    kIdLightCall4 = 12,
     */
 
     // ------------------------------------------------------------------------
@@ -89,18 +89,18 @@ struct CallConv {
     //! X86 `regparm(3)` convention (GCC and Clang).
     kIdX86GccRegParm3 = 23,
 
-    kIdX86FastEval2 = 29,
-    kIdX86FastEval3 = 30,
-    kIdX86FastEval4 = 31,
+    kIdX86LightCall2 = 29,
+    kIdX86LightCall3 = 30,
+    kIdX86LightCall4 = 31,
 
     //! X64 calling convention - WIN64-ABI.
     kIdX86Win64 = 32,
     //! X64 calling convention - SystemV / AMD64-ABI.
     kIdX86SysV64 = 33,
 
-    kIdX64FastEval2 = 45,
-    kIdX64FastEval3 = 46,
-    kIdX64FastEval4 = 47,
+    kIdX64LightCall2 = 45,
+    kIdX64LightCall3 = 46,
+    kIdX64LightCall4 = 47,
 
     // ------------------------------------------------------------------------
     // [ARM]
@@ -155,17 +155,17 @@ struct CallConv {
     kIdHostFastCall  = ASMJIT_CC_MSC   ? kIdX86MsFastCall  :
                        ASMJIT_CC_GCC   ? kIdX86GccFastCall :
                        ASMJIT_CC_CLANG ? kIdX86GccFastCall : kIdNone,
-    kIdHostFastEval2 = kIdX86FastEval2,
-    kIdHostFastEval3 = kIdX86FastEval3,
-    kIdHostFastEval4 = kIdX86FastEval4
+    kIdHostLightCall2 = kIdX86LightCall2,
+    kIdHostLightCall3 = kIdX86LightCall3,
+    kIdHostLightCall4 = kIdX86LightCall4
 #elif ASMJIT_ARCH_X64
     kIdHost          = ASMJIT_OS_WINDOWS ? kIdX86Win64 : kIdX86SysV64,
     kIdHostCDecl     = kIdHost, // Doesn't exist, redirected to host.
     kIdHostStdCall   = kIdHost, // Doesn't exist, redirected to host.
     kIdHostFastCall  = kIdHost, // Doesn't exist, redirected to host.
-    kIdHostFastEval2 = kIdX64FastEval2,
-    kIdHostFastEval3 = kIdX64FastEval3,
-    kIdHostFastEval4 = kIdX64FastEval4
+    kIdHostLightCall2 = kIdX64LightCall2,
+    kIdHostLightCall3 = kIdX64LightCall3,
+    kIdHostLightCall4 = kIdX64LightCall4
 #elif ASMJIT_ARCH_ARM32
 # if defined(__SOFTFP__)
     kIdHost          = kIdArm32SoftFP,
@@ -226,8 +226,8 @@ struct CallConv {
   ASMJIT_API Error init(uint32_t ccId) noexcept;
 
   inline void reset() noexcept {
-    ::memset(this, 0, sizeof(*this));
-    ::memset(_passedOrder, 0xFF, sizeof(_passedOrder));
+    std::memset(this, 0, sizeof(*this));
+    std::memset(_passedOrder, 0xFF, sizeof(_passedOrder));
   }
 
   // --------------------------------------------------------------------------
@@ -412,7 +412,7 @@ struct FuncSignature {
     _args = args;
   }
 
-  inline void reset() noexcept { ::memset(this, 0, sizeof(*this)); }
+  inline void reset() noexcept { std::memset(this, 0, sizeof(*this)); }
 
   // --------------------------------------------------------------------------
   // [Accessors]
@@ -456,131 +456,14 @@ struct FuncSignature {
 // [asmjit::FuncSignatureT]
 // ============================================================================
 
-//! \internal
-#define T(TYPE) TypeIdOf<TYPE>::kTypeId
-
-//! Static function signature (no arguments).
-template<typename RET>
-class FuncSignature0 : public FuncSignature {
-public:
-  inline FuncSignature0(uint32_t ccId = CallConv::kIdHost) noexcept {
-    init(ccId, T(RET), nullptr, 0);
-  }
-};
-
-//! Static function signature (1 argument).
-template<typename RET, typename A0>
-class FuncSignature1 : public FuncSignature {
-public:
-  inline FuncSignature1(uint32_t ccId = CallConv::kIdHost) noexcept {
-    static const uint8_t args[] = { T(A0) };
-    init(ccId, T(RET), args, ASMJIT_ARRAY_SIZE(args));
-  }
-};
-
-//! Static function signature (2 arguments).
-template<typename RET, typename A0, typename A1>
-class FuncSignature2 : public FuncSignature {
-public:
-  inline FuncSignature2(uint32_t ccId = CallConv::kIdHost) noexcept {
-    static const uint8_t args[] = { T(A0), T(A1) };
-    init(ccId, T(RET), args, ASMJIT_ARRAY_SIZE(args));
-  }
-};
-
-//! Static function signature (3 arguments).
-template<typename RET, typename A0, typename A1, typename A2>
-class FuncSignature3 : public FuncSignature {
-public:
-  inline FuncSignature3(uint32_t ccId = CallConv::kIdHost) noexcept {
-    static const uint8_t args[] = { T(A0), T(A1), T(A2) };
-    init(ccId, T(RET), args, ASMJIT_ARRAY_SIZE(args));
-  }
-};
-
-//! Static function signature (4 arguments).
-template<typename RET, typename A0, typename A1, typename A2, typename A3>
-class FuncSignature4 : public FuncSignature {
-public:
-  inline FuncSignature4(uint32_t ccId = CallConv::kIdHost) noexcept {
-    static const uint8_t args[] = { T(A0), T(A1), T(A2), T(A3) };
-    init(ccId, T(RET), args, ASMJIT_ARRAY_SIZE(args));
-  }
-};
-
-//! Static function signature (5 arguments).
-template<typename RET, typename A0, typename A1, typename A2, typename A3, typename A4>
-class FuncSignature5 : public FuncSignature {
-public:
-  inline FuncSignature5(uint32_t ccId = CallConv::kIdHost) noexcept {
-    static const uint8_t args[] = { T(A0), T(A1), T(A2), T(A3), T(A4) };
-    init(ccId, T(RET), args, ASMJIT_ARRAY_SIZE(args));
-  }
-};
-
-//! Static function signature (6 arguments).
-template<typename RET, typename A0, typename A1, typename A2, typename A3, typename A4, typename A5>
-class FuncSignature6 : public FuncSignature {
-public:
-  inline FuncSignature6(uint32_t ccId = CallConv::kIdHost) noexcept {
-    static const uint8_t args[] = { T(A0), T(A1), T(A2), T(A3), T(A4), T(A5) };
-    init(ccId, T(RET), args, ASMJIT_ARRAY_SIZE(args));
-  }
-};
-
-//! Static function signature (7 arguments).
-template<typename RET, typename A0, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
-class FuncSignature7 : public FuncSignature {
-public:
-  inline FuncSignature7(uint32_t ccId = CallConv::kIdHost) noexcept {
-    static const uint8_t args[] = { T(A0), T(A1), T(A2), T(A3), T(A4), T(A5), T(A6) };
-    init(ccId, T(RET), args, ASMJIT_ARRAY_SIZE(args));
-  }
-};
-
-//! Static function signature (8 arguments).
-template<typename RET, typename A0, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7>
-class FuncSignature8 : public FuncSignature {
-public:
-  inline FuncSignature8(uint32_t ccId = CallConv::kIdHost) noexcept {
-    static const uint8_t args[] = { T(A0), T(A1), T(A2), T(A3), T(A4), T(A5), T(A6), T(A7) };
-    init(ccId, T(RET), args, ASMJIT_ARRAY_SIZE(args));
-  }
-};
-
-//! Static function signature (9 arguments).
-template<typename RET, typename A0, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8>
-class FuncSignature9 : public FuncSignature {
-public:
-  inline FuncSignature9(uint32_t ccId = CallConv::kIdHost) noexcept {
-    static const uint8_t args[] = { T(A0), T(A1), T(A2), T(A3), T(A4), T(A5), T(A6), T(A7), T(A8) };
-    init(ccId, T(RET), args, ASMJIT_ARRAY_SIZE(args));
-  }
-};
-
-//! Static function signature (10 arguments).
-template<typename RET, typename A0, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9>
-class FuncSignature10 : public FuncSignature {
-public:
-  inline FuncSignature10(uint32_t ccId = CallConv::kIdHost) noexcept {
-    static const uint8_t args[] = { T(A0), T(A1), T(A2), T(A3), T(A4), T(A5), T(A6), T(A7), T(A8), T(A9) };
-    init(ccId, T(RET), args, ASMJIT_ARRAY_SIZE(args));
-  }
-};
-
-#if ASMJIT_CC_HAS_VARIADIC_TEMPLATES
-//! Static function signature (variadic template).
-template<typename RET, typename... ARGS>
+template<typename... RET_ARGS>
 class FuncSignatureT : public FuncSignature {
 public:
   inline FuncSignatureT(uint32_t ccId = CallConv::kIdHost) noexcept {
-    static const uint8_t args[] = { (T(ARGS))... };
-    init(ccId, T(RET), args, ASMJIT_ARRAY_SIZE(args));
+    static const uint8_t ret_args[] = { (uint8_t(TypeIdOf<RET_ARGS>::kTypeId))... };
+    init(ccId, ret_args[0], ret_args + 1, uint32_t(ASMJIT_ARRAY_SIZE(ret_args) - 1));
   }
 };
-#endif
-
-#undef T
 
 // ============================================================================
 // [asmjit::FuncSignatureX]
@@ -601,10 +484,7 @@ public:
   // [Accessors]
   // --------------------------------------------------------------------------
 
-  inline void setCallConv(uint32_t ccId) noexcept {
-    ASMJIT_ASSERT(ccId <= 0xFF);
-    _callConv = uint8_t(ccId);
-  }
+  inline void setCallConv(uint32_t ccId) noexcept { _callConv = uint8_t(ccId); }
 
   //! Set the return type to `retType`.
   inline void setRet(uint32_t retType) noexcept { _ret = uint8_t(retType); }
@@ -645,101 +525,112 @@ public:
 //! or stack address (and other metadata) assigned to it.
 struct FuncValue {
   enum Parts : uint32_t {
-    kStackOffsetShift = 0,
-    kStackOffsetMask  = 0x0000FFFFU,
+    kTypeIdShift      = 0,             //!< TypeId shift.
+    kTypeIdMask       = 0x000000FFU,   //!< TypeId mask.
 
-    kRegIdShift       = 0,
-    kRegIdMask        = 0x000000FFU,
+    kFlagIsReg        = 0x00000100U,   //!< Passed by register.
+    kFlagIsStack      = 0x00000200U,   //!< Passed by stack.
+    kFlagIsIndirect   = 0x00000400U,   //!< Passed indirectly by reference (internally a pointer).
+    kFlagIsDone       = 0x00000800U,   //!< Used internally by arguments allocator.
 
-    kRegTypeShift     = 8,
-    kRegTypeMask      = 0x0000FF00U,
+    kStackOffsetShift = 12,            //!< Stack offset shift.
+    kStackOffsetMask  = 0xFFFFF000U,   //!< Stack offset mask (must occupy MSB bits).
 
-    kIsReg            = 0x00010000U,   //!< Passed by register.
-    kIsStack          = 0x00020000U,   //!< Passed by stack.
-    kIsIndirect       = 0x00040000U,   //!< Passed indirectly by reference (internally a pointer).
-    kIsDone           = 0x00080000U,   //!< Used internally by arguments allocator.
+    kRegIdShift       = 16,            //!< RegId shift.
+    kRegIdMask        = 0x00FF0000U,   //!< RegId mask.
 
-    kTypeIdShift      = 24,
-    kTypeIdMask       = 0xFF000000U
+    kRegTypeShift     = 24,            //!< RegType shift.
+    kRegTypeMask      = 0xFF000000U    //!< RegType mask.
   };
 
   // --------------------------------------------------------------------------
   // [Init / Reset]
   // --------------------------------------------------------------------------
 
+  // These initialize the whole `FuncValue` to either Reg or Stack. Useful when
+  // you know all of these properties and wanna just set it up.
+
   //! Initialize this in/out by a given `typeId`.
-  inline void init(uint32_t typeId) noexcept { _data = typeId << kTypeIdShift; }
+  inline void initTypeId(uint32_t typeId) noexcept {
+    _data = typeId << kTypeIdShift;
+  }
 
   inline void initReg(uint32_t regType, uint32_t regId, uint32_t typeId, uint32_t flags = 0) noexcept {
-    _data = (regType << kRegTypeShift) | (regId << kRegIdShift) | (typeId << kTypeIdShift) | kIsReg | flags;
+    _data = (regType << kRegTypeShift) | (regId << kRegIdShift) | (typeId << kTypeIdShift) | kFlagIsReg | flags;
   }
 
-  inline void initStack(uint32_t offset, uint32_t typeId) noexcept {
-    _data = (offset << kStackOffsetShift) | (typeId << kTypeIdShift) | kIsStack;
+  inline void initStack(int32_t offset, uint32_t typeId) noexcept {
+    _data = (uint32_t(offset) << kStackOffsetShift) | (typeId << kTypeIdShift) | kFlagIsStack;
   }
 
-  //! Reset the value to its uninitialized and unassigned state.
+  //! Reset the value to its unassigned state.
   inline void reset() noexcept { _data = 0; }
+
+  // --------------------------------------------------------------------------
+  // [Assign]
+  // --------------------------------------------------------------------------
+
+  // These initialize only part of `FuncValue`, useful when building `FuncValue`
+  // incrementally. The caller should first init the type-id by caliing `initTypeId`
+  // and then continue building either Reg or Stack.
+
+  inline void assignRegData(uint32_t regType, uint32_t regId) noexcept {
+    ASMJIT_ASSERT((_data & (kRegTypeMask | kRegIdMask)) == 0);
+    _data |= (regType << kRegTypeShift) | (regId << kRegIdShift) | kFlagIsReg;
+  }
+
+  inline void assignStackOffset(int32_t offset) noexcept {
+    ASMJIT_ASSERT((_data & kStackOffsetMask) == 0);
+    _data |= (uint32_t(offset) << kStackOffsetShift) | kFlagIsStack;
+  }
 
   // --------------------------------------------------------------------------
   // [Accessors]
   // --------------------------------------------------------------------------
 
+  inline void _replaceValue(uint32_t mask, uint32_t value) noexcept { _data = (_data & ~mask) | value; }
+
+  //! Get whether the `FuncValue` has a flag `flag` set.
   inline bool hasFlag(uint32_t flag) const noexcept { return (_data & flag) != 0; }
+  //! Add `flags` to `FuncValue`.
   inline void addFlags(uint32_t flags) noexcept { _data |= flags; }
+  //! Clear `flags` of `FuncValue`.
   inline void clearFlags(uint32_t flags) noexcept { _data &= ~flags; }
 
   //! Get whether this value is initialized (i.e. contains a valid data).
   inline bool isInitialized() const noexcept { return _data != 0; }
   //! Get whether this argument is passed by register.
-  inline bool isReg() const noexcept { return hasFlag(kIsReg); }
+  inline bool isReg() const noexcept { return hasFlag(kFlagIsReg); }
   //! Get whether this argument is passed by stack.
-  inline bool isStack() const noexcept { return hasFlag(kIsStack); }
+  inline bool isStack() const noexcept { return hasFlag(kFlagIsStack); }
   //! Get whether this argument is passed by register.
-  inline bool isAssigned() const noexcept { return hasFlag(kIsReg | kIsStack); }
+  inline bool isAssigned() const noexcept { return hasFlag(kFlagIsReg | kFlagIsStack); }
   //! Get whether this argument is passed through a pointer (used by WIN64 to pass XMM|YMM|ZMM).
-  inline bool isIndirect() const noexcept { return hasFlag(kIsIndirect); }
+  inline bool isIndirect() const noexcept { return hasFlag(kFlagIsIndirect); }
 
-  inline bool isDone() const noexcept { return hasFlag(kIsDone); }
+  inline bool isDone() const noexcept { return hasFlag(kFlagIsDone); }
 
-  //! Get a register type of the register used to pass the argument or return the value.
+  //! Get a register type of the register used to pass function argument or return value.
   inline uint32_t getRegType() const noexcept { return (_data & kRegTypeMask) >> kRegTypeShift; }
-  inline void setRegType(uint32_t regType) noexcept { _data = (_data & ~kRegTypeMask) | (regType << kRegTypeShift); }
+  //! Set a register type of the register used to pass function argument or return value.
+  inline void setRegType(uint32_t regType) noexcept { _replaceValue(kRegTypeMask, regType << kRegTypeShift); }
 
-  //! Get a physical id of the register used to pass the argument or return the value.
+  //! Get a physical id of the register used to pass function argument or return value.
   inline uint32_t getRegId() const noexcept { return (_data & kRegIdMask) >> kRegIdShift; }
-  inline void setRegId(uint32_t regId) noexcept { _data = (_data & ~kRegIdMask) | (regId << kRegIdShift); }
+  //! Set a physical id of the register used to pass function argument or return value.
+  inline void setRegId(uint32_t regId) noexcept { _replaceValue(kRegIdMask, regId << kRegIdShift); }
 
-  inline void addRegData(uint32_t type, uint32_t id) noexcept {
-    ASMJIT_ASSERT((_data & (kRegTypeMask | kRegIdMask)) == 0);
-    _data |= (type << kRegTypeShift) | (id << kRegIdShift) | kIsReg;
-  }
+  //! Get a stack offset of this argument.
+  inline int32_t getStackOffset() const noexcept { return int32_t(_data & kStackOffsetMask) >> kStackOffsetShift; }
+  //! Set a stack offset of this argument.
+  inline void setStackOffset(int32_t offset) noexcept { _replaceValue(kStackOffsetMask, uint32_t(offset) << kStackOffsetShift); }
 
-  //! Get a stack offset of this argument (always zero or positive).
-  inline uint32_t getStackOffset() const noexcept {
-    return (_data & kStackOffsetMask) >> kStackOffsetShift;
-  }
-
-  // TODO: INVALID NAME, AMBIGUOUS.
-  inline void addStackOffset(uint32_t offset) noexcept {
-    ASMJIT_ASSERT((_data & kStackOffsetMask) == 0);
-    _data |= (offset << kStackOffsetShift) | kIsStack;
-  }
-
-  //! Get virtual type of this argument or return value.
-  inline uint32_t getTypeId() const noexcept {
-    return _data >> kTypeIdShift;
-  }
-
-  inline void setTypeId(uint32_t typeId) noexcept {
-    _data = (_data & ~(kTypeIdMask)) | (typeId << kTypeIdShift);
-  }
-
-  inline void addTypeId(uint32_t typeId) noexcept {
-    ASMJIT_ASSERT((_data & kTypeIdMask) != 0);
-    _data |= (typeId << kTypeIdShift);
-  }
-
+  //! Get a TypeId of this argument or return value.
+  inline bool hasTypeId() const noexcept { return (_data & kTypeIdMask) != 0; }
+  //! Get a TypeId of this argument or return value.
+  inline uint32_t getTypeId() const noexcept { return (_data & kTypeIdMask) >> kTypeIdShift; }
+  //! Set a TypeId of this argument or return value.
+  inline void setTypeId(uint32_t typeId) noexcept { _replaceValue(kTypeIdMask, typeId << kTypeIdShift); }
 
   // --------------------------------------------------------------------------
   // [Members]
@@ -764,7 +655,7 @@ public:
   // --------------------------------------------------------------------------
 
   inline FuncDetail() noexcept { reset(); }
-  inline FuncDetail(const FuncDetail& other) noexcept { ::memcpy(this, &other, sizeof(*this)); }
+  inline FuncDetail(const FuncDetail& other) noexcept { std::memcpy(this, &other, sizeof(*this)); }
 
   // --------------------------------------------------------------------------
   // [Init / Reset]
@@ -772,7 +663,7 @@ public:
 
   //! Initialize this `FuncDetail` to the given signature.
   ASMJIT_API Error init(const FuncSignature& sign);
-  inline void reset() noexcept { ::memset(this, 0, sizeof(*this)); }
+  inline void reset() noexcept { std::memset(this, 0, sizeof(*this)); }
 
   // --------------------------------------------------------------------------
   // [Accessors - Calling Convention]
@@ -932,7 +823,7 @@ public:
   // --------------------------------------------------------------------------
 
   inline FuncFrame() noexcept { reset(); }
-  inline FuncFrame(const FuncFrame& other) noexcept { ::memcpy(this, &other, sizeof(FuncFrame)); }
+  inline FuncFrame(const FuncFrame& other) noexcept { std::memcpy(this, &other, sizeof(FuncFrame)); }
 
   // --------------------------------------------------------------------------
   // [Init / Reset / Finalize]
@@ -942,7 +833,7 @@ public:
   ASMJIT_API Error finalize() noexcept;
 
   inline void reset() noexcept {
-    ::memset(this, 0, sizeof(FuncFrame));
+    std::memset(this, 0, sizeof(FuncFrame));
     _spRegId = Reg::kIdBad;
     _saRegId = Reg::kIdBad;
     _daOffset = kTagInvalidOffset;
@@ -974,9 +865,9 @@ public:
   //! Get whether the function calls other functions.
   inline bool hasFuncCalls() const noexcept { return hasAttribute(kAttrHasFuncCalls); }
   //! Set `kFlagHasCalls` to true.
-  inline void enableFuncCalls() noexcept { addAttributes(kAttrHasFuncCalls); }
+  inline void setFuncCalls() noexcept { addAttributes(kAttrHasFuncCalls); }
   //! Set `kFlagHasCalls` to false.
-  inline void disableFuncCalls() noexcept { clearAttributes(kAttrHasFuncCalls); }
+  inline void resetFuncCalls() noexcept { clearAttributes(kAttrHasFuncCalls); }
 
   //! Get whether the function contains AVX cleanup - 'vzeroupper' instruction in epilog.
   inline bool hasAvxCleanup() const noexcept { return hasAttribute(kAttrX86AvxCleanup); }
@@ -1180,7 +1071,7 @@ public:
   uint32_t _localStackSize;              //!< Local stack size.
   uint32_t _finalStackSize;              //!< Final stack size (sum of call stack and local stack).
 
-  uint32_t _localStackOffset;            //!< Local stack offset (non-zero only call stack is used).
+  uint32_t _localStackOffset;            //!< Local stack offset (non-zero only if call stack is used).
   uint32_t _daOffset;                    //!< Offset relative to SP that contains previous SP (before alignment).
   uint32_t _saOffsetFromSP;              //!< Offset of the first stack argument relative to SP.
   uint32_t _saOffsetFromSA;              //!< Offset of the first stack argument relative to SA (_saRegId or FP).
@@ -1211,7 +1102,7 @@ public:
   explicit inline FuncArgsAssignment(const FuncDetail* fd = nullptr) noexcept { reset(fd); }
 
   inline FuncArgsAssignment(const FuncArgsAssignment& other) noexcept {
-    ::memcpy(this, &other, sizeof(*this));
+    std::memcpy(this, &other, sizeof(*this));
   }
 
   // --------------------------------------------------------------------------
@@ -1221,8 +1112,8 @@ public:
   inline void reset(const FuncDetail* fd = nullptr) noexcept {
     _funcDetail = fd;
     _saRegId = uint8_t(Reg::kIdBad);
-    ::memset(_reserved, 0, sizeof(_reserved));
-    ::memset(_args, 0, sizeof(_args));
+    std::memset(_reserved, 0, sizeof(_reserved));
+    std::memset(_args, 0, sizeof(_args));
   }
 
   // --------------------------------------------------------------------------
@@ -1246,26 +1137,31 @@ public:
     return _args[index];
   }
 
-  inline bool isAssigned(uint32_t index) const noexcept {
-    ASMJIT_ASSERT(index < ASMJIT_ARRAY_SIZE(_args));
-    return _args[index].isAssigned();
+  inline bool isAssigned(uint32_t argIndex) const noexcept {
+    ASMJIT_ASSERT(argIndex < ASMJIT_ARRAY_SIZE(_args));
+    return _args[argIndex].isAssigned();
   }
 
-  inline void assignReg(uint32_t index, const Reg& reg, uint32_t typeId = TypeId::kVoid) noexcept {
-    ASMJIT_ASSERT(index < ASMJIT_ARRAY_SIZE(_args));
+  inline void assignReg(uint32_t argIndex, const Reg& reg, uint32_t typeId = TypeId::kVoid) noexcept {
+    ASMJIT_ASSERT(argIndex < ASMJIT_ARRAY_SIZE(_args));
     ASMJIT_ASSERT(reg.isPhysReg());
-    _args[index].initReg(reg.getType(), reg.getId(), typeId);
+    _args[argIndex].initReg(reg.getType(), reg.getId(), typeId);
   }
 
-  inline void assignReg(uint32_t index, uint32_t regType, uint32_t regId, uint32_t typeId = TypeId::kVoid) noexcept {
-    ASMJIT_ASSERT(index < ASMJIT_ARRAY_SIZE(_args));
-    _args[index].initReg(regType, regId, typeId);
+  inline void assignReg(uint32_t argIndex, uint32_t regType, uint32_t regId, uint32_t typeId = TypeId::kVoid) noexcept {
+    ASMJIT_ASSERT(argIndex < ASMJIT_ARRAY_SIZE(_args));
+    _args[argIndex].initReg(regType, regId, typeId);
+  }
+
+  inline void assignStack(uint32_t argIndex, uint32_t offset, uint32_t typeId = TypeId::kVoid) {
+    ASMJIT_ASSERT(argIndex < ASMJIT_ARRAY_SIZE(_args));
+    _args[argIndex].initStack(offset, typeId);
   }
 
   // NOTE: All `assignAll()` methods are shortcuts to assign all arguments at
   // once, however, since registers are passed all at once these initializers
   // don't provide any way to pass TypeId and/or to keep any argument between
-  // the arguments passed uninitialized.
+  // the arguments passed unassigned.
   inline void assignAll(const Reg& a0) noexcept {
     assignReg(0, a0);
   }

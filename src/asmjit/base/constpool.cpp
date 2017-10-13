@@ -63,7 +63,7 @@ ConstPool::Node* ConstPool::Tree::get(const void* data) noexcept {
   size_t dataSize = _dataSize;
 
   while (node) {
-    int c = ::memcmp(node->getData(), data, dataSize);
+    int c = std::memcmp(node->getData(), data, dataSize);
     if (c == 0)
       return node;
     node = node->_link[c < 0];
@@ -90,7 +90,7 @@ void ConstPool::Tree::put(ConstPool::Node* newNode) noexcept {
   // Find a spot and save the stack.
   for (;;) {
     stack[top++] = node;
-    dir = ::memcmp(node->getData(), newNode->getData(), dataSize) < 0;
+    dir = std::memcmp(node->getData(), newNode->getData(), dataSize) < 0;
 
     ConstPool::Node* link = node->_link[dir];
     if (!link) break;
@@ -321,7 +321,7 @@ struct ConstPoolFill {
 
   ASMJIT_INLINE void visit(const ConstPool::Node* node) noexcept {
     if (!node->_shared)
-      ::memcpy(_dst + node->_offset, node->getData(), _dataSize);
+      std::memcpy(_dst + node->_offset, node->getData(), _dataSize);
   }
 
   uint8_t* _dst;
@@ -330,7 +330,7 @@ struct ConstPoolFill {
 
 void ConstPool::fill(void* dst) const noexcept {
   // Clears possible gaps, asmjit should never emit garbage to the output.
-  ::memset(dst, 0, _size);
+  std::memset(dst, 0, _size);
 
   ConstPoolFill filler(static_cast<uint8_t*>(dst), 1);
   for (size_t i = 0; i < ASMJIT_ARRAY_SIZE(_tree); i++) {

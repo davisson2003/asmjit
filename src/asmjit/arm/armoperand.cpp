@@ -12,6 +12,7 @@
 #if defined(ASMJIT_BUILD_ARM)
 
 // [Dependencies]
+#include "../base/misc_p.h"
 #include "../arm/armoperand.h"
 
 // [Api-Begin]
@@ -19,6 +20,25 @@
 
 namespace asmjit {
 
+// ============================================================================
+// [asmjit::ArmOpData]
+// ============================================================================
+
+const ArmOpData armOpData = {
+  {
+    {
+#define ASMJIT_ARM_REG_SIGNATURE(TYPE) { ArmRegTraits<TYPE>::kSignature }
+      ASMJIT_TABLE_32(ASMJIT_ARM_REG_SIGNATURE, 0)
+#undef ASMJIT_ARM_REG_SIGNATURE
+    },
+
+    // RegCount[]
+    { ASMJIT_TABLE_T_32(ArmRegTraits, kCount, 0) },
+
+    // RegTypeToTypeId[]
+    { ASMJIT_TABLE_T_32(ArmRegTraits, kTypeId, 0) }
+  }
+};
 // ============================================================================
 // [asmjit::ArmOperand - Test]
 // ============================================================================

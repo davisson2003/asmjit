@@ -95,13 +95,10 @@ public:
   ASMJIT_INLINE bool isGroupUsed(uint32_t group) const noexcept { return _tiedCount[group] != 0; }
 
   // --------------------------------------------------------------------------
-  // [Allocation - Run]
+  // [Assignment]
   // --------------------------------------------------------------------------
 
   Error makeInitialAssignment() noexcept;
-
-  Error allocInst(CBInst* cbInst) noexcept;
-  Error allocBranch(CBInst* cbInst, RABlock* target, RABlock* cont) noexcept;
 
   Error replaceAssignment(
     const PhysToWorkMap* physToWorkMap,
@@ -122,10 +119,15 @@ public:
     bool dstReadOnly,
     bool tryMode) noexcept;
 
-  ASMJIT_INLINE Error runOnGroup(uint32_t group) noexcept;
+  // --------------------------------------------------------------------------
+  // [Allocation]
+  // --------------------------------------------------------------------------
+
+  Error allocInst(CBInst* cbInst) noexcept;
+  Error allocBranch(CBInst* cbInst, RABlock* target, RABlock* cont) noexcept;
 
   // --------------------------------------------------------------------------
-  // [Allocation - Decision Making]
+  // [Decision Making]
   // --------------------------------------------------------------------------
 
   enum CostModel : uint32_t {
@@ -133,11 +135,11 @@ public:
     kCostOfDirtyFlag = kCostOfFrequency / 4
   };
 
-  ASMJIT_INLINE uint32_t costByFrequency(float freq) const noexcept {
+  inline uint32_t costByFrequency(float freq) const noexcept {
     return uint32_t(int32_t(freq * float(kCostOfFrequency)));
   }
 
-  ASMJIT_INLINE uint32_t calculateSpillCost(uint32_t group, uint32_t workId, uint32_t assignedId) const noexcept {
+  inline uint32_t calculateSpillCost(uint32_t group, uint32_t workId, uint32_t assignedId) const noexcept {
     RAWorkReg* workReg = getWorkReg(workId);
     uint32_t cost = costByFrequency(workReg->getLiveStats().getFreq());
 
@@ -158,14 +160,14 @@ public:
   uint32_t decideOnUnassignment(uint32_t group, uint32_t workId, uint32_t assignedId, uint32_t allocableRegs) const noexcept;
 
   //! Decide on best spill given a register mask `spillableRegs`
-  uint32_t decideOnBestSpill(uint32_t group, uint32_t spillableRegs, uint32_t* outWorkId) const noexcept;
+  uint32_t decideOnSpillFor(uint32_t group, uint32_t workId, uint32_t spillableRegs, uint32_t* spillWorkId) const noexcept;
 
   // --------------------------------------------------------------------------
-  // [Allocation - Emit]
+  // [Emit]
   // --------------------------------------------------------------------------
 
   //! Emit a move between a destination and source register, and fix the register assignment.
-  ASMJIT_INLINE Error onMoveReg(uint32_t group, uint32_t workId, uint32_t dstPhysId, uint32_t srcPhysId) noexcept {
+  inline Error onMoveReg(uint32_t group, uint32_t workId, uint32_t dstPhysId, uint32_t srcPhysId) noexcept {
     if (dstPhysId == srcPhysId) return kErrorOk;
     _curAssignment.reassign(group, workId, dstPhysId, srcPhysId);
     return _pass->onEmitMove(workId, dstPhysId, srcPhysId);
@@ -174,19 +176,19 @@ public:
   //! Emit a swap between two physical registers and fix their assignment.
   //!
   //! NOTE: Target must support this operation otherwise this would ASSERT.
-  ASMJIT_INLINE Error onSwapReg(uint32_t group, uint32_t aWorkId, uint32_t aPhysId, uint32_t bWorkId, uint32_t bPhysId) noexcept {
+  inline Error onSwapReg(uint32_t group, uint32_t aWorkId, uint32_t aPhysId, uint32_t bWorkId, uint32_t bPhysId) noexcept {
     _curAssignment.swap(group, aWorkId, aPhysId, bWorkId, bPhysId);
     return _pass->onEmitSwap(aWorkId, aPhysId, bWorkId, bPhysId);
   }
 
   //! Emit a load from [VirtReg/WorkReg]'s spill slot to a physical register and make it assigned and clean.
-  ASMJIT_INLINE Error onLoadReg(uint32_t group, uint32_t workId, uint32_t physId) noexcept {
+  inline Error onLoadReg(uint32_t group, uint32_t workId, uint32_t physId) noexcept {
     _curAssignment.assign(group, workId, physId, RAAssignment::kClean);
     return _pass->onEmitLoad(workId, physId);
   }
 
   //! Emit a save a physical register to a [VirtReg/WorkReg]'s spill slot, keep it assigned, and make it clean.
-  ASMJIT_INLINE Error onSaveReg(uint32_t group, uint32_t workId, uint32_t physId) noexcept {
+  inline Error onSaveReg(uint32_t group, uint32_t workId, uint32_t physId) noexcept {
     ASMJIT_ASSERT(_curAssignment.workToPhysId(group, workId) == physId);
     ASMJIT_ASSERT(_curAssignment.physToWorkId(group, physId) == workId);
 
@@ -195,24 +197,24 @@ public:
   }
 
   //! Assign a register, the content of it is undefined at this point.
-  ASMJIT_INLINE Error onAssignReg(uint32_t group, uint32_t workId, uint32_t physId, uint32_t dirty) noexcept {
+  inline Error onAssignReg(uint32_t group, uint32_t workId, uint32_t physId, uint32_t dirty) noexcept {
     _curAssignment.assign(group, workId, physId, dirty);
     return kErrorOk;
   }
 
   //! Spill variable/register, saves the content to the memory-home if modified.
-  ASMJIT_INLINE Error onSpillReg(uint32_t group, uint32_t workId, uint32_t physId) noexcept {
+  inline Error onSpillReg(uint32_t group, uint32_t workId, uint32_t physId) noexcept {
     if (_curAssignment.isPhysDirty(group, physId))
       ASMJIT_PROPAGATE(onSaveReg(group, workId, physId));
     return onKillReg(group, workId, physId);
   }
 
-  ASMJIT_INLINE Error onDirtyReg(uint32_t group, uint32_t workId, uint32_t physId) noexcept {
+  inline Error onDirtyReg(uint32_t group, uint32_t workId, uint32_t physId) noexcept {
     _curAssignment.makeDirty(group, workId, physId);
     return kErrorOk;
   }
 
-  ASMJIT_INLINE Error onKillReg(uint32_t group, uint32_t workId, uint32_t physId) noexcept {
+  inline Error onKillReg(uint32_t group, uint32_t workId, uint32_t physId) noexcept {
     _curAssignment.unassign(group, workId, physId);
     return kErrorOk;
   }

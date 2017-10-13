@@ -403,7 +403,7 @@ public:
   // --------------------------------------------------------------------------
 
   //! Get the current function.
-  ASMJIT_INLINE CCFunc* getFunc() const noexcept { return _func; }
+  inline CCFunc* getFunc() const noexcept { return _func; }
 
   //! Create a new `CCFunc`.
   ASMJIT_API CCFunc* newFunc(const FuncSignature& sign) noexcept;
@@ -459,10 +459,10 @@ public:
   ASMJIT_API VirtReg* newVirtReg(uint32_t typeId, uint32_t signature, const char* name) noexcept;
 
   ASMJIT_API Error _newReg(Reg& out, uint32_t typeId, const char* name = nullptr);
-  ASMJIT_API Error _newReg(Reg& out, uint32_t typeId, const char* fmt, va_list ap);
+  ASMJIT_API Error _newReg(Reg& out, uint32_t typeId, const char* fmt, std::va_list ap);
 
   ASMJIT_API Error _newReg(Reg& out, const Reg& ref, const char* name = nullptr);
-  ASMJIT_API Error _newReg(Reg& out, const Reg& ref, const char* fmt, va_list ap);
+  ASMJIT_API Error _newReg(Reg& out, const Reg& ref, const char* fmt, std::va_list ap);
 
   ASMJIT_API Error _newStack(Mem& out, uint32_t size, uint32_t alignment, const char* name = nullptr);
   ASMJIT_API Error _newConst(Mem& out, uint32_t scope, const void* data, size_t size);

@@ -63,13 +63,13 @@ public:
   void onDone() noexcept override;
 
   // --------------------------------------------------------------------------
-  // [CFG - Build CFG]
+  // [CFG]
   // --------------------------------------------------------------------------
 
-  Error onBuildCFG() noexcept override;
+  Error buildCFG() noexcept override;
 
   // --------------------------------------------------------------------------
-  // [Allocation - Emit]
+  // [Emit]
   // --------------------------------------------------------------------------
 
   Error onEmitMove(uint32_t workId, uint32_t dstPhysId, uint32_t srcPhysId) noexcept override;

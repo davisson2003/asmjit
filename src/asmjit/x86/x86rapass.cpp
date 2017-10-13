@@ -269,7 +269,7 @@ void X86RAPass::onDone() noexcept {}
 
 static ASMJIT_INLINE uint64_t immMaskFromSize(uint32_t size) noexcept {
   ASMJIT_ASSERT(size > 0 && size < 256);
-  static uint64_t masks[] = {
+  static const uint64_t masks[] = {
     ASMJIT_UINT64_C(0x00000000000000FF), //   1
     ASMJIT_UINT64_C(0x000000000000FFFF), //   2
     ASMJIT_UINT64_C(0x00000000FFFFFFFF), //   4
@@ -337,7 +337,7 @@ public:
         }
       }
     }
-    ASMJIT_PROPAGATE(_pass->assignRAInst(inst, _block, ib));
+    ASMJIT_PROPAGATE(_pass->assignRAInst(inst, _curBlock, ib));
 
     *out = inst;
     return kErrorOk;
@@ -428,7 +428,7 @@ public:
             if (mem.isRegHome()) {
               RAWorkReg* workReg;
               ASMJIT_PROPAGATE(_pass->virtIndexAsWorkReg(Operand::unpackId(mem.getBaseId()), &workReg));
-              _pass->markStackUsed(workReg);
+              _pass->getOrCreateStackSlot(workReg);
             }
             else if (mem.hasBaseReg()) {
               uint32_t vIndex = Operand::unpackId(mem.getBaseId());
@@ -438,9 +438,18 @@ public:
 
                 uint32_t group = workReg->getGroup();
                 uint32_t allocable = _pass->_availableRegs[group];
-                uint32_t rewriteMask = IntUtils::mask(inst->getRewriteIndex(&mem._mem.base));
 
-                ASMJIT_PROPAGATE(ib.add(workReg, RATiedReg::kUse | RATiedReg::kRead, allocable, Reg::kIdBad, rewriteMask, Reg::kIdBad, 0));
+                uint32_t useId = Reg::kIdBad;
+                uint32_t outId = Reg::kIdBad;
+
+                uint32_t useRewriteMask = 0;
+                uint32_t outRewriteMask = 0;
+
+                useId = opInfo[i].getPhysId();
+                useRewriteMask = IntUtils::mask(inst->getRewriteIndex(&mem._reg.id));
+
+                uint32_t flags = useId != Reg::kIdBad ? uint32_t(opInfo[i].getFlags()) : uint32_t(RATiedReg::kUse | RATiedReg::kRead);
+                ASMJIT_PROPAGATE(ib.add(workReg, flags, allocable, useId, useRewriteMask, outId, outRewriteMask));
               }
             }
 
@@ -655,7 +664,8 @@ public:
     ib._clobbered[3] = IntUtils::bits(_pass->_physRegCount[3]) & ~fd.getPreservedRegs(3);
 
     // This block has function call(s).
-    _block->addFlags(RABlock::kFlagHasFuncCalls);
+    _pass->getFunc()->getFrame().updateCallStackSize(fd.getArgStackSize());
+    _curBlock->addFlags(RABlock::kFlagHasFuncCalls);
 
     return kErrorOk;
   }
@@ -703,7 +713,7 @@ MovAny:
   Error moveImmToStackArg(CCFuncCall* call, const FuncValue& arg, const Imm& imm_) noexcept {
     ASMJIT_ASSERT(arg.isStack());
 
-    X86Mem mem = x86::ptr(_pass->_sp.as<X86Gp>(), int32_t(arg.getStackOffset()));
+    X86Mem mem = x86::ptr(_pass->_sp.as<X86Gp>(), arg.getStackOffset());
     Imm imm[2];
 
     mem.setSize(4);
@@ -767,7 +777,7 @@ MovU32:
     ASMJIT_ASSERT(!"IMPLEMENTED");
     return kErrorOk;
     /*
-    X86Mem mem = x86::ptr(_pass->_sp.as<X86Gp>(), int32_t(arg.getStackOffset()));
+    X86Mem mem = x86::ptr(_pass->_sp.as<X86Gp>(), arg.getStackOffset());
     X86Reg r0, r1;
 
     uint32_t gpSize = cc()->getGpSize();
@@ -991,7 +1001,7 @@ MovXmmQ:
   bool _is64Bit;
 };
 
-Error X86RAPass::onBuildCFG() noexcept {
+Error X86RAPass::buildCFG() noexcept {
   return X86RACFGBuilder(this).run();
 }
 
@@ -1186,7 +1196,7 @@ Error X86RAPass::onEmitMove(uint32_t workId, uint32_t dstPhysId, uint32_t srcPhy
   const char* comment = nullptr;
 #if !defined(ASMJIT_DISABLE_LOGGING)
   if (_loggerOptions & Logger::kOptionAnnotate) {
-    _tmpString.setFormat("MOVE %s", getWorkReg(workId)->getName());
+    _tmpString.setFormat("<MOVE> %s", getWorkReg(workId)->getName());
     comment = _tmpString.getData();
   }
 #endif
@@ -1204,7 +1214,7 @@ Error X86RAPass::onEmitSwap(uint32_t aWorkId, uint32_t aPhysId, uint32_t bWorkId
 
 #if !defined(ASMJIT_DISABLE_LOGGING)
   if (_loggerOptions & Logger::kOptionAnnotate) {
-    _tmpString.setFormat("SWAP %s, %s", waReg->getName(), wbReg->getName());
+    _tmpString.setFormat("<SWAP> %s, %s", waReg->getName(), wbReg->getName());
     cc()->setInlineComment(_tmpString.getData());
   }
 #endif
@@ -1220,7 +1230,7 @@ Error X86RAPass::onEmitLoad(uint32_t workId, uint32_t dstPhysId) noexcept {
   const char* comment = nullptr;
 #if !defined(ASMJIT_DISABLE_LOGGING)
   if (_loggerOptions & Logger::kOptionAnnotate) {
-    _tmpString.setFormat("LOAD %s", getWorkReg(workId)->getName());
+    _tmpString.setFormat("<LOAD> %s", getWorkReg(workId)->getName());
     comment = _tmpString.getData();
   }
 #endif
@@ -1236,7 +1246,7 @@ Error X86RAPass::onEmitSave(uint32_t workId, uint32_t srcPhysId) noexcept {
   const char* comment = nullptr;
 #if !defined(ASMJIT_DISABLE_LOGGING)
   if (_loggerOptions & Logger::kOptionAnnotate) {
-    _tmpString.setFormat("SAVE %s", getWorkReg(workId)->getName());
+    _tmpString.setFormat("<SAVE> %s", getWorkReg(workId)->getName());
     comment = _tmpString.getData();
   }
 #endif

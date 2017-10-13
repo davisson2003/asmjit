@@ -47,9 +47,9 @@ struct TypeIdSizeOf_T {
   };
 };
 
-template<int ID>
+template<uint32_t ID>
 struct TypeIdElementOf_T {
-  enum {
+  enum : uint32_t {
     kValue = (ID == TypeId::kMask8 ) ? TypeId::kU8  :
              (ID == TypeId::kMask16) ? TypeId::kU16 :
              (ID == TypeId::kMask32) ? TypeId::kU32 :
@@ -57,11 +57,11 @@ struct TypeIdElementOf_T {
              (ID == TypeId::kMmx32 ) ? TypeId::kI32 :
              (ID == TypeId::kMmx64 ) ? TypeId::kI64 :
              (ID >= TypeId::kI8           && ID <= TypeId::kF80       ) ? ID   :
-             (ID >= TypeId::_kVec32Start  && ID <= TypeId::_kVec32End ) ? ID - TypeId::_kVec32Start  + TypeId::kI8 :
-             (ID >= TypeId::_kVec64Start  && ID <= TypeId::_kVec64End ) ? ID - TypeId::_kVec64Start  + TypeId::kI8 :
-             (ID >= TypeId::_kVec128Start && ID <= TypeId::_kVec128End) ? ID - TypeId::_kVec128Start + TypeId::kI8 :
-             (ID >= TypeId::_kVec256Start && ID <= TypeId::_kVec256End) ? ID - TypeId::_kVec256Start + TypeId::kI8 :
-             (ID >= TypeId::_kVec512Start && ID <= TypeId::_kVec512End) ? ID - TypeId::_kVec512Start + TypeId::kI8 : 0
+             (ID >= TypeId::_kVec32Start  && ID <= TypeId::_kVec32End ) ? ID + TypeId::kI8 - TypeId::_kVec32Start  :
+             (ID >= TypeId::_kVec64Start  && ID <= TypeId::_kVec64End ) ? ID + TypeId::kI8 - TypeId::_kVec64Start  :
+             (ID >= TypeId::_kVec128Start && ID <= TypeId::_kVec128End) ? ID + TypeId::kI8 - TypeId::_kVec128Start :
+             (ID >= TypeId::_kVec256Start && ID <= TypeId::_kVec256End) ? ID + TypeId::kI8 - TypeId::_kVec256Start :
+             (ID >= TypeId::_kVec512Start && ID <= TypeId::_kVec512End) ? ID + TypeId::kI8 - TypeId::_kVec512Start : 0
   };
 };
 

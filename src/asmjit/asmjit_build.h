@@ -12,20 +12,6 @@
 // [asmjit::Build - Configuration]
 // ============================================================================
 
-// AsmJit is by default compiled only for a host processor for the purpose of
-// JIT code generation. Both Assembler and CodeCompiler emitters are compiled
-// by default. Preprocessor macros can be used to change the default behavior.
-
-// External Config File
-// --------------------
-//
-// Define in case your configuration is generated in an external file to be
-// included.
-
-#if defined(ASMJIT_CONFIG_FILE)
-# include ASMJIT_CONFIG_FILE
-#endif
-
 // AsmJit Static Builds and Embedding
 // ----------------------------------
 //
@@ -857,17 +843,12 @@
 // [asmjit::Build - Dependencies]
 // ============================================================================
 
-#if defined(__MINGW32__) || defined(__MINGW64__)
-# include <sys/types.h>
-#endif
-
-#include <stdarg.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include <algorithm>
+#include <cstdarg>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
 #include <limits>
 #include <new>
 

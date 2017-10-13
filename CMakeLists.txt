@@ -201,7 +201,6 @@ cxx_add_source(asmjit ASMJIT_SRC asmjit/arm
   armlogging.cpp
   armlogging_p.h
   armoperand.cpp
-  armoperand_regs.cpp
   armoperand.h
   armrapass.cpp
   armrapass_p.h
@@ -225,7 +224,6 @@ cxx_add_source(asmjit ASMJIT_SRC asmjit/x86
   x86logging.cpp
   x86logging_p.h
   x86operand.cpp
-  x86operand_regs.cpp
   x86operand.h
   x86rapass.cpp
   x86rapass_p.h
