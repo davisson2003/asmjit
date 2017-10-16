@@ -338,16 +338,16 @@ Error RAPass::addBlock(RABlock* block) noexcept {
 
 class RABlockVisitItem {
 public:
-  ASMJIT_INLINE RABlockVisitItem(RABlock* block, uint32_t index) noexcept
+  inline RABlockVisitItem(RABlock* block, uint32_t index) noexcept
     : _block(block),
       _index(index) {}
 
-  ASMJIT_INLINE RABlockVisitItem(const RABlockVisitItem& other) noexcept
+  inline RABlockVisitItem(const RABlockVisitItem& other) noexcept
     : _block(other._block),
       _index(other._index) {}
 
-  ASMJIT_INLINE RABlock* getBlock() const noexcept { return _block; }
-  ASMJIT_INLINE uint32_t getIndex() const noexcept { return _index; }
+  inline RABlock* getBlock() const noexcept { return _block; }
+  inline uint32_t getIndex() const noexcept { return _index; }
 
   RABlock* _block;
   uint32_t _index;

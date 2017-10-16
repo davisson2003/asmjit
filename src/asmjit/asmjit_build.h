@@ -913,6 +913,11 @@ public:
 // [asmjit::Build - Test]
 // ============================================================================
 
+// VS-ONLY: Allows to see all tests highlighted instead of gray.
+#if defined(__INTELLISENSE__) && !defined(ASMJIT_TEST)
+# define ASMJIT_TEST
+#endif
+
 // Include a unit testing package if this is a `asmjit_test` build.
 #if defined(ASMJIT_TEST)
 # include "../../test/broken.h"

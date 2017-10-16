@@ -4860,8 +4860,9 @@ struct X86EmitterImplicitT : public X86EmitterExplicitT<This> {
   // [General Purpose and Non-SIMD Instructions]
   // --------------------------------------------------------------------------
 
-  // TODO: xrstor and xsave don't have explicit variants yet.
+  using X86EmitterExplicitT<This>::_emitter;
 
+  // TODO: xrstor and xsave don't have explicit variants yet.
   using X86EmitterExplicitT<This>::cbw;
   using X86EmitterExplicitT<This>::cdq;
   using X86EmitterExplicitT<This>::cdqe;

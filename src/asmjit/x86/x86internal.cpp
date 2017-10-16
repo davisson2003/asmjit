@@ -691,7 +691,7 @@ ASMJIT_FAVOR_SIZE Error X86FuncArgsContext::initWorkData(const FuncFrame& frame,
         Var& other = _vars[wd._physToVarId[dstId]];
         if (X86Reg::groupOf(other.out.getRegType()) == group && other.out.getRegId() == srcId) {
           wd._numSwaps++;
-          _regSwapsMask |= IntUtils::mask(group);
+          _regSwapsMask = uint8_t(_regSwapsMask | IntUtils::mask(group));
         }
       }
     }

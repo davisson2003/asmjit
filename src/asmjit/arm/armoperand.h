@@ -256,14 +256,14 @@ public:
   //! Set the memory operand's shift (aka scale) constant.
   inline void setShift(uint32_t shift) noexcept { _setSignatureData(shift, kSignatureMemShiftBits, kSignatureMemShiftShift); }
   //! Reset the memory operand's shift (aka scale) constant to zero.
-  inline void resetShift() noexcept { _signature &= ~kSignatureMemShiftMask; }
+  inline void resetShift() noexcept { _any.signature &= ~kSignatureMemShiftMask; }
 
   //! Get the addressing mode, see \ref ArmMem::Mode.
   constexpr uint32_t getMode() const noexcept { return _getSignatureData(kSignatureMemModeBits, kSignatureMemModeShift); }
   //! Set the addressing mode, see \ref ArmMem::Mode.
   inline void setMode(uint32_t mode) noexcept { _setSignatureData(mode, kSignatureMemModeBits, kSignatureMemModeShift); }
   //! Reset the addressing mode to \ref ArmMem::kModeOffset.
-  inline void resetMode() noexcept { _signature &= ~kSignatureMemModeMask; }
+  inline void resetMode() noexcept { _any.signature &= ~kSignatureMemModeMask; }
 
   constexpr bool isOffsetMode() const noexcept { return getMode() == kModeOffset; }
   constexpr bool isPreIncMode() const noexcept { return getMode() == kModePreInc; }

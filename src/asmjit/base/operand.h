@@ -744,7 +744,7 @@ public:
 
   //! Set a 32-bit operand signature based on traits of `RegT`.
   template<typename RegT>
-  inline void setSignatureT() noexcept { _signature = RegT::kSignature; }
+  inline void setSignatureT() noexcept { _any.signature = RegT::kSignature; }
 
   //! Set register's `signature` and `rId`.
   inline void setSignatureAndId(uint32_t signature, uint32_t rId) noexcept {

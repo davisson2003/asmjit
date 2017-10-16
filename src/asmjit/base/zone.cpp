@@ -114,24 +114,26 @@ void* Zone::_alloc(size_t size) noexcept {
   // a new one. If there is a `next` block it's completely unused, we don't have
   // to check for remaining bytes.
   Block* next = curBlock->next;
-  if (next && next->size >= size) {
+  if (next) {
+    uint8_t* end = next->data + next->size;
     p = IntUtils::alignUp(next->data, blockAlignment);
+    if ((size_t)(end - p) >= size) {
+      _block = next;
+      _ptr = p + size;
+      _end = next->data + next->size;
 
-    _block = next;
-    _ptr = p + size;
-    _end = next->data + next->size;
-
-    return static_cast<void*>(p);
+      ASMJIT_ASSERT(_ptr <= _end);
+      return static_cast<void*>(p);
+    }
   }
 
   // Prevent arithmetic overflow.
   const size_t kBaseBlockSize = sizeof(Block) - sizeof(void*);
-  if (ASMJIT_UNLIKELY(blockSize > (~size_t(0) - kBaseBlockSize - blockAlignment)))
+  if (ASMJIT_UNLIKELY(blockSize > (std::numeric_limits<size_t>::max() - kBaseBlockSize - blockAlignment)))
     return nullptr;
 
   blockSize += blockAlignment;
   Block* newBlock = static_cast<Block*>(AsmJitInternal::allocMemory(kBaseBlockSize + blockSize));
-
   if (ASMJIT_UNLIKELY(!newBlock))
     return nullptr;
 
@@ -160,6 +162,7 @@ void* Zone::_alloc(size_t size) noexcept {
   _ptr = p + size;
   _end = newBlock->data + blockSize;
 
+  ASMJIT_ASSERT(_ptr <= _end);
   return static_cast<void*>(p);
 }
 
@@ -239,7 +242,7 @@ void ZoneAllocator::reset(Zone* zone) noexcept {
 void* ZoneAllocator::_alloc(size_t size, size_t& allocatedSize) noexcept {
   ASMJIT_ASSERT(isInitialized());
 
-  // We use our memory pool only if the requested block is of a reasonable size.
+  // Use the memory pool only if the requested block has a reasonable size.
   uint32_t slot;
   if (_getSlotIndex(size, slot, allocatedSize)) {
     // Slot reuse.
@@ -286,13 +289,13 @@ void* ZoneAllocator::_alloc(size_t size, size_t& allocatedSize) noexcept {
   }
   else {
     // Allocate a dynamic block.
-    size_t overhead = sizeof(DynamicBlock) + sizeof(DynamicBlock*) + kBlockAlignment;
+    size_t kBlockOverhead = sizeof(DynamicBlock) + sizeof(DynamicBlock*) + kBlockAlignment;
 
     // Handle a possible overflow.
-    if (ASMJIT_UNLIKELY(overhead >= ~size_t(0) - size))
+    if (ASMJIT_UNLIKELY(kBlockOverhead >= std::numeric_limits<size_t>::max() - size))
       return nullptr;
 
-    void* p = AsmJitInternal::allocMemory(size + overhead);
+    void* p = AsmJitInternal::allocMemory(size + kBlockOverhead);
     if (ASMJIT_UNLIKELY(!p)) {
       allocatedSize = 0;
       return nullptr;
@@ -310,7 +313,7 @@ void* ZoneAllocator::_alloc(size_t size, size_t& allocatedSize) noexcept {
     _dynamicBlocks = block;
 
     // Align the pointer to the guaranteed alignment and store `DynamicBlock`
-    // at the end of the memory block, so `_releaseDynamic()` can find it.
+    // at the beginning of the memory block, so `_releaseDynamic()` can find it.
     p = IntUtils::alignUp(static_cast<uint8_t*>(p) + sizeof(DynamicBlock) + sizeof(DynamicBlock*), kBlockAlignment);
     reinterpret_cast<DynamicBlock**>(p)[-1] = block;
 
@@ -548,7 +551,7 @@ Error ZoneBitVector::_resize(ZoneAllocator* allocator, uint32_t newLength, uint3
 
   // Set new bits to either 0 or 1. The `pattern` is used to set multiple
   // bits per bit-word and contains either all zeros or all ones.
-  BitWord pattern = _patternFromBit(newBitsValue);
+  BitWord pattern = IntUtils::maskFromBool<BitWord>(newBitsValue);
 
   // First initialize the last bit-word of the old length.
   if (startBit) {
@@ -571,14 +574,11 @@ Error ZoneBitVector::_resize(ZoneAllocator* allocator, uint32_t newLength, uint3
 
   // Initialize all bit-words after the last bit-word of the old length.
   uint32_t endIdx = _wordsPerBits(newLength);
-  endIdx -= uint32_t(endIdx * kBitWordSize == newLength);
-
-  while (idx <= endIdx)
-    data[idx++] = pattern;
+  while (idx < endIdx) data[idx++] = pattern;
 
   // Clear unused bits of the last bit-word.
   if (endBit)
-    data[endIdx] &= (BitWord(1) << endBit) - 1;
+    data[endIdx - 1] = pattern & ((BitWord(1) << endBit) - 1);
 
   _length = newLength;
   return kErrorOk;
@@ -654,7 +654,7 @@ Error ZoneBitVector::fill(uint32_t from, uint32_t to, bool value) noexcept {
 
   // Fill all bits in case there is a gap between the current `idx` and `endIdx`.
   if (idx < endIdx) {
-    BitWord pattern = _patternFromBit(value);
+    BitWord pattern = IntUtils::maskFromBool<BitWord>(value);
     do {
       data[idx++] = pattern;
     } while (idx < endIdx);
@@ -922,17 +922,15 @@ UNIT(base_zone_bit_vector) {
   }
 }
 
-UNIT(base_zone_int_vector) {
-  Zone zone(8096 - Zone::kZoneOverhead);
-  ZoneAllocator allocator(&zone);
-
+template<typename T>
+static void test_zone_vector(ZoneAllocator* allocator, const char* typeName) {
   int i;
   int kMax = 100000;
 
-  ZoneVector<int> vec;
+  ZoneVector<T> vec;
 
-  INFO("ZoneVector<int> basic tests");
-  EXPECT(vec.append(&allocator, 0) == kErrorOk);
+  INFO("ZoneVector<%s> basic tests", typeName);
+  EXPECT(vec.append(allocator, 0) == kErrorOk);
   EXPECT(vec.isEmpty() == false);
   EXPECT(vec.getLength() == 1);
   EXPECT(vec.getCapacity() >= 1);
@@ -945,58 +943,100 @@ UNIT(base_zone_int_vector) {
   EXPECT(vec.indexOf(0) == Globals::kNotFound);
 
   for (i = 0; i < kMax; i++) {
-    EXPECT(vec.append(&allocator, i) == kErrorOk);
+    EXPECT(vec.append(allocator, T(i)) == kErrorOk);
   }
   EXPECT(vec.isEmpty() == false);
   EXPECT(vec.getLength() == uint32_t(kMax));
-  EXPECT(vec.indexOf(kMax - 1) == uint32_t(kMax - 1));
+  EXPECT(vec.indexOf(T(kMax - 1)) == uint32_t(kMax - 1));
+
+  vec.release(allocator);
 }
 
-UNIT(base_zone_stack) {
-  Zone zone(8096 - Zone::kZoneOverhead);
-  ZoneAllocator allocator(&zone);
-  ZoneStack<int> stack;
+template<typename T>
+static void test_zone_stack(ZoneAllocator* allocator, const char* typeName) {
+  ZoneStack<T> stack;
 
-  INFO("ZoneStack<int> contains %d elements per one Block", ZoneStack<int>::kNumBlockItems);
+  INFO("Testing ZoneStack<%s>", typeName);
+  INFO("  (%d items per one Block)", ZoneStack<T>::kNumBlockItems);
 
-  EXPECT(stack.init(&allocator) == kErrorOk);
+  EXPECT(stack.init(allocator) == kErrorOk);
   EXPECT(stack.isEmpty(), "Stack must be empty after `init()`");
 
   EXPECT(stack.append(42) == kErrorOk);
   EXPECT(!stack.isEmpty() , "Stack must not be empty after an item has been appended");
   EXPECT(stack.pop() == 42, "Stack.pop() must return the item that has been appended last");
-  EXPECT(stack.isEmpty()  , "Stack must be empty after the last element has been removed");
+  EXPECT(stack.isEmpty()  , "Stack must be empty after the last item has been removed");
 
   EXPECT(stack.prepend(43) == kErrorOk);
   EXPECT(!stack.isEmpty()      , "Stack must not be empty after an item has been prepended");
   EXPECT(stack.popFirst() == 43, "Stack.popFirst() must return the item that has been prepended last");
-  EXPECT(stack.isEmpty()       , "Stack must be empty after the last element has been removed");
+  EXPECT(stack.isEmpty()       , "Stack must be empty after the last item has been removed");
 
   int i;
-  int iMin =-100;
+  int iMin =-100000;
   int iMax = 100000;
 
-  INFO("Adding items from %d to %d to the stack", iMin, iMax);
-  for (i = 1; i <= iMax; i++) stack.append(i);
-  for (i = 0; i >= iMin; i--) stack.prepend(i);
+  INFO("Validating prepend() & popFirst()");
+  for (i = iMax; i >= 0; i--) stack.prepend(T(i));
+  for (i = 0; i <= iMax; i++) {
+    T item = stack.popFirst();
+    EXPECT(i == item, "Item '%d' didn't match the item '%lld' popped", i, (long long)item);
+    if (!stack.isEmpty()) {
+      item = stack.popFirst();
+      EXPECT(i + 1 == item, "Item '%d' didn't match the item '%lld' popped", i + 1, (long long)item);
+      stack.prepend(item);
+    }
+  }
+  EXPECT(stack.isEmpty());
 
-  INFO("Validating popFirst()");
+  INFO("Validating append() & pop()");
+  for (i = 0; i <= iMax; i++) stack.append(T(i));
+  for (i = iMax; i >= 0; i--) {
+    T item = stack.pop();
+    EXPECT(i == item, "Item '%d' didn't match the item '%lld' popped", i, (long long)item);
+    if (!stack.isEmpty()) {
+      item = stack.pop();
+      EXPECT(i - 1 == item, "Item '%d' didn't match the item '%lld' popped", i - 1, (long long)item);
+      stack.append(item);
+    }
+  }
+  EXPECT(stack.isEmpty());
+
+  INFO("Validating append()/prepend() & popFirst()");
+  for (i = 1; i <= iMax; i++) stack.append(T(i));
+  for (i = 0; i >= iMin; i--) stack.prepend(T(i));
+
   for (i = iMin; i <= iMax; i++) {
-    int item = stack.popFirst();
-    EXPECT(i == item, "Item '%d' didn't match the item '%d' popped", i, item);
+    T item = stack.popFirst();
+    EXPECT(i == item, "Item '%d' didn't match the item '%lld' popped", i, (long long)item);
   }
   EXPECT(stack.isEmpty());
 
-  INFO("Adding items from %d to %d to the stack", iMin, iMax);
-  for (i = 0; i >= iMin; i--) stack.prepend(i);
-  for (i = 1; i <= iMax; i++) stack.append(i);
+  INFO("Validating append()/prepend() & pop()");
+  for (i = 0; i >= iMin; i--) stack.prepend(T(i));
+  for (i = 1; i <= iMax; i++) stack.append(T(i));
 
-  INFO("Validating pop()");
   for (i = iMax; i >= iMin; i--) {
-    int item = stack.pop();
-    EXPECT(i == item, "Item '%d' didn't match the item '%d' popped", i, item);
+    T item = stack.pop();
+    EXPECT(i == item, "Item '%d' didn't match the item '%lld' popped", i, (long long)item);
   }
   EXPECT(stack.isEmpty());
+}
+
+UNIT(base_zone_int_vector) {
+  Zone zone(8096 - Zone::kZoneOverhead);
+  ZoneAllocator allocator(&zone);
+
+  test_zone_vector<int>(&allocator, "int");
+  test_zone_vector<int64_t>(&allocator, "int64_t");
+}
+
+UNIT(base_zone_stack) {
+  Zone zone(8096 - Zone::kZoneOverhead);
+  ZoneAllocator allocator(&zone);
+
+  test_zone_stack<int>(&allocator, "int");
+  test_zone_stack<int64_t>(&allocator, "int64_t");
 }
 #endif
 

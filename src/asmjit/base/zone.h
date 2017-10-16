@@ -65,7 +65,7 @@ public:
   //! It's not required, but it's good practice to set `blockSize` to a
   //! reasonable value that depends on the usage of `Zone`. Greater block sizes
   //! are generally safer and perform better than unreasonably low values.
-  ASMJIT_API Zone(uint32_t blockSize, uint32_t blockAlignment = 0) noexcept;
+  ASMJIT_API Zone(uint32_t blockSize, uint32_t blockAlignment = 32) noexcept;
 
   //! Destroy the `Zone` instance.
   //!
@@ -237,7 +237,7 @@ public:
   ASMJIT_API void* dup(const void* data, size_t size, bool nullTerminate = false) noexcept;
 
   //! Helper to duplicate data.
-  ASMJIT_API void* dupAligned(const void* data, size_t size, size_t alignment, bool nullTerminate = false) noexcept {
+  inline void* dupAligned(const void* data, size_t size, size_t alignment, bool nullTerminate = false) noexcept {
     align(alignment);
     return dup(data, size, nullTerminate);
   }
@@ -326,16 +326,16 @@ public:
   //! Create a new `ZoneAllocator`.
   //!
   //! NOTE: To use it, you must first `init()` it.
-  ASMJIT_INLINE ZoneAllocator() noexcept {
+  inline ZoneAllocator() noexcept {
     std::memset(this, 0, sizeof(*this));
   }
   //! Create a new `ZoneAllocator` initialized to use `zone`.
-  explicit ASMJIT_INLINE ZoneAllocator(Zone* zone) noexcept {
+  explicit inline ZoneAllocator(Zone* zone) noexcept {
     std::memset(this, 0, sizeof(*this));
     _zone = zone;
   }
   //! Destroy the `ZoneAllocator`.
-  ASMJIT_INLINE ~ZoneAllocator() noexcept { reset(); }
+  inline ~ZoneAllocator() noexcept { reset(); }
 
   // --------------------------------------------------------------------------
   // [Init / Reset]
@@ -412,7 +412,7 @@ public:
   //! Allocate `size` bytes of memory, ideally from an available pool.
   //!
   //! NOTE: `size` can't be zero, it will assert in debug mode in such case.
-  ASMJIT_INLINE void* alloc(size_t size) noexcept {
+  inline void* alloc(size_t size) noexcept {
     ASMJIT_ASSERT(isInitialized());
     size_t allocatedSize;
     return _alloc(size, allocatedSize);
@@ -421,44 +421,41 @@ public:
   //! Like `alloc(size)`, but provides a second argument `allocatedSize` that
   //! provides a way to know how big the block returned actually is. This is
   //! useful for containers to prevent growing too early.
-  ASMJIT_INLINE void* alloc(size_t size, size_t& allocatedSize) noexcept {
+  inline void* alloc(size_t size, size_t& allocatedSize) noexcept {
     ASMJIT_ASSERT(isInitialized());
     return _alloc(size, allocatedSize);
   }
 
   //! Like `alloc()`, but the return pointer is casted to `T*`.
   template<typename T>
-  ASMJIT_INLINE T* allocT(size_t size = sizeof(T)) noexcept {
+  inline T* allocT(size_t size = sizeof(T)) noexcept {
     return static_cast<T*>(alloc(size));
   }
 
   //! Like `alloc(size)`, but returns zeroed memory.
-  ASMJIT_INLINE void* allocZeroed(size_t size) noexcept {
+  inline void* allocZeroed(size_t size) noexcept {
     ASMJIT_ASSERT(isInitialized());
-
     size_t allocatedSize;
     return _allocZeroed(size, allocatedSize);
   }
 
   //! Like `alloc(size, allocatedSize)`, but returns zeroed memory.
-  ASMJIT_INLINE void* allocZeroed(size_t size, size_t& allocatedSize) noexcept {
+  inline void* allocZeroed(size_t size, size_t& allocatedSize) noexcept {
     ASMJIT_ASSERT(isInitialized());
-
     return _allocZeroed(size, allocatedSize);
   }
 
   //! Like `allocZeroed()`, but the return pointer is casted to `T*`.
   template<typename T>
-  ASMJIT_INLINE T* allocZeroedT(size_t size = sizeof(T)) noexcept {
+  inline T* allocZeroedT(size_t size = sizeof(T)) noexcept {
     return static_cast<T*>(allocZeroed(size));
   }
 
   //! Release the memory previously allocated by `alloc()`. The `size` argument
   //! has to be the same as used to call `alloc()` or `allocatedSize` returned
   //! by `alloc()`.
-  ASMJIT_INLINE void release(void* p, size_t size) noexcept {
+  inline void release(void* p, size_t size) noexcept {
     ASMJIT_ASSERT(isInitialized());
-
     ASMJIT_ASSERT(p != nullptr);
     ASMJIT_ASSERT(size != 0);
 
@@ -594,13 +591,6 @@ public:
 
   static inline uint32_t _wordsPerBits(uint32_t nBits) noexcept {
     return ((nBits + kBitWordSize - 1) / kBitWordSize);
-  }
-
-  // Return all bits zero if 0 and all bits set if 1.
-  static inline BitWord _patternFromBit(bool bit) noexcept {
-    BitWord bitAsWord = BitWord(bit);
-    ASMJIT_ASSERT(bitAsWord == 0 || bitAsWord == 1);
-    return BitWord(0) - bitAsWord;
   }
 
   static inline void _zeroBits(BitWord* dst, uint32_t nBitWords) noexcept {
@@ -1151,39 +1141,37 @@ public:
   };
 
   struct Block {
-    ASMJIT_INLINE Block* getPrev() const noexcept { return _link[kSideLeft]; }
-    ASMJIT_INLINE Block* getNext() const noexcept { return _link[kSideRight]; }
+    inline bool isEmpty() const noexcept { return _start == _end; }
 
-    ASMJIT_INLINE void setPrev(Block* block) noexcept { _link[kSideLeft] = block; }
-    ASMJIT_INLINE void setNext(Block* block) noexcept { _link[kSideRight] = block; }
+    inline Block* getPrev() const noexcept { return _link[kSideLeft]; }
+    inline Block* getNext() const noexcept { return _link[kSideRight]; }
 
-    template<typename T>
-    ASMJIT_INLINE T* getStart() const noexcept { return static_cast<T*>(_start); }
-    template<typename T>
-    ASMJIT_INLINE void setStart(T* start) noexcept { _start = static_cast<void*>(start); }
+    inline void setPrev(Block* block) noexcept { _link[kSideLeft] = block; }
+    inline void setNext(Block* block) noexcept { _link[kSideRight] = block; }
 
     template<typename T>
-    ASMJIT_INLINE T* getEnd() const noexcept { return static_cast<T*>(_end); }
+    inline T* getStart() const noexcept { return static_cast<T*>(_start); }
     template<typename T>
-    ASMJIT_INLINE void setEnd(T* end) noexcept { _end = static_cast<void*>(end); }
-
-    ASMJIT_INLINE bool isEmpty() const noexcept { return _start == _end; }
+    inline void setStart(T* start) noexcept { _start = static_cast<void*>(start); }
 
     template<typename T>
-    ASMJIT_INLINE T* getData() const noexcept {
-      return static_cast<T*>(static_cast<void*>((uint8_t*)this + sizeof(Block)));
-    }
+    inline T* getEnd() const noexcept { return (T*)_end; }
+    template<typename T>
+    inline void setEnd(T* end) noexcept { _end = (void*)end; }
 
     template<typename T>
-    ASMJIT_INLINE bool canPrepend() const noexcept {
-      return _start > getData<void>();
-    }
+    inline T* getData() const noexcept { return (T*)((uint8_t*)(this) + sizeof(Block)); }
 
     template<typename T>
-    ASMJIT_INLINE bool canAppend() const noexcept {
+    inline bool canPrepend() const noexcept { return _start > getData<void>(); }
+
+    template<typename T>
+    inline bool canAppend() const noexcept {
       size_t kNumBlockItems = (kBlockSize - sizeof(Block)) / sizeof(T);
-      size_t kBlockEnd = sizeof(Block) + kNumBlockItems * sizeof(T);
-      return (uintptr_t)_end - (uintptr_t)this < kBlockEnd;
+      size_t kStartBlockIndex = sizeof(Block);
+      size_t kEndBlockIndex = kStartBlockIndex + kNumBlockItems * sizeof(T);
+
+      return (uintptr_t)_end <= ((uintptr_t)this + kEndBlockIndex - sizeof(T));
     }
 
     Block* _link[2];                     //!< Next and previous blocks.
@@ -1219,7 +1207,7 @@ public:
 
   ASMJIT_INLINE bool isEmpty() const noexcept {
     ASMJIT_ASSERT(isInitialized());
-    return _block[0] == _block[1] && _block[0]->isEmpty();
+    return _block[0]->getStart<void>() == _block[1]->getEnd<void>();
   }
 
   // --------------------------------------------------------------------------
@@ -1248,7 +1236,7 @@ public:
     kNumBlockItems   = uint32_t((kBlockSize - sizeof(Block)) / sizeof(T)),
     kStartBlockIndex = uint32_t(sizeof(Block)),
     kMidBlockIndex   = uint32_t(kStartBlockIndex + (kNumBlockItems / 2) * sizeof(T)),
-    kEndBlockIndex   = uint32_t(kStartBlockIndex + kNumBlockItems * sizeof(T))
+    kEndBlockIndex   = uint32_t(kStartBlockIndex + (kNumBlockItems    ) * sizeof(T))
   };
 
   // --------------------------------------------------------------------------
@@ -1262,7 +1250,7 @@ public:
   // [Init / Reset]
   // --------------------------------------------------------------------------
 
-  ASMJIT_INLINE Error init(ZoneAllocator* allocator) noexcept { return _init(allocator, kMidBlockIndex); }
+  inline Error init(ZoneAllocator* allocator) noexcept { return _init(allocator, kMidBlockIndex); }
 
   // --------------------------------------------------------------------------
   // [Ops]
@@ -1278,7 +1266,7 @@ public:
     }
 
     T* ptr = block->getStart<T>() - 1;
-    ASMJIT_ASSERT(ptr >= block->getData<T>() && ptr < block->getData<T>() + kNumBlockItems);
+    ASMJIT_ASSERT(ptr >= block->getData<T>() && ptr <= block->getData<T>() + (kNumBlockItems - 1));
     *ptr = item;
     block->setStart<T>(ptr);
     return kErrorOk;
@@ -1294,7 +1282,7 @@ public:
     }
 
     T* ptr = block->getEnd<T>();
-    ASMJIT_ASSERT(ptr >= block->getData<T>() && ptr < block->getData<T>() + kNumBlockItems);
+    ASMJIT_ASSERT(ptr >= block->getData<T>() && ptr <= block->getData<T>() + (kNumBlockItems - 1));
 
     *ptr++ = item;
     block->setEnd(ptr);
@@ -1327,6 +1315,8 @@ public:
 
     T* ptr = block->getEnd<T>();
     T item = *--ptr;
+    ASMJIT_ASSERT(ptr >= block->getData<T>());
+    ASMJIT_ASSERT(ptr >= block->getStart<T>());
 
     block->setEnd(ptr);
     if (block->isEmpty())

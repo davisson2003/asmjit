@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 # Don't create a project if it was already created by another CMakeLists.txt.
 # This allows one library to embed another library without a project collision.
 if(NOT CMAKE_PROJECT_NAME OR "${CMAKE_PROJECT_NAME}" STREQUAL "asmjit")
-  project(asmjit C CXX)
+  project(asmjit CXX)
 endif()
 
 if (NOT DEFINED ASMJIT_EMBED)
