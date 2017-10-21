@@ -9,14 +9,12 @@
 #define _ASMJIT_X86_X86OPERAND_H
 
 // [Dependencies]
-#include "../base/arch.h"
-#include "../base/operand.h"
+#include "../core/arch.h"
+#include "../core/operand.h"
+#include "../core/type.h"
 #include "../x86/x86globals.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 // ============================================================================
 // [Forward Declarations]
@@ -58,12 +56,12 @@ class X86Bnd;
 //! used by asmjit to setup register information on-the-fly and to populate
 //! tables that contain register information (this way it's possible to change
 //! register types and groups without having to reorder these tables).
-template<uint32_t RegType>
+template<uint32_t REG_TYPE>
 struct X86RegTraits {
   enum : uint32_t {
     kValid     = 0,                      //!< RegType is not valid by default.
     kCount     = 0,                      //!< Count of registers (0 if none).
-    kTypeId    = TypeId::kVoid,          //!< Everything is void by default.
+    kTypeId    = Type::kIdVoid,          //!< Everything is void by default.
 
     kType      = 0,                      //!< Zero type by default.
     kGroup     = 0,                      //!< Zero group by default.
@@ -75,22 +73,22 @@ struct X86RegTraits {
 // <--------------------+------------+---------+--------------------+--------------------+---+---+----------------+
 //                      |  Traits-T  |  Reg-T  |      Reg-Type      |      Reg-Group     |Sz |Cnt|     TypeId     |
 // <--------------------+------------+---------+--------------------+--------------------+---+---+----------------+
-ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86GpbLo, Reg::kRegGp8Lo     , Reg::kGroupGp      , 1 , 16, TypeId::kI8    );
-ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86GpbHi, Reg::kRegGp8Hi     , Reg::kGroupGp      , 1 , 4 , TypeId::kI8    );
-ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Gpw  , Reg::kRegGp16      , Reg::kGroupGp      , 2 , 16, TypeId::kI16   );
-ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Gpd  , Reg::kRegGp32      , Reg::kGroupGp      , 4 , 16, TypeId::kI32   );
-ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Gpq  , Reg::kRegGp64      , Reg::kGroupGp      , 8 , 16, TypeId::kI64   );
-ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Xmm  , Reg::kRegVec128    , Reg::kGroupVec     , 16, 32, TypeId::kI32x4 );
-ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Ymm  , Reg::kRegVec256    , Reg::kGroupVec     , 32, 32, TypeId::kI32x8 );
-ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Zmm  , Reg::kRegVec512    , Reg::kGroupVec     , 64, 32, TypeId::kI32x16);
-ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Mm   , Reg::kRegOther0    , Reg::kGroupOther0  , 8 , 8 , TypeId::kMmx64 );
-ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86KReg , Reg::kRegOther1    , Reg::kGroupOther1  , 0 , 8 , TypeId::kVoid  );
-ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Rip  , Reg::kRegIP        , Reg::kGroupVirt + 0, 0 , 1 , TypeId::kVoid  );
-ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Seg  , Reg::kRegCustom + 0, Reg::kGroupVirt + 1, 2 , 7 , TypeId::kVoid  );
-ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86CReg , Reg::kRegCustom + 1, Reg::kGroupVirt + 2, 0 , 16, TypeId::kVoid  );
-ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86DReg , Reg::kRegCustom + 2, Reg::kGroupVirt + 3, 0 , 16, TypeId::kVoid  );
-ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Fp   , Reg::kRegCustom + 3, Reg::kGroupVirt + 4, 10, 8 , TypeId::kF80   );
-ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Bnd  , Reg::kRegCustom + 4, Reg::kGroupVirt + 5, 16, 4 , TypeId::kVoid  );
+ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86GpbLo, Reg::kRegGp8Lo     , Reg::kGroupGp      , 1 , 16, Type::kIdI8    );
+ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86GpbHi, Reg::kRegGp8Hi     , Reg::kGroupGp      , 1 , 4 , Type::kIdI8    );
+ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Gpw  , Reg::kRegGp16      , Reg::kGroupGp      , 2 , 16, Type::kIdI16   );
+ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Gpd  , Reg::kRegGp32      , Reg::kGroupGp      , 4 , 16, Type::kIdI32   );
+ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Gpq  , Reg::kRegGp64      , Reg::kGroupGp      , 8 , 16, Type::kIdI64   );
+ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Xmm  , Reg::kRegVec128    , Reg::kGroupVec     , 16, 32, Type::kIdI32x4 );
+ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Ymm  , Reg::kRegVec256    , Reg::kGroupVec     , 32, 32, Type::kIdI32x8 );
+ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Zmm  , Reg::kRegVec512    , Reg::kGroupVec     , 64, 32, Type::kIdI32x16);
+ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Mm   , Reg::kRegOther0    , Reg::kGroupOther0  , 8 , 8 , Type::kIdMmx64 );
+ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86KReg , Reg::kRegOther1    , Reg::kGroupOther1  , 0 , 8 , Type::kIdVoid  );
+ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Rip  , Reg::kRegIP        , Reg::kGroupVirt + 0, 0 , 1 , Type::kIdVoid  );
+ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Seg  , Reg::kRegCustom + 0, Reg::kGroupVirt + 1, 2 , 7 , Type::kIdVoid  );
+ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86CReg , Reg::kRegCustom + 1, Reg::kGroupVirt + 2, 0 , 16, Type::kIdVoid  );
+ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86DReg , Reg::kRegCustom + 2, Reg::kGroupVirt + 3, 0 , 16, Type::kIdVoid  );
+ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Fp   , Reg::kRegCustom + 3, Reg::kGroupVirt + 4, 10, 8 , Type::kIdF80   );
+ASMJIT_DEFINE_REG_TRAITS(X86RegTraits, X86Bnd  , Reg::kRegCustom + 4, Reg::kGroupVirt + 5, 16, 4 , Type::kIdVoid  );
 
 // ============================================================================
 // [asmjit::X86Reg]
@@ -175,82 +173,82 @@ public:
   //! Get whether the register is a bound register.
   constexpr bool isBnd() const noexcept { return hasSignature(X86RegTraits<kRegBnd>::kSignature); }
 
-  template<uint32_t Type>
-  ASMJIT_INLINE void setX86RegT(uint32_t rId) noexcept {
-    setSignature(X86RegTraits<Type>::kSignature);
+  template<uint32_t REG_TYPE>
+  inline void setX86RegT(uint32_t rId) noexcept {
+    setSignature(X86RegTraits<REG_TYPE>::kSignature);
     setId(rId);
   }
 
-  ASMJIT_INLINE void setTypeAndId(uint32_t rType, uint32_t rId) noexcept {
+  inline void setTypeAndId(uint32_t rType, uint32_t rId) noexcept {
     ASMJIT_ASSERT(rType < kRegCount);
     setSignature(signatureOf(rType));
     setId(rId);
   }
 
-  static ASMJIT_INLINE uint32_t groupOf(uint32_t rType) noexcept;
-  template<uint32_t Type>
-  static ASMJIT_INLINE uint32_t groupOfT() noexcept { return X86RegTraits<Type>::kGroup; }
+  static inline uint32_t groupOf(uint32_t rType) noexcept;
+  template<uint32_t REG_TYPE>
+  static inline uint32_t groupOfT() noexcept { return X86RegTraits<REG_TYPE>::kGroup; }
 
-  static ASMJIT_INLINE uint32_t typeIdOf(uint32_t rType) noexcept;
-  template<uint32_t Type>
-  static ASMJIT_INLINE uint32_t typeIdOfT() noexcept { return X86RegTraits<Type>::kTypeId; }
+  static inline uint32_t typeIdOf(uint32_t rType) noexcept;
+  template<uint32_t REG_TYPE>
+  static inline uint32_t typeIdOfT() noexcept { return X86RegTraits<REG_TYPE>::kTypeId; }
 
-  static ASMJIT_INLINE uint32_t signatureOf(uint32_t rType) noexcept;
-  template<uint32_t Type>
-  static ASMJIT_INLINE uint32_t signatureOfT() noexcept { return X86RegTraits<Type>::kSignature; }
+  static inline uint32_t signatureOf(uint32_t rType) noexcept;
+  template<uint32_t REG_TYPE>
+  static inline uint32_t signatureOfT() noexcept { return X86RegTraits<REG_TYPE>::kSignature; }
 
-  static ASMJIT_INLINE uint32_t signatureOfVecByType(uint32_t typeId) noexcept {
-    return typeId <= TypeId::_kVec128End ? signatureOfT<kRegXmm>() :
-           typeId <= TypeId::_kVec256End ? signatureOfT<kRegYmm>() : signatureOfT<kRegZmm>() ;
+  static inline uint32_t signatureOfVecByType(uint32_t typeId) noexcept {
+    return typeId <= Type::_kIdVec128End ? signatureOfT<kRegXmm>() :
+           typeId <= Type::_kIdVec256End ? signatureOfT<kRegYmm>() : signatureOfT<kRegZmm>() ;
   }
 
-  static ASMJIT_INLINE uint32_t signatureOfVecBySize(uint32_t size) noexcept {
+  static inline uint32_t signatureOfVecBySize(uint32_t size) noexcept {
     return size <= 16 ? signatureOfT<kRegXmm>() :
            size <= 32 ? signatureOfT<kRegYmm>() : signatureOfT<kRegZmm>() ;
   }
 
   //! Get whether the `op` operand is either a low or high 8-bit GPB register.
-  static ASMJIT_INLINE bool isGpb(const Operand_& op) noexcept {
+  static inline bool isGpb(const Operand_& op) noexcept {
     // Check operand type, register group, and size. Not interested in register type.
     const uint32_t kSgn = (Operand::kOpReg << kSignatureOpShift  ) |
                           (1               << kSignatureSizeShift) ;
     return (op.getSignature() & (kSignatureOpMask | kSignatureSizeMask)) == kSgn;
   }
 
-  static ASMJIT_INLINE bool isRip(const Operand_& op) noexcept { return op.as<X86Reg>().isRip(); }
-  static ASMJIT_INLINE bool isSeg(const Operand_& op) noexcept { return op.as<X86Reg>().isSeg(); }
-  static ASMJIT_INLINE bool isGpbLo(const Operand_& op) noexcept { return op.as<X86Reg>().isGpbLo(); }
-  static ASMJIT_INLINE bool isGpbHi(const Operand_& op) noexcept { return op.as<X86Reg>().isGpbHi(); }
-  static ASMJIT_INLINE bool isGpw(const Operand_& op) noexcept { return op.as<X86Reg>().isGpw(); }
-  static ASMJIT_INLINE bool isGpd(const Operand_& op) noexcept { return op.as<X86Reg>().isGpd(); }
-  static ASMJIT_INLINE bool isGpq(const Operand_& op) noexcept { return op.as<X86Reg>().isGpq(); }
-  static ASMJIT_INLINE bool isFp(const Operand_& op) noexcept { return op.as<X86Reg>().isFp(); }
-  static ASMJIT_INLINE bool isMm(const Operand_& op) noexcept { return op.as<X86Reg>().isMm(); }
-  static ASMJIT_INLINE bool isK(const Operand_& op) noexcept { return op.as<X86Reg>().isK(); }
-  static ASMJIT_INLINE bool isXmm(const Operand_& op) noexcept { return op.as<X86Reg>().isXmm(); }
-  static ASMJIT_INLINE bool isYmm(const Operand_& op) noexcept { return op.as<X86Reg>().isYmm(); }
-  static ASMJIT_INLINE bool isZmm(const Operand_& op) noexcept { return op.as<X86Reg>().isZmm(); }
-  static ASMJIT_INLINE bool isBnd(const Operand_& op) noexcept { return op.as<X86Reg>().isBnd(); }
-  static ASMJIT_INLINE bool isCr(const Operand_& op) noexcept { return op.as<X86Reg>().isCr(); }
-  static ASMJIT_INLINE bool isDr(const Operand_& op) noexcept { return op.as<X86Reg>().isDr(); }
+  static inline bool isRip(const Operand_& op) noexcept { return op.as<X86Reg>().isRip(); }
+  static inline bool isSeg(const Operand_& op) noexcept { return op.as<X86Reg>().isSeg(); }
+  static inline bool isGpbLo(const Operand_& op) noexcept { return op.as<X86Reg>().isGpbLo(); }
+  static inline bool isGpbHi(const Operand_& op) noexcept { return op.as<X86Reg>().isGpbHi(); }
+  static inline bool isGpw(const Operand_& op) noexcept { return op.as<X86Reg>().isGpw(); }
+  static inline bool isGpd(const Operand_& op) noexcept { return op.as<X86Reg>().isGpd(); }
+  static inline bool isGpq(const Operand_& op) noexcept { return op.as<X86Reg>().isGpq(); }
+  static inline bool isFp(const Operand_& op) noexcept { return op.as<X86Reg>().isFp(); }
+  static inline bool isMm(const Operand_& op) noexcept { return op.as<X86Reg>().isMm(); }
+  static inline bool isK(const Operand_& op) noexcept { return op.as<X86Reg>().isK(); }
+  static inline bool isXmm(const Operand_& op) noexcept { return op.as<X86Reg>().isXmm(); }
+  static inline bool isYmm(const Operand_& op) noexcept { return op.as<X86Reg>().isYmm(); }
+  static inline bool isZmm(const Operand_& op) noexcept { return op.as<X86Reg>().isZmm(); }
+  static inline bool isBnd(const Operand_& op) noexcept { return op.as<X86Reg>().isBnd(); }
+  static inline bool isCr(const Operand_& op) noexcept { return op.as<X86Reg>().isCr(); }
+  static inline bool isDr(const Operand_& op) noexcept { return op.as<X86Reg>().isDr(); }
 
-  static ASMJIT_INLINE bool isRip(const Operand_& op, uint32_t rId) noexcept { return isRip(op) & (op.getId() == rId); }
-  static ASMJIT_INLINE bool isSeg(const Operand_& op, uint32_t rId) noexcept { return isSeg(op) & (op.getId() == rId); }
-  static ASMJIT_INLINE bool isGpb(const Operand_& op, uint32_t rId) noexcept { return isGpb(op) & (op.getId() == rId); }
-  static ASMJIT_INLINE bool isGpbLo(const Operand_& op, uint32_t rId) noexcept { return isGpbLo(op) & (op.getId() == rId); }
-  static ASMJIT_INLINE bool isGpbHi(const Operand_& op, uint32_t rId) noexcept { return isGpbHi(op) & (op.getId() == rId); }
-  static ASMJIT_INLINE bool isGpw(const Operand_& op, uint32_t rId) noexcept { return isGpw(op) & (op.getId() == rId); }
-  static ASMJIT_INLINE bool isGpd(const Operand_& op, uint32_t rId) noexcept { return isGpd(op) & (op.getId() == rId); }
-  static ASMJIT_INLINE bool isGpq(const Operand_& op, uint32_t rId) noexcept { return isGpq(op) & (op.getId() == rId); }
-  static ASMJIT_INLINE bool isFp(const Operand_& op, uint32_t rId) noexcept { return isFp(op) & (op.getId() == rId); }
-  static ASMJIT_INLINE bool isMm(const Operand_& op, uint32_t rId) noexcept { return isMm(op) & (op.getId() == rId); }
-  static ASMJIT_INLINE bool isK(const Operand_& op, uint32_t rId) noexcept { return isK(op) & (op.getId() == rId); }
-  static ASMJIT_INLINE bool isXmm(const Operand_& op, uint32_t rId) noexcept { return isXmm(op) & (op.getId() == rId); }
-  static ASMJIT_INLINE bool isYmm(const Operand_& op, uint32_t rId) noexcept { return isYmm(op) & (op.getId() == rId); }
-  static ASMJIT_INLINE bool isZmm(const Operand_& op, uint32_t rId) noexcept { return isZmm(op) & (op.getId() == rId); }
-  static ASMJIT_INLINE bool isBnd(const Operand_& op, uint32_t rId) noexcept { return isBnd(op) & (op.getId() == rId); }
-  static ASMJIT_INLINE bool isCr(const Operand_& op, uint32_t rId) noexcept { return isCr(op) & (op.getId() == rId); }
-  static ASMJIT_INLINE bool isDr(const Operand_& op, uint32_t rId) noexcept { return isDr(op) & (op.getId() == rId); }
+  static inline bool isRip(const Operand_& op, uint32_t rId) noexcept { return isRip(op) & (op.getId() == rId); }
+  static inline bool isSeg(const Operand_& op, uint32_t rId) noexcept { return isSeg(op) & (op.getId() == rId); }
+  static inline bool isGpb(const Operand_& op, uint32_t rId) noexcept { return isGpb(op) & (op.getId() == rId); }
+  static inline bool isGpbLo(const Operand_& op, uint32_t rId) noexcept { return isGpbLo(op) & (op.getId() == rId); }
+  static inline bool isGpbHi(const Operand_& op, uint32_t rId) noexcept { return isGpbHi(op) & (op.getId() == rId); }
+  static inline bool isGpw(const Operand_& op, uint32_t rId) noexcept { return isGpw(op) & (op.getId() == rId); }
+  static inline bool isGpd(const Operand_& op, uint32_t rId) noexcept { return isGpd(op) & (op.getId() == rId); }
+  static inline bool isGpq(const Operand_& op, uint32_t rId) noexcept { return isGpq(op) & (op.getId() == rId); }
+  static inline bool isFp(const Operand_& op, uint32_t rId) noexcept { return isFp(op) & (op.getId() == rId); }
+  static inline bool isMm(const Operand_& op, uint32_t rId) noexcept { return isMm(op) & (op.getId() == rId); }
+  static inline bool isK(const Operand_& op, uint32_t rId) noexcept { return isK(op) & (op.getId() == rId); }
+  static inline bool isXmm(const Operand_& op, uint32_t rId) noexcept { return isXmm(op) & (op.getId() == rId); }
+  static inline bool isYmm(const Operand_& op, uint32_t rId) noexcept { return isYmm(op) & (op.getId() == rId); }
+  static inline bool isZmm(const Operand_& op, uint32_t rId) noexcept { return isZmm(op) & (op.getId() == rId); }
+  static inline bool isBnd(const Operand_& op, uint32_t rId) noexcept { return isBnd(op) & (op.getId() == rId); }
+  static inline bool isCr(const Operand_& op, uint32_t rId) noexcept { return isCr(op) & (op.getId() == rId); }
+  static inline bool isDr(const Operand_& op, uint32_t rId) noexcept { return isDr(op) & (op.getId() == rId); }
 };
 
 //! General purpose register (X86/X64).
@@ -376,14 +374,14 @@ constexpr X86Xmm X86Vec::xmm() const noexcept { return X86Xmm(*this, getId()); }
 constexpr X86Ymm X86Vec::ymm() const noexcept { return X86Ymm(*this, getId()); }
 constexpr X86Zmm X86Vec::zmm() const noexcept { return X86Zmm(*this, getId()); }
 
-ASMJIT_DEFINE_TYPE_ID(X86Gpb, TypeId::kI8);
-ASMJIT_DEFINE_TYPE_ID(X86Gpw, TypeId::kI16);
-ASMJIT_DEFINE_TYPE_ID(X86Gpd, TypeId::kI32);
-ASMJIT_DEFINE_TYPE_ID(X86Gpq, TypeId::kI64);
-ASMJIT_DEFINE_TYPE_ID(X86Mm , TypeId::kMmx64);
-ASMJIT_DEFINE_TYPE_ID(X86Xmm, TypeId::kI32x4);
-ASMJIT_DEFINE_TYPE_ID(X86Ymm, TypeId::kI32x8);
-ASMJIT_DEFINE_TYPE_ID(X86Zmm, TypeId::kI32x16);
+ASMJIT_DEFINE_TYPE_ID(X86Gpb, kIdI8);
+ASMJIT_DEFINE_TYPE_ID(X86Gpw, kIdI16);
+ASMJIT_DEFINE_TYPE_ID(X86Gpd, kIdI32);
+ASMJIT_DEFINE_TYPE_ID(X86Gpq, kIdI64);
+ASMJIT_DEFINE_TYPE_ID(X86Mm , kIdMmx64);
+ASMJIT_DEFINE_TYPE_ID(X86Xmm, kIdI32x4);
+ASMJIT_DEFINE_TYPE_ID(X86Ymm, kIdI32x8);
+ASMJIT_DEFINE_TYPE_ID(X86Zmm, kIdI32x16);
 
 // ============================================================================
 // [asmjit::X86Mem]
@@ -498,18 +496,18 @@ struct X86OpData {
 };
 ASMJIT_VARAPI const X86OpData x86OpData;
 
-ASMJIT_INLINE uint32_t X86Reg::groupOf(uint32_t rType) noexcept {
+inline uint32_t X86Reg::groupOf(uint32_t rType) noexcept {
   ASMJIT_ASSERT(rType <= Reg::kRegMax);
   return x86OpData.archRegs.regInfo[rType].getGroup();
 }
 
-ASMJIT_INLINE uint32_t X86Reg::typeIdOf(uint32_t rType) noexcept {
+inline uint32_t X86Reg::typeIdOf(uint32_t rType) noexcept {
   ASMJIT_ASSERT(rType <= Reg::kRegMax);
   return x86OpData.archRegs.regTypeToTypeId[rType];
 }
 
 // ... X86Reg methods that require `x86OpData`.
-ASMJIT_INLINE uint32_t X86Reg::signatureOf(uint32_t rType) noexcept {
+inline uint32_t X86Reg::signatureOf(uint32_t rType) noexcept {
   ASMJIT_ASSERT(rType <= Reg::kRegMax);
   return x86OpData.archRegs.regInfo[rType].getSignature();
 }
@@ -942,10 +940,7 @@ ASMJIT_X86_PTR_FN(zmmword_ptr, 64)
 
 //! \}
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // _ASMJIT_X86_X86OPERAND_H

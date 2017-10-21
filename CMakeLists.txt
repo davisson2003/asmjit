@@ -119,21 +119,19 @@ set(ASMJIT_SRC "")
 
 cxx_add_source(asmjit ASMJIT_SRC asmjit
   asmjit.h
-  asmjit_apibegin.h
-  asmjit_apiend.h
-  asmjit_build.h
-  base.h
   arm.h
+  core.h
   x86.h
 )
 
-cxx_add_source(asmjit ASMJIT_SRC asmjit/base
+cxx_add_source(asmjit ASMJIT_SRC asmjit/core
   algorithm.cpp
   algorithm.h
   arch.cpp
   arch.h
   assembler.cpp
   assembler.h
+  build.h
   codebuilder.cpp
   codebuilder.h
   codecompiler.cpp
@@ -179,6 +177,8 @@ cxx_add_source(asmjit ASMJIT_SRC asmjit/base
   stringbuilder.cpp
   stringbuilder.h
   stringutils.h
+  type.cpp
+  type.h
   virtmem.cpp
   virtmem.h
   zone.cpp

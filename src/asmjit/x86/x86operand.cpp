@@ -8,17 +8,14 @@
 #define ASMJIT_EXPORTS
 
 // [Guard]
-#include "../asmjit_build.h"
+#include "../core/build.h"
 #if defined(ASMJIT_BUILD_X86)
 
 // [Dependencies]
-#include "../base/misc_p.h"
+#include "../core/misc_p.h"
 #include "../x86/x86operand.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 // ============================================================================
 // [asmjit::X86OpData]
@@ -236,10 +233,7 @@ UNIT(x86_operand) {
 }
 #endif
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // ASMJIT_BUILD_X86

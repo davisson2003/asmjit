@@ -8,17 +8,14 @@
 #define ASMJIT_EXPORTS
 
 // [Guard]
-#include "../asmjit_build.h"
+#include "../core/build.h"
 #if defined(ASMJIT_BUILD_ARM)
 
 // [Dependencies]
-#include "../base/misc_p.h"
+#include "../core/misc_p.h"
 #include "../arm/armoperand.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 // ============================================================================
 // [asmjit::ArmOpData]
@@ -27,9 +24,9 @@ namespace asmjit {
 const ArmOpData armOpData = {
   {
     {
-#define ASMJIT_ARM_REG_SIGNATURE(TYPE) { ArmRegTraits<TYPE>::kSignature }
+      #define ASMJIT_ARM_REG_SIGNATURE(TYPE) { ArmRegTraits<TYPE>::kSignature }
       ASMJIT_TABLE_32(ASMJIT_ARM_REG_SIGNATURE, 0)
-#undef ASMJIT_ARM_REG_SIGNATURE
+      #undef ASMJIT_ARM_REG_SIGNATURE
     },
 
     // RegCount[]
@@ -68,10 +65,7 @@ UNIT(arm_operand) {
 }
 #endif
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // ASMJIT_BUILD_ARM

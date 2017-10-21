@@ -8,7 +8,7 @@
 #define ASMJIT_EXPORTS
 
 // [Guard]
-#include "../asmjit_build.h"
+#include "../core/build.h"
 #if defined(ASMJIT_BUILD_X86) && !defined(ASMJIT_DISABLE_COMPILER)
 
 // [Dependencies]
@@ -16,10 +16,7 @@
 #include "../x86/x86compiler.h"
 #include "../x86/x86rapass_p.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 // ============================================================================
 // [asmjit::X86Compiler - Construction / Destruction]
@@ -64,10 +61,7 @@ Error X86Compiler::onAttach(CodeHolder* code) noexcept {
   return addPassT<X86RAPass>();
 }
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // ASMJIT_BUILD_X86 && !ASMJIT_DISABLE_COMPILER

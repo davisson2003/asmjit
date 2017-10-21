@@ -6,8 +6,8 @@
 
 // [Dependencies]
 #include <cstring>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <setjmp.h>
 
 #include "./asmjit.h"
@@ -143,7 +143,7 @@ void X86TestApp::showInfo() {
 int X86TestApp::run() {
   uint32_t i;
   uint32_t count = _tests.getLength();
-  FILE* file = stdout;
+  std::FILE* file = stdout;
 
 #if !defined(ASMJIT_DISABLE_LOGGING)
   uint32_t logOptions = Logger::kOptionBinaryForm    |
@@ -452,12 +452,12 @@ public:
 // [X86Test_AlignNone]
 // ============================================================================
 
-class X86Test_AlignNone : public X86Test {
+class X86Test_NoAlign : public X86Test {
 public:
-  X86Test_AlignNone() : X86Test("AlignNone") {}
+  X86Test_NoAlign() : X86Test("NoAlign") {}
 
   static void add(X86TestApp& app) {
-    app.add(new X86Test_AlignNone());
+    app.add(new X86Test_NoAlign());
   }
 
   virtual void compile(X86Compiler& cc) {
@@ -496,8 +496,8 @@ public:
     Label L2 = cc.newLabel();
     Label LEnd = cc.newLabel();
 
-    X86Gp dst = cc.newInt32("dst");
-    X86Gp val = cc.newInt32("val");
+    X86Gp dst = cc.newIntPtr("dst");
+    X86Gp val = cc.newIntPtr("val");
 
     cc.setArg(0, dst);
     cc.setArg(1, val);
@@ -3264,12 +3264,12 @@ public:
   virtual void compile(X86Compiler& cc) {
     FuncSignatureX funcPrototype;
     funcPrototype.setCallConv(CallConv::kIdHost);
-    funcPrototype.setRet(TypeId::kF64);
+    funcPrototype.setRet(Type::kIdF64);
     cc.addFunc(funcPrototype);
 
     FuncSignatureX callPrototype;
     callPrototype.setCallConv(CallConv::kIdHost);
-    callPrototype.setRet(TypeId::kF64);
+    callPrototype.setRet(Type::kIdF64);
     CCFuncCall* call = cc.call(imm_ptr(calledFunc), callPrototype);
 
     X86Xmm ret = cc.newXmmSd("ret");
@@ -3623,7 +3623,7 @@ int main(int argc, char* argv[]) {
 
   // Base tests.
   app.addT<X86Test_NoCode>();
-  app.addT<X86Test_AlignNone>();
+  app.addT<X86Test_NoAlign>();
   app.addT<X86Test_AlignBase>();
 
   // Jump tests.
@@ -3667,7 +3667,6 @@ int main(int argc, char* argv[]) {
   app.addT<X86Test_FuncCallBase1>();
   app.addT<X86Test_FuncCallBase2>();
   app.addT<X86Test_FuncCallFast>();
-
   app.addT<X86Test_FuncCallLight>();
   app.addT<X86Test_FuncCallManyArgs>();
   app.addT<X86Test_FuncCallDuplicateArgs>();

@@ -9,12 +9,9 @@
 #define _ASMJIT_X86_X86GLOBALS_H
 
 // [Dependencies]
-#include "../base/globals.h"
+#include "../core/globals.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 namespace x86 {
 
 //! \addtogroup asmjit_x86
@@ -466,10 +463,7 @@ static constexpr uint32_t tlogIf(uint32_t cond, uint32_t a, uint32_t b) noexcept
 //! \}
 
 } // x86 namespace
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // _ASMJIT_X86_X86GLOBALS_H

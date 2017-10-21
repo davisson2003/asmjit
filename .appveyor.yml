@@ -14,18 +14,6 @@ environment:
       TOOLCHAIN: "MinGW Makefiles"
 
     - BUILD_TYPE: Debug
-      TOOLCHAIN: "Visual Studio 14 2015"
-
-    - BUILD_TYPE: Release
-      TOOLCHAIN: "Visual Studio 14 2015"
-
-    - BUILD_TYPE: Debug
-      TOOLCHAIN: "Visual Studio 14 2015 Win64"
-
-    - BUILD_TYPE: Release
-      TOOLCHAIN: "Visual Studio 14 2015 Win64"
-
-    - BUILD_TYPE: Debug
       TOOLCHAIN: "Visual Studio 15 2017"
 
     - BUILD_TYPE: Release

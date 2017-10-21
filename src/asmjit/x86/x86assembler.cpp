@@ -8,22 +8,19 @@
 #define ASMJIT_EXPORTS
 
 // [Guard]
-#include "../asmjit_build.h"
+#include "../core/build.h"
 #if defined(ASMJIT_BUILD_X86)
 
 // [Dependencies]
-#include "../base/cpuinfo.h"
-#include "../base/logging.h"
-#include "../base/intutils.h"
-#include "../base/memutils.h"
-#include "../base/misc_p.h"
+#include "../core/cpuinfo.h"
+#include "../core/logging.h"
+#include "../core/intutils.h"
+#include "../core/memutils.h"
+#include "../core/misc_p.h"
 #include "../x86/x86assembler.h"
 #include "../x86/x86logging_p.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 // ============================================================================
 // [Constants]
@@ -282,25 +279,25 @@ static const uint8_t x86Mod16BaseIndexTable[] = { ASMJIT_TABLE_T_64(X86Mod16Base
 // [asmjit::X86Assembler - Helpers]
 // ============================================================================
 
-static ASMJIT_INLINE bool x86IsJmpOrCall(uint32_t instId) noexcept {
+static ASMJIT_FORCEINLINE bool x86IsJmpOrCall(uint32_t instId) noexcept {
   return instId == X86Inst::kIdJmp ||
          instId == X86Inst::kIdCall;
 }
 
-static ASMJIT_INLINE bool x86IsImplicitMem(const Operand_& op, uint32_t base) noexcept {
+static ASMJIT_FORCEINLINE bool x86IsImplicitMem(const Operand_& op, uint32_t base) noexcept {
   return op.isMem() && op.as<X86Mem>().getBaseId() == base;
 }
 
-static ASMJIT_INLINE int64_t x86SignExtend32To64(int64_t imm) noexcept {
+static ASMJIT_FORCEINLINE int64_t x86SignExtend32To64(int64_t imm) noexcept {
   return int64_t(int32_t(imm & 0xFFFFFFFF));
 }
 
 //! Get `O` field of `opCode`.
-static ASMJIT_INLINE uint32_t x86ExtractO(uint32_t opCode) noexcept {
+static ASMJIT_FORCEINLINE uint32_t x86ExtractO(uint32_t opCode) noexcept {
   return (opCode >> X86Inst::kOpCode_O_Shift) & 0x07;
 }
 
-static ASMJIT_INLINE uint32_t x86ExtractREX(uint32_t opCode, uint32_t options) noexcept {
+static ASMJIT_FORCEINLINE uint32_t x86ExtractREX(uint32_t opCode, uint32_t options) noexcept {
   // kOpCode_REX was designed in a way that when shifted there will be no bytes
   // set except REX.[B|X|R|W]. The returned value forms a real REX prefix byte.
   // This case is tested by `X86Inst.cpp`.
@@ -308,26 +305,26 @@ static ASMJIT_INLINE uint32_t x86ExtractREX(uint32_t opCode, uint32_t options) n
 }
 
 //! Combine `regId` and `vvvvvId` into a single value (used by AVX and AVX-512).
-static ASMJIT_INLINE uint32_t x86PackRegAndVvvvv(uint32_t regId, uint32_t vvvvvId) noexcept {
+static ASMJIT_FORCEINLINE uint32_t x86PackRegAndVvvvv(uint32_t regId, uint32_t vvvvvId) noexcept {
   return regId + (vvvvvId << kVexVVVVVShift);
 }
 
-static ASMJIT_INLINE uint32_t x86OpCodeLByVMem(const Operand_& op) noexcept {
+static ASMJIT_FORCEINLINE uint32_t x86OpCodeLByVMem(const Operand_& op) noexcept {
   return x86LLByRegType[op.as<X86Mem>().getIndexType()];
 }
 
-static ASMJIT_INLINE uint32_t x86OpCodeLBySize(uint32_t size) noexcept {
+static ASMJIT_FORCEINLINE uint32_t x86OpCodeLBySize(uint32_t size) noexcept {
   return x86LLBySizeDiv16[size / 16];
 }
 
-static ASMJIT_INLINE uint32_t x86ExtractLLMM(uint32_t opCode, uint32_t options) noexcept {
+static ASMJIT_FORCEINLINE uint32_t x86ExtractLLMM(uint32_t opCode, uint32_t options) noexcept {
   uint32_t x = opCode & (X86Inst::kOpCode_LL_Mask | X86Inst::kOpCode_MM_Mask);
   uint32_t y = options & (X86Inst::kOptionVex3 | X86Inst::kOptionEvex);
   return (x | y) >> X86Inst::kOpCode_MM_Shift;
 }
 
 //! Encode MOD byte.
-static ASMJIT_INLINE uint32_t x86EncodeMod(uint32_t m, uint32_t o, uint32_t rm) noexcept {
+static ASMJIT_FORCEINLINE uint32_t x86EncodeMod(uint32_t m, uint32_t o, uint32_t rm) noexcept {
   ASMJIT_ASSERT(m <= 3);
   ASMJIT_ASSERT(o <= 7);
   ASMJIT_ASSERT(rm <= 7);
@@ -335,7 +332,7 @@ static ASMJIT_INLINE uint32_t x86EncodeMod(uint32_t m, uint32_t o, uint32_t rm) 
 }
 
 //! Encode SIB byte.
-static ASMJIT_INLINE uint32_t x86EncodeSib(uint32_t s, uint32_t i, uint32_t b) noexcept {
+static ASMJIT_FORCEINLINE uint32_t x86EncodeSib(uint32_t s, uint32_t i, uint32_t b) noexcept {
   ASMJIT_ASSERT(s <= 3);
   ASMJIT_ASSERT(i <= 7);
   ASMJIT_ASSERT(b <= 7);
@@ -4457,7 +4454,7 @@ EmitRel:
 
 EmitImm:
   {
-#if ASMJIT_ARCH_64BIT
+#if ASMJIT_ARCH_BITS == 64
     uint32_t i = imLen;
     uint64_t imm = uint64_t(imVal);
 #else
@@ -4477,7 +4474,7 @@ EmitImm:
     // Can be 1-4 or 8 bytes, this handles the remaining high DWORD of an 8-byte immediate.
     ASMJIT_ASSERT(i == 4);
 
-#if ASMJIT_ARCH_64BIT
+#if ASMJIT_ARCH_BITS == 64
     imm >>= 8;
     EMIT_32(uint32_t(imm));
 #else
@@ -4558,7 +4555,7 @@ Error X86Assembler::align(uint32_t mode, uint32_t alignment) {
   if (ASMJIT_UNLIKELY(!IntUtils::isPowerOf2(alignment) || alignment > Globals::kMaxAlignment))
     return reportError(DebugUtils::errored(kErrorInvalidArgument));
 
-  uint32_t i = uint32_t(IntUtils::alignDiff<size_t>(getOffset(), alignment));
+  uint32_t i = uint32_t(IntUtils::alignUpDiff<size_t>(getOffset(), alignment));
   if (i == 0)
     return kErrorOk;
 
@@ -4653,10 +4650,7 @@ Error X86Assembler::onDetach(CodeHolder* code) noexcept {
   return Base::onDetach(code);
 }
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // ASMJIT_BUILD_X86

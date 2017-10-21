@@ -8,24 +8,22 @@
 #define ASMJIT_EXPORTS
 
 // [Guard]
-#include "../asmjit_build.h"
+#include "../core/build.h"
 #if !defined(ASMJIT_DISABLE_LOGGING)
 
 // [Dependencies]
-#include "../base/misc_p.h"
-#include "../base/stringutils.h"
+#include "../core/misc_p.h"
+#include "../core/stringutils.h"
+
 #include "../x86/x86inst.h"
 #include "../x86/x86logging_p.h"
 #include "../x86/x86operand.h"
 
 #if !defined(ASMJIT_DISABLE_COMPILER)
-# include "../base/codecompiler.h"
+  #include "../core/codecompiler.h"
 #endif
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 // ============================================================================
 // [asmjit::X86Logging - Constants]
@@ -213,9 +211,9 @@ ASMJIT_FAVOR_SIZE Error X86Logging::formatOperand(
     if (m.isAbs())
       ASMJIT_PROPAGATE(sb.appendString("abs "));
 
-    char op = '\0';
+    char opSign = '\0';
     if (m.hasBase()) {
-      op = '+';
+      opSign = '+';
       if (m.hasBaseLabel()) {
         ASMJIT_PROPAGATE(Logging::formatLabel(sb, logOptions, emitter, m.getBaseId()));
       }
@@ -230,9 +228,10 @@ ASMJIT_FAVOR_SIZE Error X86Logging::formatOperand(
     }
 
     if (m.hasIndex()) {
-      if (op) ASMJIT_PROPAGATE(sb.appendChar(op));
-      op = '+';
+      if (opSign)
+        ASMJIT_PROPAGATE(sb.appendChar(opSign));
 
+      opSign = '+';
       ASMJIT_PROPAGATE(formatRegister(sb, logOptions, emitter, archType, m.getIndexType(), m.getIndexId()));
       if (m.hasShift())
         ASMJIT_PROPAGATE(sb.appendFormat("*%u", 1 << m.getShift()));
@@ -240,20 +239,20 @@ ASMJIT_FAVOR_SIZE Error X86Logging::formatOperand(
 
     uint64_t off = uint64_t(m.getOffset());
     if (off) {
-      uint32_t base = 10;
-
       if (int64_t(off) < 0) {
-        op = '-';
+        opSign = '-';
         off = ~off + 1;
       }
 
-      if (op)
-        ASMJIT_PROPAGATE(sb.appendChar(op));
+      if (opSign)
+        ASMJIT_PROPAGATE(sb.appendChar(opSign));
 
+      uint32_t base = 10;
       if ((logOptions & Logger::kOptionHexOffsets) != 0 && off > 9) {
         ASMJIT_PROPAGATE(sb.appendString("0x", 2));
         base = 16;
       }
+
       ASMJIT_PROPAGATE(sb.appendUInt(off, base));
     }
 
@@ -281,9 +280,9 @@ ASMJIT_FAVOR_SIZE Error X86Logging::formatOperand(
 // [asmjit::X86Logging - Format Immediate (Extension)]
 // ============================================================================
 
-static const char kImmCharStart   = '{';
-static const char kImmCharEnd     = '}';
-static const char kImmCharOr = '|';
+static constexpr char kImmCharStart = '{';
+static constexpr char kImmCharEnd   = '}';
+static constexpr char kImmCharOr    = '|';
 
 struct ImmBits {
   enum Mode : uint32_t {
@@ -350,7 +349,7 @@ ASMJIT_FAVOR_SIZE static Error X86Logging_formatImmBits(StringBuilder& sb, uint3
 }
 
 ASMJIT_FAVOR_SIZE static Error X86Logging_formatImmText(StringBuilder& sb, uint32_t u8, uint32_t bits, uint32_t advance, const char* text, uint32_t count = 1) noexcept {
-  uint32_t mask = (1 << bits) - 1;
+  uint32_t mask = (1U << bits) - 1;
   uint32_t pos = 0;
 
   for (uint32_t i = 0; i < count; i++, u8 >>= bits, pos += advance) {
@@ -595,8 +594,8 @@ ASMJIT_FAVOR_SIZE static Error X86Logging_explainConst(
     case X86Inst::kIdVshuff64x2:
     case X86Inst::kIdVshufi32x4:
     case X86Inst::kIdVshufi64x2: {
-      uint32_t count = std::max<uint32_t>(vecSize / 16, 2);
-      uint32_t bits = count <= 2 ? 1 : 2;
+      uint32_t count = std::max<uint32_t>(vecSize / 16, 2U);
+      uint32_t bits = count <= 2 ? 1U : 2U;
       return X86Logging_formatImmShuf(sb, u8, bits, count);
     }
 
@@ -624,8 +623,7 @@ ASMJIT_FAVOR_SIZE Error X86Logging::formatRegister(
   if (Operand::isPackedId(rId)) {
     if (emitter && emitter->getEmitterType() == CodeEmitter::kTypeCompiler) {
       const CodeCompiler* cc = static_cast<const CodeCompiler*>(emitter);
-
-      if (cc->isVirtRegValid(rId)) {
+      if (cc->isVirtIdValid(rId)) {
         VirtReg* vReg = cc->getVirtRegById(rId);
         ASMJIT_ASSERT(vReg != nullptr);
 
@@ -770,10 +768,7 @@ ASMJIT_FAVOR_SIZE Error X86Logging::formatInstruction(
   return kErrorOk;
 }
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // !ASMJIT_DISABLE_LOGGING

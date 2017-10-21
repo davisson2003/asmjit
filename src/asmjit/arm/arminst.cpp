@@ -8,19 +8,16 @@
 #define ASMJIT_EXPORTS
 
 // [Guard]
-#include "../asmjit_build.h"
+#include "../core/build.h"
 #if defined(ASMJIT_BUILD_ARM)
 
 // [Dependencies]
-#include "../base/memutils.h"
-#include "../base/stringutils.h"
+#include "../core/memutils.h"
+#include "../core/stringutils.h"
 #include "../arm/arminst.h"
 #include "../arm/armoperand.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 // ============================================================================
 // [asmjit::ArmInst]
@@ -34,9 +31,9 @@ namespace asmjit {
 // Don't store `_nameDataIndex` if instruction names are disabled. Since some
 // APIs can use `_nameDataIndex` it's much safer if it's zero if it's not used.
 #if defined(ASMJIT_DISABLE_TEXT)
-# define NAME_DATA_INDEX(X) 0
+  #define NAME_DATA_INDEX(X) 0
 #else
-# define NAME_DATA_INDEX(X) X
+  #define NAME_DATA_INDEX(X) X
 #endif
 
 // Defines an ARM32/ARM64 instruction.
@@ -678,10 +675,7 @@ ASMJIT_FAVOR_SIZE Error ArmInst::validate(
 }
 #endif
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // ASMJIT_BUILD_ARM

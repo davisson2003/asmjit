@@ -8,19 +8,17 @@
 #define ASMJIT_EXPORTS
 
 // [Guard]
-#include "../asmjit_build.h"
+#include "../core/build.h"
 #if defined(ASMJIT_BUILD_X86)
 
 // [Dependencies]
-#include "../base/intutils.h"
-#include "../base/logging.h"
-#include "../base/stringbuilder.h"
+#include "../core/intutils.h"
+#include "../core/logging.h"
+#include "../core/stringbuilder.h"
+#include "../core/type.h"
 #include "../x86/x86internal_p.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 // ============================================================================
 // [asmjit::X86Internal - CallConv]
@@ -110,10 +108,10 @@ X86CallConv:
       cc.setPassedOrder(kGroupMm, 0, 1, 2, 3, 4, 5, 6, 7);
       cc.setPassedOrder(kGroupVec, 0, 1, 2, 3, 4, 5, 6, 7);
 
-      cc.setPreservedRegs(kGroupGp , IntUtils::bits(8));
-      cc.setPreservedRegs(kGroupVec, IntUtils::bits(8) & ~IntUtils::bits(n));
-      cc.setPreservedRegs(kGroupMm , IntUtils::bits(8));
-      cc.setPreservedRegs(kGroupK  , IntUtils::bits(8));
+      cc.setPreservedRegs(kGroupGp , IntUtils::lsbMask<uint32_t>(8));
+      cc.setPreservedRegs(kGroupVec, IntUtils::lsbMask<uint32_t>(8) & ~IntUtils::lsbMask<uint32_t>(n));
+      cc.setPreservedRegs(kGroupMm , IntUtils::lsbMask<uint32_t>(8));
+      cc.setPreservedRegs(kGroupK  , IntUtils::lsbMask<uint32_t>(8));
       break;
     }
 
@@ -129,10 +127,10 @@ X86CallConv:
       cc.setPassedOrder(kGroupMm, 0, 1, 2, 3, 4, 5, 6, 7);
       cc.setPassedOrder(kGroupVec, 0, 1, 2, 3, 4, 5, 6, 7);
 
-      cc.setPreservedRegs(kGroupGp , IntUtils::bits(16));
-      cc.setPreservedRegs(kGroupVec,~IntUtils::bits(n));
-      cc.setPreservedRegs(kGroupMm , IntUtils::bits(8));
-      cc.setPreservedRegs(kGroupK  , IntUtils::bits(8));
+      cc.setPreservedRegs(kGroupGp , IntUtils::lsbMask<uint32_t>(16));
+      cc.setPreservedRegs(kGroupVec,~IntUtils::lsbMask<uint32_t>(n));
+      cc.setPreservedRegs(kGroupMm , IntUtils::lsbMask<uint32_t>(8));
+      cc.setPreservedRegs(kGroupK  , IntUtils::lsbMask<uint32_t>(8));
       break;
     }
 
@@ -148,7 +146,7 @@ X86CallConv:
 // [asmjit::X86Internal - Helpers]
 // ============================================================================
 
-static ASMJIT_INLINE uint32_t x86GetXmmMovInst(const FuncFrame& frame) {
+static ASMJIT_FORCEINLINE uint32_t x86GetXmmMovInst(const FuncFrame& frame) {
   bool avx = frame.isAvxEnabled();
   bool aligned = frame.hasAlignedVecSR();
 
@@ -156,9 +154,9 @@ static ASMJIT_INLINE uint32_t x86GetXmmMovInst(const FuncFrame& frame) {
                  : (avx ? X86Inst::kIdVmovups : X86Inst::kIdMovups);
 }
 
-static ASMJIT_INLINE uint32_t x86VecTypeIdToRegType(uint32_t typeId) noexcept {
-  return typeId <= TypeId::_kVec128End ? X86Reg::kRegXmm :
-         typeId <= TypeId::_kVec256End ? X86Reg::kRegYmm : X86Reg::kRegZmm;
+static ASMJIT_FORCEINLINE uint32_t x86VecTypeIdToRegType(uint32_t typeId) noexcept {
+  return typeId <= Type::_kIdVec128End ? X86Reg::kRegXmm :
+         typeId <= Type::_kIdVec256End ? X86Reg::kRegYmm : X86Reg::kRegZmm;
 }
 
 // ============================================================================
@@ -178,8 +176,8 @@ ASMJIT_FAVOR_SIZE Error X86Internal::initFuncDetail(FuncDetail& func, const Func
   if (func.getRetCount() != 0) {
     uint32_t typeId = func._rets[0].getTypeId();
     switch (typeId) {
-      case TypeId::kI64:
-      case TypeId::kU64: {
+      case Type::kIdI64:
+      case Type::kIdU64: {
         if (archType == ArchInfo::kTypeX86) {
           // Convert a 64-bit return value to two 32-bit return values.
           func._retCount = 2;
@@ -196,35 +194,35 @@ ASMJIT_FAVOR_SIZE Error X86Internal::initFuncDetail(FuncDetail& func, const Func
         break;
       }
 
-      case TypeId::kI8:
-      case TypeId::kI16:
-      case TypeId::kI32: {
-        func._rets[0].initReg(X86Gp::kRegGpd, X86Gp::kIdAx, TypeId::kI32);
+      case Type::kIdI8:
+      case Type::kIdI16:
+      case Type::kIdI32: {
+        func._rets[0].initReg(X86Gp::kRegGpd, X86Gp::kIdAx, Type::kIdI32);
         break;
       }
 
-      case TypeId::kU8:
-      case TypeId::kU16:
-      case TypeId::kU32: {
-        func._rets[0].initReg(X86Gp::kRegGpd, X86Gp::kIdAx, TypeId::kU32);
+      case Type::kIdU8:
+      case Type::kIdU16:
+      case Type::kIdU32: {
+        func._rets[0].initReg(X86Gp::kRegGpd, X86Gp::kIdAx, Type::kIdU32);
         break;
       }
 
-      case TypeId::kF32:
-      case TypeId::kF64: {
+      case Type::kIdF32:
+      case Type::kIdF64: {
         uint32_t regType = (archType == ArchInfo::kTypeX86) ? X86Reg::kRegFp : X86Reg::kRegXmm;
         func._rets[0].initReg(regType, 0, typeId);
         break;
       }
 
-      case TypeId::kF80: {
+      case Type::kIdF80: {
         // 80-bit floats are always returned by FP0.
         func._rets[0].initReg(X86Reg::kRegFp, 0, typeId);
         break;
       }
 
-      case TypeId::kMmx32:
-      case TypeId::kMmx64: {
+      case Type::kIdMmx32:
+      case Type::kIdMmx64: {
         // MM registers are returned through XMM or GPQ (Win64).
         uint32_t regType = X86Reg::kRegMm;
         if (archType != ArchInfo::kTypeX86)
@@ -249,27 +247,27 @@ ASMJIT_FAVOR_SIZE Error X86Internal::initFuncDetail(FuncDetail& func, const Func
       FuncValue& arg = func._args[i];
       uint32_t typeId = arg.getTypeId();
 
-      if (TypeId::isInt(typeId)) {
+      if (Type::isInt(typeId)) {
         uint32_t regId = gpzPos < CallConv::kMaxRegArgsPerGroup ? cc._passedOrder[X86Reg::kGroupGp].id[gpzPos] : uint8_t(Reg::kIdBad);
         if (regId != Reg::kIdBad) {
-          uint32_t regType = (typeId <= TypeId::kU32) ? X86Reg::kRegGpd : X86Reg::kRegGpq;
+          uint32_t regType = (typeId <= Type::kIdU32) ? X86Reg::kRegGpd : X86Reg::kRegGpq;
           arg.assignRegData(regType, regId);
           func.addUsedRegs(X86Reg::kGroupGp, IntUtils::mask(regId));
           gpzPos++;
         }
         else {
-          uint32_t size = std::max<uint32_t>(TypeId::sizeOf(typeId), gpSize);
+          uint32_t size = std::max<uint32_t>(Type::sizeOf(typeId), gpSize);
           arg.assignStackOffset(int32_t(stackOffset));
           stackOffset += size;
         }
         continue;
       }
 
-      if (TypeId::isFloat(typeId) || TypeId::isVec(typeId)) {
+      if (Type::isFloat(typeId) || Type::isVec(typeId)) {
         uint32_t regId = vecPos < CallConv::kMaxRegArgsPerGroup ? cc._passedOrder[X86Reg::kGroupVec].id[vecPos] : uint8_t(Reg::kIdBad);
 
         // If this is a float, but `floatByVec` is false, we have to pass by stack.
-        if (TypeId::isFloat(typeId) && !cc.hasFlag(CallConv::kFlagPassFloatsByVec))
+        if (Type::isFloat(typeId) && !cc.hasFlag(CallConv::kFlagPassFloatsByVec))
           regId = Reg::kIdBad;
 
         if (regId != Reg::kIdBad) {
@@ -279,7 +277,7 @@ ASMJIT_FAVOR_SIZE Error X86Internal::initFuncDetail(FuncDetail& func, const Func
           vecPos++;
         }
         else {
-          uint32_t size = TypeId::sizeOf(typeId);
+          uint32_t size = Type::sizeOf(typeId);
           arg.assignStackOffset(int32_t(stackOffset));
           stackOffset += size;
         }
@@ -293,12 +291,12 @@ ASMJIT_FAVOR_SIZE Error X86Internal::initFuncDetail(FuncDetail& func, const Func
       FuncValue& arg = func._args[i];
 
       uint32_t typeId = arg.getTypeId();
-      uint32_t size = TypeId::sizeOf(typeId);
+      uint32_t size = Type::sizeOf(typeId);
 
-      if (TypeId::isInt(typeId) || TypeId::isMmx(typeId)) {
+      if (Type::isInt(typeId) || Type::isMmx(typeId)) {
         uint32_t regId = i < CallConv::kMaxRegArgsPerGroup ? cc._passedOrder[X86Reg::kGroupGp].id[i] : uint8_t(Reg::kIdBad);
         if (regId != Reg::kIdBad) {
-          uint32_t regType = (size <= 4 && !TypeId::isMmx(typeId)) ? X86Reg::kRegGpd : X86Reg::kRegGpq;
+          uint32_t regType = (size <= 4 && !Type::isMmx(typeId)) ? X86Reg::kRegGpd : X86Reg::kRegGpq;
           arg.assignRegData(regType, regId);
           func.addUsedRegs(X86Reg::kGroupGp, IntUtils::mask(regId));
         }
@@ -309,12 +307,13 @@ ASMJIT_FAVOR_SIZE Error X86Internal::initFuncDetail(FuncDetail& func, const Func
         continue;
       }
 
-      if (TypeId::isFloat(typeId) || TypeId::isVec(typeId)) {
-        uint32_t regId = i < CallConv::kMaxRegArgsPerGroup ? cc._passedOrder[X86Reg::kGroupVec].id[i] : uint8_t(Reg::kIdBad);
-        if (regId != Reg::kIdBad && (TypeId::isFloat(typeId) || cc.hasFlag(CallConv::kFlagVectorCall))) {
+      if (Type::isFloat(typeId) || Type::isVec(typeId)) {
+        uint32_t regId = Reg::kIdBad;
+        if (i < CallConv::kMaxRegArgsPerGroup)
+          regId = cc._passedOrder[X86Reg::kGroupVec].id[i];
+        
+        if (regId != Reg::kIdBad && (Type::isFloat(typeId) || cc.hasFlag(CallConv::kFlagVectorCall))) {
           uint32_t regType = x86VecTypeIdToRegType(typeId);
-          uint32_t regId = cc._passedOrder[X86Reg::kGroupVec].id[i];
-
           arg.assignRegData(regType, regId);
           func.addUsedRegs(X86Reg::kGroupVec, IntUtils::mask(regId));
         }
@@ -336,13 +335,13 @@ ASMJIT_FAVOR_SIZE Error X86Internal::initFuncDetail(FuncDetail& func, const Func
 // ============================================================================
 
 static RegInfo x86GetRegForMemToMemMove(uint32_t archType, uint32_t dstTypeId, uint32_t srcTypeId) noexcept {
-  uint32_t dstSize = TypeId::sizeOf(dstTypeId);
-  uint32_t srcSize = TypeId::sizeOf(srcTypeId);
+  uint32_t dstSize = Type::sizeOf(dstTypeId);
+  uint32_t srcSize = Type::sizeOf(srcTypeId);
   uint32_t maxSize = std::max<uint32_t>(dstSize, srcSize);
   uint32_t gpSize = archType == ArchInfo::kTypeX86 ? 4 : 8;
 
   uint32_t signature = 0;
-  if (maxSize <= gpSize || (TypeId::isInt(dstTypeId) && TypeId::isInt(srcTypeId)))
+  if (maxSize <= gpSize || (Type::isInt(dstTypeId) && Type::isInt(srcTypeId)))
     signature = maxSize <= 4 ? X86Reg::signatureOfT<X86Reg::kRegGpd>()
                              : X86Reg::signatureOfT<X86Reg::kRegGpq>();
   else if (maxSize <= 16)
@@ -398,7 +397,7 @@ public:
 
     inline bool isAssigned(uint32_t regId) const noexcept {
       ASMJIT_ASSERT(regId < 32);
-      return (_assignedRegs & IntUtils::mask(regId)) != 0;
+      return IntUtils::bitTest(_assignedRegs, regId);
     }
 
     inline void assign(uint32_t varId, uint32_t regId) noexcept {
@@ -431,6 +430,7 @@ public:
     }
 
     inline void unassign(uint32_t varId, uint32_t regId) noexcept {
+      ASMJIT_UNUSED(varId);
       ASMJIT_ASSERT(isAssigned(regId));
       ASMJIT_ASSERT(_physToVarId[regId] == varId);
 
@@ -513,10 +513,10 @@ ASMJIT_FAVOR_SIZE Error X86FuncArgsContext::initWorkData(const FuncFrame& frame,
   _archType = uint8_t(archType);
 
   // Initialize `_archRegs`.
-  _workData[X86Reg::kGroupGp ]._archRegs = IntUtils::bits(archRegCount) & ~IntUtils::mask(X86Gp::kIdSp);
-  _workData[X86Reg::kGroupVec]._archRegs = IntUtils::bits(archRegCount);
-  _workData[X86Reg::kGroupMm ]._archRegs = IntUtils::bits(8);
-  _workData[X86Reg::kGroupK  ]._archRegs = IntUtils::bits(8);
+  _workData[X86Reg::kGroupGp ]._archRegs = IntUtils::lsbMask<uint32_t>(archRegCount) & ~IntUtils::mask(X86Gp::kIdSp);
+  _workData[X86Reg::kGroupVec]._archRegs = IntUtils::lsbMask<uint32_t>(archRegCount);
+  _workData[X86Reg::kGroupMm ]._archRegs = IntUtils::lsbMask<uint32_t>(8);
+  _workData[X86Reg::kGroupK  ]._archRegs = IntUtils::lsbMask<uint32_t>(8);
 
   if (frame.hasPreservedFP())
     _workData[X86Reg::kGroupGp]._archRegs &= ~IntUtils::mask(X86Gp::kIdBp);
@@ -558,16 +558,15 @@ ASMJIT_FAVOR_SIZE Error X86FuncArgsContext::initWorkData(const FuncFrame& frame,
 
       dstWd = &_workData[dstGroup];
       dstId = dst.getRegId();
-      if (ASMJIT_UNLIKELY(dstId >= 32 || !(dstWd->getArchRegs() & IntUtils::mask(dstId))))
+      if (ASMJIT_UNLIKELY(dstId >= 32 || !IntUtils::bitTest(dstWd->getArchRegs(), dstId)))
         return DebugUtils::errored(kErrorInvalidPhysId);
 
-      uint32_t dstMask = IntUtils::mask(dstId);
-      if (ASMJIT_UNLIKELY(dstWd->getDstRegs() & dstMask))
+      if (ASMJIT_UNLIKELY(IntUtils::bitTest(dstWd->getDstRegs(), dstId)))
         return DebugUtils::errored(kErrorOverlappedRegs);
 
-      dstWd->_dstRegs |= dstMask;
-      dstWd->_dstShuf |= dstMask;
-      dstWd->_usedRegs |= dstMask;
+      dstWd->_dstRegs  |= IntUtils::mask(dstId);
+      dstWd->_dstShuf  |= IntUtils::mask(dstId);
+      dstWd->_usedRegs |= IntUtils::mask(dstId);
     }
     else {
       if (!dst.hasTypeId())
@@ -626,13 +625,13 @@ ASMJIT_FAVOR_SIZE Error X86FuncArgsContext::initWorkData(const FuncFrame& frame,
 
   if (saOutRegId != Reg::kIdBad) {
     // Check if the provided `SARegId` doesn't collide with argument assignments.
-    if (ASMJIT_UNLIKELY((gpRegs.getDstRegs() & IntUtils::mask(saOutRegId)) != 0))
+    if (ASMJIT_UNLIKELY(IntUtils::bitTest(gpRegs.getDstRegs(), saOutRegId)))
       return DebugUtils::errored(kErrorOverlappedRegs);
     saRegRequired = true;
   }
 
   if (saRegRequired) {
-    uint32_t ptrTypeId = (archType == ArchInfo::kTypeX86) ? TypeId::kU32 : TypeId::kU64;
+    uint32_t ptrTypeId = (archType == ArchInfo::kTypeX86) ? Type::kIdU32 : Type::kIdU64;
     uint32_t ptrRegType = (archType == ArchInfo::kTypeX86) ? Reg::kRegGp32 : Reg::kRegGp64;
 
     _saVarId = uint8_t(varId);
@@ -663,7 +662,7 @@ ASMJIT_FAVOR_SIZE Error X86FuncArgsContext::initWorkData(const FuncFrame& frame,
 
     if (saOutRegId != Reg::kIdBad) {
       var.out.initReg(ptrRegType, saOutRegId, ptrTypeId);
-      gpRegs._dstRegs |= IntUtils::mask(saOutRegId);
+      gpRegs._dstRegs  |= IntUtils::mask(saOutRegId);
       gpRegs._workRegs |= IntUtils::mask(saOutRegId);
     }
     else {
@@ -890,7 +889,7 @@ ASMJIT_FAVOR_SIZE Error X86Internal::finalizeFuncFrame(FuncFrame& frame) noexcep
   // (depending on the architecture). So count number of bytes needed to align
   // it up to the function's CallFrame (the beginning).
   if (v || frame.hasFuncCalls())
-    v += IntUtils::alignDiff(v + frame.getGpSaveSize() + gpSize, stackAlignment);
+    v += IntUtils::alignUpDiff(v + frame.getGpSaveSize() + gpSize, stackAlignment);
 
   frame._gpSaveOffset = v;                    // Store 'gpSaveOffset'     <- Function's GP Save/Restore starts here.
   frame._stackAdjustment = v;                 // Store 'stackAdjustment'  <- SA used by 'add zsp, SA' and 'sub zsp, SA'.
@@ -937,7 +936,7 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitRegMove(X86Emitter* emitter,
   const Operand_& src_, uint32_t typeId, bool avxEnabled, const char* comment) {
 
   // Invalid or abstract TypeIds are not allowed.
-  ASMJIT_ASSERT(TypeId::isValid(typeId) && !TypeId::isAbstract(typeId));
+  ASMJIT_ASSERT(Type::isValid(typeId) && !Type::isAbstract(typeId));
 
   Operand dst(dst_);
   Operand src(src_);
@@ -959,10 +958,10 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitRegMove(X86Emitter* emitter,
   if (src.isMem()) { memFlags |= kSrcMem; src.as<X86Mem>().setSize(dst.getSize()); }
 
   switch (typeId) {
-    case TypeId::kI8:
-    case TypeId::kU8:
-    case TypeId::kI16:
-    case TypeId::kU16:
+    case Type::kIdI8:
+    case Type::kIdU8:
+    case Type::kIdI16:
+    case Type::kIdU16:
       // Special case - 'movzx' load.
       if (memFlags & kSrcMem) {
         instId = X86Inst::kIdMovzx;
@@ -975,49 +974,49 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitRegMove(X86Emitter* emitter,
       }
       ASMJIT_FALLTHROUGH;
 
-    case TypeId::kI32:
-    case TypeId::kU32:
-    case TypeId::kI64:
-    case TypeId::kU64:
+    case Type::kIdI32:
+    case Type::kIdU32:
+    case Type::kIdI64:
+    case Type::kIdU64:
       instId = X86Inst::kIdMov;
       break;
 
-    case TypeId::kMmx32:
+    case Type::kIdMmx32:
       instId = X86Inst::kIdMovd;
       if (memFlags) break;
       ASMJIT_FALLTHROUGH;
 
-    case TypeId::kMmx64 : instId = X86Inst::kIdMovq ; break;
-    case TypeId::kMask8 : instId = X86Inst::kIdKmovb; break;
-    case TypeId::kMask16: instId = X86Inst::kIdKmovw; break;
-    case TypeId::kMask32: instId = X86Inst::kIdKmovd; break;
-    case TypeId::kMask64: instId = X86Inst::kIdKmovq; break;
+    case Type::kIdMmx64 : instId = X86Inst::kIdMovq ; break;
+    case Type::kIdMask8 : instId = X86Inst::kIdKmovb; break;
+    case Type::kIdMask16: instId = X86Inst::kIdKmovw; break;
+    case Type::kIdMask32: instId = X86Inst::kIdKmovd; break;
+    case Type::kIdMask64: instId = X86Inst::kIdKmovq; break;
 
     default: {
-      uint32_t elementTypeId = TypeId::elementOf(typeId);
-      if (TypeId::isVec32(typeId) && memFlags) {
-        if (elementTypeId == TypeId::kF32)
+      uint32_t elementTypeId = Type::baseOf(typeId);
+      if (Type::isVec32(typeId) && memFlags) {
+        if (elementTypeId == Type::kIdF32)
           instId = avxEnabled ? X86Inst::kIdVmovss : X86Inst::kIdMovss;
         else
           instId = avxEnabled ? X86Inst::kIdVmovd : X86Inst::kIdMovd;
         break;
       }
 
-      if (TypeId::isVec64(typeId) && memFlags) {
-        if (elementTypeId == TypeId::kF64)
+      if (Type::isVec64(typeId) && memFlags) {
+        if (elementTypeId == Type::kIdF64)
           instId = avxEnabled ? X86Inst::kIdVmovsd : X86Inst::kIdMovsd;
         else
           instId = avxEnabled ? X86Inst::kIdVmovq : X86Inst::kIdMovq;
         break;
       }
 
-      if (elementTypeId == TypeId::kF32)
+      if (elementTypeId == Type::kIdF32)
         instId = avxEnabled ? X86Inst::kIdVmovaps : X86Inst::kIdMovaps;
-      else if (elementTypeId == TypeId::kF64)
+      else if (elementTypeId == Type::kIdF64)
         instId = avxEnabled ? X86Inst::kIdVmovapd : X86Inst::kIdMovapd;
-      else if (typeId <= TypeId::_kVec256End)
+      else if (typeId <= Type::_kIdVec256End)
         instId = avxEnabled ? X86Inst::kIdVmovdqa : X86Inst::kIdMovdqa;
-      else if (elementTypeId <= TypeId::kU32)
+      else if (elementTypeId <= Type::kIdU32)
         instId = X86Inst::kIdVmovdqa32;
       else
         instId = X86Inst::kIdVmovdqa64;
@@ -1036,41 +1035,41 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitArgMove(X86Emitter* emitter,
   const X86Reg& dst_, uint32_t dstTypeId,
   const Operand_& src_, uint32_t srcTypeId, bool avxEnabled, const char* comment) {
 
-  // Deduce optional `dstTypeId`, which may be `TypeId::kVoid` in some cases.
+  // Deduce optional `dstTypeId`, which may be `Type::kIdVoid` in some cases.
   if (!dstTypeId) dstTypeId = x86OpData.archRegs.regTypeToTypeId[dst_.getType()];
 
   // Invalid or abstract TypeIds are not allowed.
-  ASMJIT_ASSERT(TypeId::isValid(dstTypeId) && !TypeId::isAbstract(dstTypeId));
-  ASMJIT_ASSERT(TypeId::isValid(srcTypeId) && !TypeId::isAbstract(srcTypeId));
+  ASMJIT_ASSERT(Type::isValid(dstTypeId) && !Type::isAbstract(dstTypeId));
+  ASMJIT_ASSERT(Type::isValid(srcTypeId) && !Type::isAbstract(srcTypeId));
 
   X86Reg dst(dst_);
   Operand src(src_);
 
-  uint32_t dstSize = TypeId::sizeOf(dstTypeId);
-  uint32_t srcSize = TypeId::sizeOf(srcTypeId);
+  uint32_t dstSize = Type::sizeOf(dstTypeId);
+  uint32_t srcSize = Type::sizeOf(srcTypeId);
 
   uint32_t instId = Inst::kIdNone;
 
   // Not a real loop, just 'break' is nicer than 'goto'.
   for (;;) {
-    if (TypeId::isInt(dstTypeId)) {
-      if (TypeId::isInt(srcTypeId)) {
+    if (Type::isInt(dstTypeId)) {
+      if (Type::isInt(srcTypeId)) {
         instId = X86Inst::kIdMovsx;
         uint32_t typeOp = (dstTypeId << 8) | srcTypeId;
 
         // Sign extend by using 'movsx'.
-        if (typeOp == ((TypeId::kI16 << 8) | TypeId::kI8 ) ||
-            typeOp == ((TypeId::kI32 << 8) | TypeId::kI8 ) ||
-            typeOp == ((TypeId::kI32 << 8) | TypeId::kI16) ||
-            typeOp == ((TypeId::kI64 << 8) | TypeId::kI8 ) ||
-            typeOp == ((TypeId::kI64 << 8) | TypeId::kI16)) break;
+        if (typeOp == ((Type::kIdI16 << 8) | Type::kIdI8 ) ||
+            typeOp == ((Type::kIdI32 << 8) | Type::kIdI8 ) ||
+            typeOp == ((Type::kIdI32 << 8) | Type::kIdI16) ||
+            typeOp == ((Type::kIdI64 << 8) | Type::kIdI8 ) ||
+            typeOp == ((Type::kIdI64 << 8) | Type::kIdI16)) break;
 
         // Sign extend by using 'movsxd'.
         instId = X86Inst::kIdMovsxd;
-        if (typeOp == ((TypeId::kI64 << 8) | TypeId::kI32)) break;
+        if (typeOp == ((Type::kIdI64 << 8) | Type::kIdI32)) break;
       }
 
-      if (TypeId::isInt(srcTypeId) || src_.isMem()) {
+      if (Type::isInt(srcTypeId) || src_.isMem()) {
         // Zero extend by using 'movzx' or 'mov'.
         if (dstSize <= 4 && srcSize < 4) {
           instId = X86Inst::kIdMovzx;
@@ -1094,7 +1093,7 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitArgMove(X86Emitter* emitter,
       // always register to register conversion, so catch the remaining cases.
       srcSize = std::min(srcSize, dstSize);
 
-      if (TypeId::isMmx(srcTypeId)) {
+      if (Type::isMmx(srcTypeId)) {
         // 64-bit move.
         instId = X86Inst::kIdMovq;
         if (srcSize == 8) break;
@@ -1105,14 +1104,14 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitArgMove(X86Emitter* emitter,
         break;
       }
 
-      if (TypeId::isMask(srcTypeId)) {
+      if (Type::isMask(srcTypeId)) {
         instId = X86Inst::kmovIdFromSize(srcSize);
         dst.setSignature(srcSize <= 4 ? X86Reg::signatureOfT<X86Reg::kRegGpd>()
                                       : X86Reg::signatureOfT<X86Reg::kRegGpq>());
         break;
       }
 
-      if (TypeId::isVec(srcTypeId)) {
+      if (Type::isVec(srcTypeId)) {
         // 64-bit move.
         instId = avxEnabled ? X86Inst::kIdVmovq : X86Inst::kIdMovq;
         if (srcSize == 8) break;
@@ -1124,11 +1123,11 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitArgMove(X86Emitter* emitter,
       }
     }
 
-    if (TypeId::isMmx(dstTypeId)) {
+    if (Type::isMmx(dstTypeId)) {
       instId = X86Inst::kIdMovq;
       srcSize = std::min(srcSize, dstSize);
 
-      if (TypeId::isInt(srcTypeId) || src.isMem()) {
+      if (Type::isInt(srcTypeId) || src.isMem()) {
         // 64-bit move.
         if (srcSize == 8) break;
 
@@ -1138,24 +1137,24 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitArgMove(X86Emitter* emitter,
         break;
       }
 
-      if (TypeId::isMmx(srcTypeId)) break;
+      if (Type::isMmx(srcTypeId)) break;
 
       // This will hurt if `avxEnabled`.
       instId = X86Inst::kIdMovdq2q;
-      if (TypeId::isVec(srcTypeId)) break;
+      if (Type::isVec(srcTypeId)) break;
     }
 
-    if (TypeId::isMask(dstTypeId)) {
+    if (Type::isMask(dstTypeId)) {
       srcSize = std::min(srcSize, dstSize);
 
-      if (TypeId::isInt(srcTypeId) || TypeId::isMask(srcTypeId) || src.isMem()) {
+      if (Type::isInt(srcTypeId) || Type::isMask(srcTypeId) || src.isMem()) {
         instId = X86Inst::kmovIdFromSize(srcSize);
         if (X86Reg::isGp(src) && srcSize <= 4) src.setSignature(X86Reg::signatureOfT<X86Reg::kRegGpd>());
         break;
       }
     }
 
-    if (TypeId::isVec(dstTypeId)) {
+    if (Type::isVec(dstTypeId)) {
       // By default set destination to XMM, will be set to YMM|ZMM if needed.
       dst.setSignature(X86Reg::signatureOfT<X86Reg::kRegXmm>());
 
@@ -1167,10 +1166,10 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitArgMove(X86Emitter* emitter,
       }
 
       // Argument conversion.
-      uint32_t dstElement = TypeId::elementOf(dstTypeId);
-      uint32_t srcElement = TypeId::elementOf(srcTypeId);
+      uint32_t dstElement = Type::baseOf(dstTypeId);
+      uint32_t srcElement = Type::baseOf(srcTypeId);
 
-      if (dstElement == TypeId::kF32 && srcElement == TypeId::kF64) {
+      if (dstElement == Type::kIdF32 && srcElement == Type::kIdF64) {
         srcSize = std::min(dstSize * 2, srcSize);
         dstSize = srcSize / 2;
 
@@ -1186,7 +1185,7 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitArgMove(X86Emitter* emitter,
         break;
       }
 
-      if (dstElement == TypeId::kF64 && srcElement == TypeId::kF32) {
+      if (dstElement == Type::kIdF64 && srcElement == Type::kIdF32) {
         srcSize = std::min(dstSize, srcSize * 2) / 2;
         dstSize = srcSize * 2;
 
@@ -1241,7 +1240,7 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitArgMove(X86Emitter* emitter,
 // [asmjit::X86Internal - Emit Prolog & Epilog]
 // ============================================================================
 
-static ASMJIT_INLINE void X86Internal_setupSaveRestoreInfo(uint32_t group, const FuncFrame& frame, X86Reg& xReg, uint32_t& xInst, uint32_t& xSize) noexcept {
+static ASMJIT_FORCEINLINE void X86Internal_setupSaveRestoreInfo(uint32_t group, const FuncFrame& frame, X86Reg& xReg, uint32_t& xInst, uint32_t& xSize) noexcept {
   switch (group) {
     case X86Reg::kGroupVec:
       xReg = x86::xmm(0);
@@ -1258,8 +1257,6 @@ static ASMJIT_INLINE void X86Internal_setupSaveRestoreInfo(uint32_t group, const
       xInst = X86Inst::kIdKmovq;
       xSize = xReg.getSize();
       break;
-    default:
-      ASMJIT_NOT_REACHED();
   }
 }
 
@@ -1726,10 +1723,7 @@ EmitMove:
   return kErrorOk;
 }
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // ASMJIT_BUILD_X86

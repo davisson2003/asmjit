@@ -9,14 +9,11 @@
 #define _ASMJIT_ARM_ARMINST_H
 
 // [Dependencies]
-#include "../base/assembler.h"
-#include "../base/operand.h"
+#include "../core/assembler.h"
+#include "../core/operand.h"
 #include "../arm/armglobals.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 //! \addtogroup asmjit_arm
 //! \{
@@ -582,7 +579,7 @@ struct ArmInst {
   // [Id <-> Name]
   // --------------------------------------------------------------------------
 
-#if !defined(ASMJIT_DISABLE_TEXT)
+  #if !defined(ASMJIT_DISABLE_TEXT)
   //! Get an instruction ID from a given instruction `name`.
   //!
   //! NOTE: Instruction name MUST BE in lowercase, otherwise there will be no
@@ -593,18 +590,18 @@ struct ArmInst {
 
   //! Get an instruction name from a given instruction id `instId`.
   ASMJIT_API static const char* getNameById(uint32_t instId) noexcept;
-#endif
+  #endif
 
   // --------------------------------------------------------------------------
   // [Validation]
   // --------------------------------------------------------------------------
 
-#if !defined(ASMJIT_DISABLE_INST_API)
+  #if !defined(ASMJIT_DISABLE_INST_API)
   ASMJIT_API static Error validate(
     uint32_t archType, uint32_t instId, uint32_t options,
     const Operand_& opExtra,
     const Operand_* operands, uint32_t count) noexcept;
-#endif
+  #endif
 
   // --------------------------------------------------------------------------
   // [Members]
@@ -625,10 +622,7 @@ struct ArmInstDB {
 
 //! \}
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // _ASMJIT_ARM_ARMINST_H

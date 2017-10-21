@@ -8,20 +8,17 @@
 #ifndef _ASMJIT_X86_X86RAPASS_P_H
 #define _ASMJIT_X86_X86RAPASS_P_H
 
-#include "../asmjit_build.h"
+#include "../core/build.h"
 #if !defined(ASMJIT_DISABLE_COMPILER)
 
 // [Dependencies]
-#include "../base/codecompiler.h"
-#include "../base/rabuilders_p.h"
-#include "../base/rapass_p.h"
+#include "../core/codecompiler.h"
+#include "../core/rabuilders_p.h"
+#include "../core/rapass_p.h"
 #include "../x86/x86assembler.h"
 #include "../x86/x86compiler.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 //! \addtogroup asmjit_ra
 //! \{
@@ -89,10 +86,7 @@ public:
 
 //! \}
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // !ASMJIT_DISABLE_COMPILER

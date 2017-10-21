@@ -8,17 +8,14 @@
 #ifndef _ASMJIT_ARM_ARMINTERNAL_P_H
 #define _ASMJIT_ARM_ARMINTERNAL_P_H
 
-#include "../asmjit_build.h"
+#include "../core/build.h"
 
 // [Dependencies]
-#include "../base/func.h"
+#include "../core/func.h"
 #include "../arm/armemitter.h"
 #include "../arm/armoperand.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 //! \addtogroup asmjit_arm
 //! \{
@@ -35,10 +32,7 @@ struct ArmInternal {
 
 //! \}
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // _ASMJIT_X86_X86INTERNAL_P_H

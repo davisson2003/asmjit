@@ -8,17 +8,14 @@
 #ifndef _ASMJIT_X86_X86SSETOAVXPASS_P_H
 #define _ASMJIT_X86_X86SSETOAVXPASS_P_H
 
-#include "../asmjit_build.h"
+#include "../core/build.h"
 #if !defined(ASMJIT_DISABLE_BUILDER)
 
 // [Dependencies]
-#include "../base/intutils.h"
+#include "../core/intutils.h"
 #include "../x86/x86builder.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 //! \addtogroup asmjit_x86
 //! \{
@@ -59,10 +56,7 @@ public:
 
 //! \}
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // !ASMJIT_DISABLE_BUILDER

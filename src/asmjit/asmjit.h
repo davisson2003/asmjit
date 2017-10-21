@@ -30,17 +30,14 @@
 //!
 //! \brief ARM32/ARM64 Backend API.
 
-// [Dependencies]
-#include "./base.h"
+#include "./core.h"
 
-// [X86/X64]
 #if defined(ASMJIT_BUILD_X86)
-#include "./x86.h"
+  #include "./x86.h"
 #endif // ASMJIT_BUILD_X86
 
-// [ARM32/ARM64]
 #if defined(ASMJIT_BUILD_ARM)
-#include "./arm.h"
+  #include "./arm.h"
 #endif // ASMJIT_BUILD_ARM
 
 // [Guard]

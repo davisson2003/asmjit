@@ -8,21 +8,19 @@
 #define ASMJIT_EXPORTS
 
 // [Guard]
-#include "../asmjit_build.h"
+#include "../core/build.h"
 #if defined(ASMJIT_BUILD_X86) && !defined(ASMJIT_DISABLE_COMPILER)
 
 // [Dependencies]
-#include "../base/cpuinfo.h"
-#include "../base/intutils.h"
+#include "../core/cpuinfo.h"
+#include "../core/intutils.h"
+#include "../core/type.h"
 #include "../x86/x86assembler.h"
 #include "../x86/x86compiler.h"
 #include "../x86/x86internal_p.h"
 #include "../x86/x86rapass_p.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 // ============================================================================
 // [asmjit::X86OpInfo]
@@ -53,7 +51,7 @@ namespace X86OpInfo {
   DEFINE_OPS(op_xx   , X(Any), X(Any), R(Any), R(Any), R(Any), R(Any));
   DEFINE_OPS(op_w_all, W(Any), W(Any), W(Any), W(Any), W(Any), W(Any));
 
-  static ASMJIT_INLINE const OpInfo* get(uint32_t instId, const X86Inst& instData, const Operand* opArray, uint32_t opCount) noexcept {
+  static ASMJIT_FORCEINLINE const OpInfo* get(uint32_t instId, const X86Inst& instData, const Operand* opArray, uint32_t opCount) noexcept {
     const X86Inst::CommonData& commonData = instData.getCommonData();
     if (!commonData.hasFixedRM()) {
       if (commonData.isUseXX()) return op_xx;
@@ -233,7 +231,7 @@ X86RAPass::~X86RAPass() noexcept {}
 
 void X86RAPass::onInit() noexcept {
   uint32_t archType = cc()->getArchType();
-  uint32_t baseRegCount = archType == ArchInfo::kTypeX86 ? 8 : 16;
+  uint32_t baseRegCount = archType == ArchInfo::kTypeX86 ? 8U : 16U;
 
   _archTraits[X86Reg::kGroupGp] |= RAArchTraits::kHasSwap;
 
@@ -244,10 +242,10 @@ void X86RAPass::onInit() noexcept {
   _buildPhysIndex();
 
   _availableRegCount = _physRegCount;
-  _availableRegs[X86Reg::kGroupGp ] = IntUtils::bits(_physRegCount.get(X86Reg::kGroupGp ));
-  _availableRegs[X86Reg::kGroupVec] = IntUtils::bits(_physRegCount.get(X86Reg::kGroupVec));
-  _availableRegs[X86Reg::kGroupMm ] = IntUtils::bits(_physRegCount.get(X86Reg::kGroupMm ));
-  _availableRegs[X86Reg::kGroupK  ] = IntUtils::bits(_physRegCount.get(X86Reg::kGroupK  ));
+  _availableRegs[X86Reg::kGroupGp ] = IntUtils::lsbMask<uint32_t>(_physRegCount.get(X86Reg::kGroupGp ));
+  _availableRegs[X86Reg::kGroupVec] = IntUtils::lsbMask<uint32_t>(_physRegCount.get(X86Reg::kGroupVec));
+  _availableRegs[X86Reg::kGroupMm ] = IntUtils::lsbMask<uint32_t>(_physRegCount.get(X86Reg::kGroupMm ));
+  _availableRegs[X86Reg::kGroupK  ] = IntUtils::lsbMask<uint32_t>(_physRegCount.get(X86Reg::kGroupK  ));
 
   // The architecture specific setup makes implicitly all registers available. So
   // make unavailable all registers that are special and cannot be used in general.
@@ -267,7 +265,7 @@ void X86RAPass::onDone() noexcept {}
 // [asmjit::X86RAPass - CFG - Build CFG]
 // ============================================================================
 
-static ASMJIT_INLINE uint64_t immMaskFromSize(uint32_t size) noexcept {
+static ASMJIT_FORCEINLINE uint64_t immMaskFromSize(uint32_t size) noexcept {
   ASMJIT_ASSERT(size > 0 && size < 256);
   static const uint64_t masks[] = {
     ASMJIT_UINT64_C(0x00000000000000FF), //   1
@@ -502,7 +500,7 @@ public:
       if (hasGpbHiConstraint) {
         for (uint32_t i = 0; i < ib.getTiedRegCount(); i++) {
           RATiedReg* tiedReg = ib[i];
-          tiedReg->allocableRegs &= tiedReg->hasFlag(RATiedReg::kX86Gpb) ? 0x0FU : 0xFFU;
+          tiedReg->_allocableRegs &= tiedReg->hasFlag(RATiedReg::kX86Gpb) ? 0x0FU : 0xFFU;
         }
       }
 
@@ -518,7 +516,7 @@ public:
           const Reg& reg = inst->getOp(0).as<Reg>();
           const Imm& imm = inst->getOp(1).as<Imm>();
 
-          const RAWorkReg* workReg = _pass->getWorkReg(ib[0]->workId);
+          const RAWorkReg* workReg = _pass->getWorkReg(ib[0]->getWorkId());
           uint32_t workRegSize = workReg->getInfo().getSize();
 
           switch (inst->getInstId()) {
@@ -658,10 +656,10 @@ public:
     }
 
     // Setup clobbered registers.
-    ib._clobbered[0] = IntUtils::bits(_pass->_physRegCount[0]) & ~fd.getPreservedRegs(0);
-    ib._clobbered[1] = IntUtils::bits(_pass->_physRegCount[1]) & ~fd.getPreservedRegs(1);
-    ib._clobbered[2] = IntUtils::bits(_pass->_physRegCount[2]) & ~fd.getPreservedRegs(2);
-    ib._clobbered[3] = IntUtils::bits(_pass->_physRegCount[3]) & ~fd.getPreservedRegs(3);
+    ib._clobbered[0] = IntUtils::lsbMask<uint32_t>(_pass->_physRegCount[0]) & ~fd.getPreservedRegs(0);
+    ib._clobbered[1] = IntUtils::lsbMask<uint32_t>(_pass->_physRegCount[1]) & ~fd.getPreservedRegs(1);
+    ib._clobbered[2] = IntUtils::lsbMask<uint32_t>(_pass->_physRegCount[2]) & ~fd.getPreservedRegs(2);
+    ib._clobbered[3] = IntUtils::lsbMask<uint32_t>(_pass->_physRegCount[3]) & ~fd.getPreservedRegs(3);
 
     // This block has function call(s).
     _pass->getFunc()->getFrame().updateCallStackSize(fd.getArgStackSize());
@@ -675,16 +673,16 @@ public:
 
     Imm imm(imm_);
     switch (arg.getTypeId()) {
-      case TypeId::kI8: imm.signExtend8Bits(); goto MovU32;
-      case TypeId::kU8: imm.zeroExtend8Bits(); goto MovU32;
-      case TypeId::kI16: imm.signExtend16Bits(); goto MovU32;
-      case TypeId::kU16: imm.zeroExtend16Bits(); goto MovU32;
+      case Type::kIdI8: imm.signExtend8Bits(); goto MovU32;
+      case Type::kIdU8: imm.zeroExtend8Bits(); goto MovU32;
+      case Type::kIdI16: imm.signExtend16Bits(); goto MovU32;
+      case Type::kIdU16: imm.zeroExtend16Bits(); goto MovU32;
 
-      case TypeId::kI32:
-      case TypeId::kU32:
+      case Type::kIdI32:
+      case Type::kIdU32:
 MovU32:
         imm.zeroExtend32Bits();
-        ASMJIT_PROPAGATE(cc()->_newReg(*out, TypeId::kU32, nullptr));
+        ASMJIT_PROPAGATE(cc()->_newReg(*out, Type::kIdU32, nullptr));
 
 MovAny:
         {
@@ -696,13 +694,13 @@ MovAny:
           return kErrorOk;
         }
 
-      case TypeId::kI64:
-      case TypeId::kU64:
+      case Type::kIdI64:
+      case Type::kIdU64:
         // Prefer smaller code, moving to GPD automatically zero extends in 64-bit mode.
         if (imm.isUInt32())
           goto MovU32;
 
-        ASMJIT_PROPAGATE(cc()->_newReg(*out, TypeId::kU64, nullptr));
+        ASMJIT_PROPAGATE(cc()->_newReg(*out, Type::kIdU64, nullptr));
         goto MovAny;
 
       default:
@@ -728,24 +726,24 @@ MovAny:
     // 64-bit on stack is done in two steps by pushing low and high parts
     // separately.
     switch (arg.getTypeId()) {
-      case TypeId::kI8: imm[0].signExtend8Bits(); goto MovU32;
-      case TypeId::kU8: imm[0].zeroExtend8Bits(); goto MovU32;
-      case TypeId::kI16: imm[0].signExtend16Bits(); goto MovU32;
-      case TypeId::kU16: imm[0].zeroExtend16Bits(); goto MovU32;
+      case Type::kIdI8: imm[0].signExtend8Bits(); goto MovU32;
+      case Type::kIdU8: imm[0].zeroExtend8Bits(); goto MovU32;
+      case Type::kIdI16: imm[0].signExtend16Bits(); goto MovU32;
+      case Type::kIdU16: imm[0].zeroExtend16Bits(); goto MovU32;
 
-      case TypeId::kI32:
-      case TypeId::kU32:
-      case TypeId::kF32:
+      case Type::kIdI32:
+      case Type::kIdU32:
+      case Type::kIdF32:
 MovU32:
         imm[0].zeroExtend32Bits();
         nMovs = 1;
         break;
 
-      case TypeId::kI64:
-      case TypeId::kU64:
-      case TypeId::kF64:
-      case TypeId::kMmx32:
-      case TypeId::kMmx64:
+      case Type::kIdI64:
+      case Type::kIdU64:
+      case Type::kIdF64:
+      case Type::kIdMmx32:
+      case Type::kIdMmx64:
         if (_is64Bit && imm[0].isInt32()) {
           mem.setSize(8);
           nMovs = 1;
@@ -765,7 +763,7 @@ MovU32:
       CBInst* inst;
       ASMJIT_PROPAGATE(newInst(&inst, X86Inst::kIdMov, X86OpInfo::op_w, noPhysIds, mem, imm[i]));
       cc()->addBefore(inst, call);
-      mem.addOffsetLo32(mem.getSize());
+      mem.addOffsetLo32(int32_t(mem.getSize()));
     }
 
     return kErrorOk;
@@ -785,49 +783,49 @@ MovU32:
 
     uint32_t dstTypeId = arg.getTypeId();
     switch (dstTypeId) {
-      case TypeId::kI64:
-      case TypeId::kU64:
+      case Type::kIdI64:
+      case Type::kIdU64:
         // Extend BYTE->QWORD (GP).
-        if (TypeId::isGpb(srcTypeId)) {
+        if (Type::isGpb(srcTypeId)) {
           r1.setX86RegT<X86Reg::kRegGpbLo>(srcPhysId);
 
-          instId = (dstTypeId == TypeId::kI64 && srcTypeId == TypeId::kI8) ? X86Inst::kIdMovsx : X86Inst::kIdMovzx;
+          instId = (dstTypeId == Type::kIdI64 && srcTypeId == Type::kIdI8) ? X86Inst::kIdMovsx : X86Inst::kIdMovzx;
           goto _ExtendMovGpXQ;
         }
 
         // Extend WORD->QWORD (GP).
-        if (TypeId::isGpw(srcTypeId)) {
+        if (Type::isGpw(srcTypeId)) {
           r1.setX86RegT<X86Reg::kRegGpw>(srcPhysId);
 
-          instId = (dstTypeId == TypeId::kI64 && srcTypeId == TypeId::kI16) ? X86Inst::kIdMovsx : X86Inst::kIdMovzx;
+          instId = (dstTypeId == Type::kIdI64 && srcTypeId == Type::kIdI16) ? X86Inst::kIdMovsx : X86Inst::kIdMovzx;
           goto _ExtendMovGpXQ;
         }
 
         // Extend DWORD->QWORD (GP).
-        if (TypeId::isGpd(srcTypeId)) {
+        if (Type::isGpd(srcTypeId)) {
           r1.setX86RegT<X86Reg::kRegGpd>(srcPhysId);
 
           instId = X86Inst::kIdMovsxd;
-          if (dstTypeId == TypeId::kI64 && srcTypeId == TypeId::kI32)
+          if (dstTypeId == Type::kIdI64 && srcTypeId == Type::kIdI32)
             goto _ExtendMovGpXQ;
           else
             goto _ZeroExtendGpDQ;
         }
 
         // Move QWORD (GP).
-        if (TypeId::isGpq(srcTypeId)) goto MovGpQ;
-        if (TypeId::isMmx(srcTypeId)) goto MovMmQ;
-        if (TypeId::isVec(srcTypeId)) goto MovXmmQ;
+        if (Type::isGpq(srcTypeId)) goto MovGpQ;
+        if (Type::isMmx(srcTypeId)) goto MovMmQ;
+        if (Type::isVec(srcTypeId)) goto MovXmmQ;
         break;
 
-      case TypeId::kI32:
-      case TypeId::kU32:
-      case TypeId::kI16:
-      case TypeId::kU16:
+      case Type::kIdI32:
+      case Type::kIdU32:
+      case Type::kIdI16:
+      case Type::kIdU16:
         // DWORD <- WORD (Zero|Sign Extend).
-        if (TypeId::isGpw(srcTypeId)) {
-          bool isDstSigned = dstTypeId == TypeId::kI16 || dstTypeId == TypeId::kI32;
-          bool isSrcSigned = srcTypeId == TypeId::kI8  || srcTypeId == TypeId::kI16;
+        if (Type::isGpw(srcTypeId)) {
+          bool isDstSigned = dstTypeId == Type::kIdI16 || dstTypeId == Type::kIdI32;
+          bool isSrcSigned = srcTypeId == Type::kIdI8  || srcTypeId == Type::kIdI16;
 
           r1.setX86RegT<X86Reg::kRegGpw>(srcPhysId);
           instId = isDstSigned && isSrcSigned ? X86Inst::kIdMovsx : X86Inst::kIdMovzx;
@@ -835,9 +833,9 @@ MovU32:
         }
 
         // DWORD <- BYTE (Zero|Sign Extend).
-        if (TypeId::isGpb(srcTypeId)) {
-          bool isDstSigned = dstTypeId == TypeId::kI16 || dstTypeId == TypeId::kI32;
-          bool isSrcSigned = srcTypeId == TypeId::kI8  || srcTypeId == TypeId::kI16;
+        if (Type::isGpb(srcTypeId)) {
+          bool isDstSigned = dstTypeId == Type::kIdI16 || dstTypeId == Type::kIdI32;
+          bool isSrcSigned = srcTypeId == Type::kIdI8  || srcTypeId == Type::kIdI16;
 
           r1.setX86RegT<X86Reg::kRegGpbLo>(srcPhysId);
           instId = isDstSigned && isSrcSigned ? X86Inst::kIdMovsx : X86Inst::kIdMovzx;
@@ -845,17 +843,17 @@ MovU32:
         }
         ASMJIT_FALLTHROUGH;
 
-      case TypeId::kI8:
-      case TypeId::kU8:
-        if (TypeId::isInt(srcTypeId)) goto MovGpD;
-        if (TypeId::isMmx(srcTypeId)) goto MovMmD;
-        if (TypeId::isVec(srcTypeId)) goto MovXmmD;
+      case Type::kIdI8:
+      case Type::kIdU8:
+        if (Type::isInt(srcTypeId)) goto MovGpD;
+        if (Type::isMmx(srcTypeId)) goto MovMmD;
+        if (Type::isVec(srcTypeId)) goto MovXmmD;
         break;
 
-      case TypeId::kMmx32:
-      case TypeId::kMmx64:
+      case Type::kIdMmx32:
+      case Type::kIdMmx64:
         // Extend BYTE->QWORD (GP).
-        if (TypeId::isGpb(srcTypeId)) {
+        if (Type::isGpb(srcTypeId)) {
           r1.setX86RegT<X86Reg::kRegGpbLo>(srcPhysId);
 
           instId = X86Inst::kIdMovzx;
@@ -863,27 +861,27 @@ MovU32:
         }
 
         // Extend WORD->QWORD (GP).
-        if (TypeId::isGpw(srcTypeId)) {
+        if (Type::isGpw(srcTypeId)) {
           r1.setX86RegT<X86Reg::kRegGpw>(srcPhysId);
 
           instId = X86Inst::kIdMovzx;
           goto _ExtendMovGpXQ;
         }
 
-        if (TypeId::isGpd(srcTypeId)) goto _ExtendMovGpDQ;
-        if (TypeId::isGpq(srcTypeId)) goto MovGpQ;
-        if (TypeId::isMmx(srcTypeId)) goto MovMmQ;
-        if (TypeId::isVec(srcTypeId)) goto MovXmmQ;
+        if (Type::isGpd(srcTypeId)) goto _ExtendMovGpDQ;
+        if (Type::isGpq(srcTypeId)) goto MovGpQ;
+        if (Type::isMmx(srcTypeId)) goto MovMmQ;
+        if (Type::isVec(srcTypeId)) goto MovXmmQ;
         break;
 
-      case TypeId::kF32:
-      case TypeId::kF32x1:
-        if (TypeId::isVec(srcTypeId)) goto MovXmmD;
+      case Type::kIdF32:
+      case Type::kIdF32x1:
+        if (Type::isVec(srcTypeId)) goto MovXmmD;
         break;
 
-      case TypeId::kF64:
-      case TypeId::kF64x1:
-        if (TypeId::isVec(srcTypeId)) goto MovXmmQ;
+      case Type::kIdF64:
+      case Type::kIdF64x1:
+        if (Type::isVec(srcTypeId)) goto MovXmmQ;
         break;
 
       default:
@@ -1006,7 +1004,7 @@ Error X86RAPass::buildCFG() noexcept {
 }
 
 #if 0
-ASMJIT_INLINE void X86CallAlloc::allocImmsOnStack() {
+ASMJIT_FORCEINLINE void X86CallAlloc::allocImmsOnStack() {
   CCFuncCall* node = getNode();
   FuncDetail& fd = node->getDetail();
 
@@ -1032,7 +1030,7 @@ ASMJIT_INLINE void X86CallAlloc::allocImmsOnStack() {
 }
 
 template<int C>
-ASMJIT_INLINE void X86CallAlloc::duplicate() {
+ASMJIT_FORCEINLINE void X86CallAlloc::duplicate() {
   TiedReg* tiedRegs = getTiedRegsByGroup(C);
   uint32_t tiedCount = getTiedCountByGroup(C);
 
@@ -1064,7 +1062,7 @@ ASMJIT_INLINE void X86CallAlloc::duplicate() {
 // [asmjit::X86CallAlloc - Ret]
 // ============================================================================
 
-ASMJIT_INLINE void X86CallAlloc::ret() {
+ASMJIT_FORCEINLINE void X86CallAlloc::ret() {
   CCFuncCall* node = getNode();
   FuncDetail& fd = node->getDetail();
   Operand_* rets = node->_ret;
@@ -1096,8 +1094,8 @@ ASMJIT_INLINE void X86CallAlloc::ret() {
           _context->attach<X86Reg::kGroupVec>(vreg, regId, true);
         }
         else {
-          uint32_t elementId = TypeId::elementOf(vreg->getTypeId());
-          uint32_t size = (elementId == TypeId::kF32) ? 4 : 8;
+          uint32_t elementId = Type::baseOf(vreg->getTypeId());
+          uint32_t size = (elementId == Type::kIdF32) ? 4 : 8;
 
           X86Mem m = _context->getVarMem(vreg);
           m.setSize(size);
@@ -1131,9 +1129,9 @@ static Error X86RAPass_translateRet(X86RAPass* self, CCFuncRet* rNode, CBLabel* 
         VirtReg* vreg = tied->vreg;
         X86Mem m(self->getVarMem(vreg));
 
-        uint32_t elementId = TypeId::elementOf(vreg->getTypeId());
-        m.setSize(elementId == TypeId::kF32 ? 4 :
-                  elementId == TypeId::kF64 ? 8 :
+        uint32_t elementId = Type::baseOf(vreg->getTypeId());
+        m.setSize(elementId == Type::kIdF32 ? 4 :
+                  elementId == Type::kIdF64 ? 8 :
                   (tied->flags & TiedReg::kX86Fld4) ? 4 : 8);
 
         cc->fld(m);
@@ -1208,9 +1206,9 @@ Error X86RAPass::onEmitSwap(uint32_t aWorkId, uint32_t aPhysId, uint32_t bWorkId
   RAWorkReg* waReg = getWorkReg(aWorkId);
   RAWorkReg* wbReg = getWorkReg(bWorkId);
 
-  uint32_t is64 = std::max(waReg->getTypeId(), wbReg->getTypeId()) >= TypeId::kI64;
-  uint32_t sign = is64 ? uint32_t(X86RegTraits<X86Reg::kRegGpq>::kSignature)
-                       : uint32_t(X86RegTraits<X86Reg::kRegGpd>::kSignature);
+  bool is64Bit = std::max(waReg->getTypeId(), wbReg->getTypeId()) >= Type::kIdI64;
+  uint32_t sign = is64Bit ? uint32_t(X86RegTraits<X86Reg::kRegGpq>::kSignature)
+                          : uint32_t(X86RegTraits<X86Reg::kRegGpd>::kSignature);
 
 #if !defined(ASMJIT_DISABLE_LOGGING)
   if (_loggerOptions & Logger::kOptionAnnotate) {
@@ -1258,10 +1256,7 @@ Error X86RAPass::onEmitJump(const Label& label) noexcept {
   return cc()->jmp(label);
 }
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // ASMJIT_BUILD_X86 && !ASMJIT_DISABLE_COMPILER

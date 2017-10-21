@@ -8,17 +8,14 @@
 #ifndef _ASMJIT_X86_X86INTERNAL_P_H
 #define _ASMJIT_X86_X86INTERNAL_P_H
 
-#include "../asmjit_build.h"
+#include "../core/build.h"
 
 // [Dependencies]
-#include "../base/func.h"
+#include "../core/func.h"
 #include "../x86/x86emitter.h"
 #include "../x86/x86operand.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 //! \addtogroup asmjit_x86
 //! \{
@@ -73,10 +70,7 @@ struct X86Internal {
 
 //! \}
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // _ASMJIT_X86_X86INTERNAL_P_H

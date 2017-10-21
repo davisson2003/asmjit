@@ -9,7 +9,7 @@
 #define _ASMJIT_X86_H
 
 // [Dependencies]
-#include "./base.h"
+#include "./core.h"
 
 #include "./x86/x86assembler.h"
 #include "./x86/x86builder.h"

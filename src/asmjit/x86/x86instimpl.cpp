@@ -8,84 +8,81 @@
 #define ASMJIT_EXPORTS
 
 // [Dependencies]
-#include "../base/intutils.h"
-#include "../base/misc_p.h"
+#include "../core/intutils.h"
+#include "../core/misc_p.h"
 #include "../x86/x86instimpl_p.h"
 #include "../x86/x86operand.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 // ============================================================================
 // [asmjit::X86InstImpl - Validate]
 // ============================================================================
 
 #if !defined(ASMJIT_DISABLE_INST_API)
-template<uint32_t RegType>
+template<uint32_t REG_TYPE>
 struct X86OpTypeFromRegTypeT {
   enum {
-    kValue = (RegType == X86Reg::kRegGpbLo) ? X86Inst::kOpGpbLo :
-             (RegType == X86Reg::kRegGpbHi) ? X86Inst::kOpGpbHi :
-             (RegType == X86Reg::kRegGpw  ) ? X86Inst::kOpGpw   :
-             (RegType == X86Reg::kRegGpd  ) ? X86Inst::kOpGpd   :
-             (RegType == X86Reg::kRegGpq  ) ? X86Inst::kOpGpq   :
-             (RegType == X86Reg::kRegXmm  ) ? X86Inst::kOpXmm   :
-             (RegType == X86Reg::kRegYmm  ) ? X86Inst::kOpYmm   :
-             (RegType == X86Reg::kRegZmm  ) ? X86Inst::kOpZmm   :
-             (RegType == X86Reg::kRegRip  ) ? X86Inst::kOpNone  :
-             (RegType == X86Reg::kRegSeg  ) ? X86Inst::kOpSeg   :
-             (RegType == X86Reg::kRegFp   ) ? X86Inst::kOpFp    :
-             (RegType == X86Reg::kRegMm   ) ? X86Inst::kOpMm    :
-             (RegType == X86Reg::kRegK    ) ? X86Inst::kOpK     :
-             (RegType == X86Reg::kRegBnd  ) ? X86Inst::kOpBnd   :
-             (RegType == X86Reg::kRegCr   ) ? X86Inst::kOpCr    :
-             (RegType == X86Reg::kRegDr   ) ? X86Inst::kOpDr    : X86Inst::kOpNone
+    kValue = (REG_TYPE == X86Reg::kRegGpbLo) ? X86Inst::kOpGpbLo :
+             (REG_TYPE == X86Reg::kRegGpbHi) ? X86Inst::kOpGpbHi :
+             (REG_TYPE == X86Reg::kRegGpw  ) ? X86Inst::kOpGpw   :
+             (REG_TYPE == X86Reg::kRegGpd  ) ? X86Inst::kOpGpd   :
+             (REG_TYPE == X86Reg::kRegGpq  ) ? X86Inst::kOpGpq   :
+             (REG_TYPE == X86Reg::kRegXmm  ) ? X86Inst::kOpXmm   :
+             (REG_TYPE == X86Reg::kRegYmm  ) ? X86Inst::kOpYmm   :
+             (REG_TYPE == X86Reg::kRegZmm  ) ? X86Inst::kOpZmm   :
+             (REG_TYPE == X86Reg::kRegRip  ) ? X86Inst::kOpNone  :
+             (REG_TYPE == X86Reg::kRegSeg  ) ? X86Inst::kOpSeg   :
+             (REG_TYPE == X86Reg::kRegFp   ) ? X86Inst::kOpFp    :
+             (REG_TYPE == X86Reg::kRegMm   ) ? X86Inst::kOpMm    :
+             (REG_TYPE == X86Reg::kRegK    ) ? X86Inst::kOpK     :
+             (REG_TYPE == X86Reg::kRegBnd  ) ? X86Inst::kOpBnd   :
+             (REG_TYPE == X86Reg::kRegCr   ) ? X86Inst::kOpCr    :
+             (REG_TYPE == X86Reg::kRegDr   ) ? X86Inst::kOpDr    : X86Inst::kOpNone
   };
 };
 
-template<uint32_t RegType>
+template<uint32_t REG_TYPE>
 struct X86RegMaskFromRegTypeT {
   enum : uint32_t {
-    kMask = (RegType == X86Reg::kRegGpbLo) ? 0x0000000FU :
-            (RegType == X86Reg::kRegGpbHi) ? 0x0000000FU :
-            (RegType == X86Reg::kRegGpw  ) ? 0x000000FFU :
-            (RegType == X86Reg::kRegGpd  ) ? 0x000000FFU :
-            (RegType == X86Reg::kRegGpq  ) ? 0x000000FFU :
-            (RegType == X86Reg::kRegXmm  ) ? 0x000000FFU :
-            (RegType == X86Reg::kRegYmm  ) ? 0x000000FFU :
-            (RegType == X86Reg::kRegZmm  ) ? 0x000000FFU :
-            (RegType == X86Reg::kRegRip  ) ? 0x00000001U :
-            (RegType == X86Reg::kRegSeg  ) ? 0x0000007EU : // [ES|CS|SS|DS|FS|GS]
-            (RegType == X86Reg::kRegFp   ) ? 0x000000FFU :
-            (RegType == X86Reg::kRegMm   ) ? 0x000000FFU :
-            (RegType == X86Reg::kRegK    ) ? 0x000000FFU :
-            (RegType == X86Reg::kRegBnd  ) ? 0x0000000FU :
-            (RegType == X86Reg::kRegCr   ) ? 0x0000FFFFU :
-            (RegType == X86Reg::kRegDr   ) ? 0x000000FFU : X86Inst::kOpNone
+    kMask = (REG_TYPE == X86Reg::kRegGpbLo) ? 0x0000000FU :
+            (REG_TYPE == X86Reg::kRegGpbHi) ? 0x0000000FU :
+            (REG_TYPE == X86Reg::kRegGpw  ) ? 0x000000FFU :
+            (REG_TYPE == X86Reg::kRegGpd  ) ? 0x000000FFU :
+            (REG_TYPE == X86Reg::kRegGpq  ) ? 0x000000FFU :
+            (REG_TYPE == X86Reg::kRegXmm  ) ? 0x000000FFU :
+            (REG_TYPE == X86Reg::kRegYmm  ) ? 0x000000FFU :
+            (REG_TYPE == X86Reg::kRegZmm  ) ? 0x000000FFU :
+            (REG_TYPE == X86Reg::kRegRip  ) ? 0x00000001U :
+            (REG_TYPE == X86Reg::kRegSeg  ) ? 0x0000007EU : // [ES|CS|SS|DS|FS|GS]
+            (REG_TYPE == X86Reg::kRegFp   ) ? 0x000000FFU :
+            (REG_TYPE == X86Reg::kRegMm   ) ? 0x000000FFU :
+            (REG_TYPE == X86Reg::kRegK    ) ? 0x000000FFU :
+            (REG_TYPE == X86Reg::kRegBnd  ) ? 0x0000000FU :
+            (REG_TYPE == X86Reg::kRegCr   ) ? 0x0000FFFFU :
+            (REG_TYPE == X86Reg::kRegDr   ) ? 0x000000FFU : X86Inst::kOpNone
   };
 };
 
-template<uint32_t RegType>
+template<uint32_t REG_TYPE>
 struct X64RegMaskFromRegTypeT {
   enum : uint32_t {
-    kMask = (RegType == X86Reg::kRegGpbLo) ? 0x0000FFFFU :
-            (RegType == X86Reg::kRegGpbHi) ? 0x0000000FU :
-            (RegType == X86Reg::kRegGpw  ) ? 0x0000FFFFU :
-            (RegType == X86Reg::kRegGpd  ) ? 0x0000FFFFU :
-            (RegType == X86Reg::kRegGpq  ) ? 0x0000FFFFU :
-            (RegType == X86Reg::kRegXmm  ) ? 0xFFFFFFFFU :
-            (RegType == X86Reg::kRegYmm  ) ? 0xFFFFFFFFU :
-            (RegType == X86Reg::kRegZmm  ) ? 0xFFFFFFFFU :
-            (RegType == X86Reg::kRegRip  ) ? 0x00000001U :
-            (RegType == X86Reg::kRegSeg  ) ? 0x0000007EU : // [ES|CS|SS|DS|FS|GS]
-            (RegType == X86Reg::kRegFp   ) ? 0x000000FFU :
-            (RegType == X86Reg::kRegMm   ) ? 0x000000FFU :
-            (RegType == X86Reg::kRegK    ) ? 0x000000FFU :
-            (RegType == X86Reg::kRegBnd  ) ? 0x0000000FU :
-            (RegType == X86Reg::kRegCr   ) ? 0x0000FFFFU :
-            (RegType == X86Reg::kRegDr   ) ? 0x0000FFFFU : X86Inst::kOpNone
+    kMask = (REG_TYPE == X86Reg::kRegGpbLo) ? 0x0000FFFFU :
+            (REG_TYPE == X86Reg::kRegGpbHi) ? 0x0000000FU :
+            (REG_TYPE == X86Reg::kRegGpw  ) ? 0x0000FFFFU :
+            (REG_TYPE == X86Reg::kRegGpd  ) ? 0x0000FFFFU :
+            (REG_TYPE == X86Reg::kRegGpq  ) ? 0x0000FFFFU :
+            (REG_TYPE == X86Reg::kRegXmm  ) ? 0xFFFFFFFFU :
+            (REG_TYPE == X86Reg::kRegYmm  ) ? 0xFFFFFFFFU :
+            (REG_TYPE == X86Reg::kRegZmm  ) ? 0xFFFFFFFFU :
+            (REG_TYPE == X86Reg::kRegRip  ) ? 0x00000001U :
+            (REG_TYPE == X86Reg::kRegSeg  ) ? 0x0000007EU : // [ES|CS|SS|DS|FS|GS]
+            (REG_TYPE == X86Reg::kRegFp   ) ? 0x000000FFU :
+            (REG_TYPE == X86Reg::kRegMm   ) ? 0x000000FFU :
+            (REG_TYPE == X86Reg::kRegK    ) ? 0x000000FFU :
+            (REG_TYPE == X86Reg::kRegBnd  ) ? 0x0000000FU :
+            (REG_TYPE == X86Reg::kRegCr   ) ? 0x0000FFFFU :
+            (REG_TYPE == X86Reg::kRegDr   ) ? 0x0000FFFFU : X86Inst::kOpNone
   };
 };
 
@@ -112,11 +109,11 @@ static const X86ValidationData _x64ValidationData = {
   (1U << X86Reg::kRegGpd) | (1U << X86Reg::kRegGpq) | (1U << X86Reg::kRegXmm) | (1U << X86Reg::kRegYmm) | (1U << X86Reg::kRegZmm)
 };
 
-static ASMJIT_INLINE bool x86IsZmmOrM512(const Operand_& op) noexcept {
+static ASMJIT_FORCEINLINE bool x86IsZmmOrM512(const Operand_& op) noexcept {
   return X86Reg::isZmm(op) || (op.isMem() && op.getSize() == 64);
 }
 
-static ASMJIT_INLINE bool x86CheckOSig(const X86Inst::OSignature& op, const X86Inst::OSignature& ref, bool& immOutOfRange) noexcept {
+static ASMJIT_FORCEINLINE bool x86CheckOSig(const X86Inst::OSignature& op, const X86Inst::OSignature& ref, bool& immOutOfRange) noexcept {
   // Fail if operand types are incompatible.
   uint32_t opFlags = op.flags;
   if ((opFlags & ref.flags) == 0) {
@@ -256,11 +253,10 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::validate(uint32_t archType, const Inst::Det
           if (ASMJIT_UNLIKELY(regId >= 32))
             return DebugUtils::errored(kErrorInvalidPhysId);
 
-          regMask = IntUtils::mask(regId);
-          if (ASMJIT_UNLIKELY((vd->allowedRegMask[regType] & regMask) == 0))
+          if (ASMJIT_UNLIKELY(IntUtils::bitTest(vd->allowedRegMask[regType], regId) == 0))
             return DebugUtils::errored(kErrorInvalidPhysId);
 
-          combinedRegMask |= regMask;
+          combinedRegMask |= IntUtils::mask(regId);
         }
         else {
           regMask = 0xFFFFFFFFU;
@@ -656,6 +652,7 @@ ASMJIT_FAVOR_SIZE static uint32_t x86GetRegTypesMask(const Operand_* operands, u
 
 ASMJIT_FAVOR_SIZE Error X86InstImpl::queryCpuFeatures(uint32_t archType, const Inst::Detail& detail, const Operand_* operands, uint32_t count, CpuFeatures& out) noexcept {
   // Only called when `archType` matches X86 family.
+  ASMJIT_UNUSED(archType);
   ASMJIT_ASSERT(ArchInfo::isX86Family(archType));
 
   // Get the instruction data.
@@ -764,7 +761,4 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::queryCpuFeatures(uint32_t archType, const I
 }
 #endif
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE

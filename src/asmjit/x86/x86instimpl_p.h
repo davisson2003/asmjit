@@ -11,10 +11,7 @@
 // [Dependencies]
 #include "../x86/x86inst.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 //! \addtogroup asmjit_x86
 //! \{
@@ -38,10 +35,7 @@ struct X86InstImpl {
 
 //! \}
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // _ASMJIT_X86_X86INSTIMPL_P_H

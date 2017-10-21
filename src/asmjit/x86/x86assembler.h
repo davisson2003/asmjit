@@ -9,14 +9,11 @@
 #define _ASMJIT_X86_X86ASSEMBLER_H
 
 // [Dependencies]
-#include "../base/assembler.h"
+#include "../core/assembler.h"
 #include "../x86/x86emitter.h"
 #include "../x86/x86operand.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 //! \addtogroup asmjit_x86
 //! \{
@@ -32,6 +29,7 @@ class ASMJIT_VIRTAPI X86Assembler
   : public Assembler,
     public X86EmitterImplicitT<X86Assembler> {
 public:
+  ASMJIT_NONCOPYABLE(X86Assembler)
   typedef Assembler Base;
 
   // --------------------------------------------------------------------------
@@ -46,9 +44,9 @@ public:
   // --------------------------------------------------------------------------
 
   //! Implicit cast to `X86Emitter&`.
-  ASMJIT_INLINE operator X86Emitter&() noexcept { return *as<X86Emitter>(); }
+  inline operator X86Emitter&() noexcept { return *as<X86Emitter>(); }
   //! Implicit cast to `X86Emitter&` (const).
-  ASMJIT_INLINE operator const X86Emitter&() const noexcept { return *as<X86Emitter>(); }
+  inline operator const X86Emitter&() const noexcept { return *as<X86Emitter>(); }
 
   // --------------------------------------------------------------------------
   // [Internal]
@@ -58,8 +56,8 @@ public:
   // is used to decide whether to emit address-override (67H) prefix based on
   // the memory BASE+INDEX registers. It's either `kX86MemInfo_67H_X86` or
   // `kX86MemInfo_67H_X64`.
-  ASMJIT_INLINE uint32_t _getAddressOverrideMask() const noexcept { return _privateData; }
-  ASMJIT_INLINE void _setAddressOverrideMask(uint32_t m) noexcept { _privateData = m; }
+  inline uint32_t _getAddressOverrideMask() const noexcept { return _privateData; }
+  inline void _setAddressOverrideMask(uint32_t m) noexcept { _privateData = m; }
 
   // --------------------------------------------------------------------------
   // [Emit (Low-Level)]
@@ -85,10 +83,7 @@ public:
 
 //! \}
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // _ASMJIT_X86_X86ASSEMBLER_H

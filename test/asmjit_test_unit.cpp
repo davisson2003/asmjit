@@ -37,10 +37,10 @@ static void dumpCpu(void) {
   INFO("");
 
   // --------------------------------------------------------------------------
-  // [ARM / ARM64]
+  // [ARM]
   // --------------------------------------------------------------------------
 
-#if ASMJIT_ARCH_ARM32 || ASMJIT_ARCH_ARM64
+#if ASMJIT_ARCH_ARM
   static const DumpCpuFeature armFeaturesList[] = {
     { CpuInfo::kArmFeatureV6              , "ARMv6"            },
     { CpuInfo::kArmFeatureV7              , "ARMv7"            },
@@ -70,7 +70,7 @@ static void dumpCpu(void) {
   // [X86 / X64]
   // --------------------------------------------------------------------------
 
-#if ASMJIT_ARCH_X86 || ASMJIT_ARCH_X64
+#if ASMJIT_ARCH_X86
   static const DumpCpuFeature x86FeaturesList[] = {
     { CpuInfo::kX86FeatureNX              , "NX"               },
     { CpuInfo::kX86FeatureMT              , "MT"               },

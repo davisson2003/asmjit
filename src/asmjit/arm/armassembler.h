@@ -9,14 +9,11 @@
 #define _ASMJIT_ARM_ARMASSEMBLER_H
 
 // [Dependencies]
-#include "../base/assembler.h"
+#include "../core/assembler.h"
 #include "../arm/armemitter.h"
 #include "../arm/armoperand.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 //! \addtogroup asmjit_arm
 //! \{
@@ -78,10 +75,7 @@ public:
 
 //! \}
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // _ASMJIT_ARM_ARMASSEMBLER_H

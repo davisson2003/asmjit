@@ -9,15 +9,12 @@
 #define _ASMJIT_X86_X86EMITTER_H
 
 // [Dependencies]
-#include "../base/codeemitter.h"
-#include "../base/intutils.h"
+#include "../core/codeemitter.h"
+#include "../core/intutils.h"
 #include "../x86/x86inst.h"
 #include "../x86/x86operand.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 //! \addtogroup asmjit_x86
 //! \{
@@ -5091,10 +5088,7 @@ class X86Emitter : public CodeEmitter, public X86EmitterImplicitT<X86Emitter> {
 
 //! \}
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // _ASMJIT_X86_X86EMITTER_H

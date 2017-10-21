@@ -9,12 +9,9 @@
 #define _ASMJIT_ARM_ARMGLOBALS_H
 
 // [Dependencies]
-#include "../base/globals.h"
+#include "../core/globals.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 namespace arm {
 
 //! \addtogroup asmjit_arm
@@ -115,10 +112,7 @@ enum BarrierOption : uint32_t {
 //! \}
 
 } // arm namespace
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // _ASMJIT_ARM_ARMGLOBALS_H

@@ -8,22 +8,19 @@
 #define ASMJIT_EXPORTS
 
 // [Guard]
-#include "../asmjit_build.h"
+#include "../core/build.h"
 #if defined(ASMJIT_BUILD_ARM)
 
 // [Dependencies]
-#include "../base/cpuinfo.h"
-#include "../base/intutils.h"
-#include "../base/logging.h"
-#include "../base/memutils.h"
-#include "../base/misc_p.h"
+#include "../core/cpuinfo.h"
+#include "../core/intutils.h"
+#include "../core/logging.h"
+#include "../core/memutils.h"
+#include "../core/misc_p.h"
 #include "../arm/armassembler.h"
 #include "../arm/armlogging_p.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 // ============================================================================
 // [asmjit::A32Assembler - Construction / Destruction]
@@ -86,10 +83,10 @@ Error A32Assembler::_emit(uint32_t instId, const Operand_& o0, const Operand_& o
       goto InvalidInstruction;
 
     // Strict validation.
-#if !defined(ASMJIT_DISABLE_INST_API)
-    if (hasEmitterOption(kOptionStrictValidation))
-      ASMJIT_PROPAGATE(_validate(instId, o0, o1, o2, o3));
-#endif
+    #if !defined(ASMJIT_DISABLE_INST_API)
+      if (hasEmitterOption(kOptionStrictValidation))
+        ASMJIT_PROPAGATE(_validate(instId, o0, o1, o2, o3));
+    #endif
   }
 
   // --------------------------------------------------------------------------
@@ -106,10 +103,10 @@ Error A32Assembler::_emit(uint32_t instId, const Operand_& o0, const Operand_& o
   // --------------------------------------------------------------------------
 
 EmitDone:
-#if !defined(ASMJIT_DISABLE_LOGGING)
-  if (ASMJIT_UNLIKELY(hasEmitterOption(kOptionLoggingEnabled)))
-    _emitLog(instId, options, o0, o1, o2, o3, relSize, imLen, cursor);
-#endif
+  #if !defined(ASMJIT_DISABLE_LOGGING)
+    if (ASMJIT_UNLIKELY(hasEmitterOption(kOptionLoggingEnabled)))
+      _emitLog(instId, options, o0, o1, o2, o3, relSize, imLen, cursor);
+  #endif
 
   resetInstOptions();
   resetInlineComment();
@@ -142,10 +139,10 @@ Error A32Assembler::align(uint32_t mode, uint32_t alignment) {
   if (ASMJIT_UNLIKELY(!_code))
     return DebugUtils::errored(kErrorNotInitialized);
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
-  if (ASMJIT_UNLIKELY(hasEmitterOption(kOptionLoggingEnabled)))
-    _code->_logger->logf("%s.align %u\n", _code->_logger->getIndentation(), alignment);
-#endif
+  #if !defined(ASMJIT_DISABLE_LOGGING)
+    if (ASMJIT_UNLIKELY(hasEmitterOption(kOptionLoggingEnabled)))
+      _code->_logger->logf("%s.align %u\n", _code->_logger->getIndentation(), alignment);
+  #endif
 
   if (ASMJIT_UNLIKELY(mode >= kAlignCount))
     return reportError(DebugUtils::errored(kErrorInvalidArgument));
@@ -157,7 +154,7 @@ Error A32Assembler::align(uint32_t mode, uint32_t alignment) {
     return reportError(DebugUtils::errored(kErrorInvalidArgument));
 
   size_t offset = getOffset();
-  uint32_t i = uint32_t(IntUtils::alignDiff<size_t>(offset, alignment));
+  uint32_t i = uint32_t(IntUtils::alignUpDiff<size_t>(offset, alignment));
 
   if (i == 0)
     return kErrorOk;
@@ -237,10 +234,7 @@ Error A32Assembler::onDetach(CodeHolder* code) noexcept {
   return Base::onDetach(code);
 }
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // ASMJIT_BUILD_ARM

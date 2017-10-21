@@ -9,14 +9,12 @@
 #define _ASMJIT_ARM_ARMOPERAND_H
 
 // [Dependencies]
-#include "../base/arch.h"
-#include "../base/operand.h"
+#include "../core/arch.h"
+#include "../core/operand.h"
+#include "../core/type.h"
 #include "../arm/armglobals.h"
 
-// [Api-Begin]
-#include "../asmjit_apibegin.h"
-
-namespace asmjit {
+ASMJIT_BEGIN_NAMESPACE
 
 // ============================================================================
 // [Forward Declarations]
@@ -47,12 +45,12 @@ class ArmVecV;
 //! used by asmjit to setup register information on-the-fly and to populate
 //! tables that contain register information (this way it's possible to change
 //! register types and groups without having to reorder these tables).
-template<uint32_t RegType>
+template<uint32_t REG_TYPE>
 struct ArmRegTraits {
   enum : uint32_t {
     kValid     = 0,                      //!< RegType is not valid by default.
     kCount     = 0,                      //!< Count of registers (0 if none).
-    kTypeId    = TypeId::kVoid,          //!< Everything is void by default.
+    kTypeId    = Type::kIdVoid,          //!< Everything is void by default.
 
     kType      = 0,                      //!< Zero type by default.
     kGroup     = 0,                      //!< Zero group by default.
@@ -64,11 +62,11 @@ struct ArmRegTraits {
 // <--------------------+------------+---------+--------------------+--------------------+---+---+----------------+
 //                      |  Traits-T  |  Reg-T  |      Reg-Type      |      Reg-Group     |Sz |Cnt|     TypeId     |
 // <--------------------+------------+---------+--------------------+--------------------+---+---+----------------+
-ASMJIT_DEFINE_REG_TRAITS(ArmRegTraits, ArmGpw  , Reg::kRegGp32      , Reg::kGroupGp      , 4 , 32, TypeId::kI32   );
-ASMJIT_DEFINE_REG_TRAITS(ArmRegTraits, ArmGpx  , Reg::kRegGp64      , Reg::kGroupGp      , 8 , 32, TypeId::kI64   );
-ASMJIT_DEFINE_REG_TRAITS(ArmRegTraits, ArmVecS , Reg::kRegVec32     , Reg::kGroupVec     , 4 , 32, TypeId::kI32x1 );
-ASMJIT_DEFINE_REG_TRAITS(ArmRegTraits, ArmVecD , Reg::kRegVec64     , Reg::kGroupVec     , 8 , 32, TypeId::kI32x2 );
-ASMJIT_DEFINE_REG_TRAITS(ArmRegTraits, ArmVecV , Reg::kRegVec128    , Reg::kGroupVec     , 16, 32, TypeId::kI32x4 );
+ASMJIT_DEFINE_REG_TRAITS(ArmRegTraits, ArmGpw  , Reg::kRegGp32      , Reg::kGroupGp      , 4 , 32, Type::kIdI32   );
+ASMJIT_DEFINE_REG_TRAITS(ArmRegTraits, ArmGpx  , Reg::kRegGp64      , Reg::kGroupGp      , 8 , 32, Type::kIdI64   );
+ASMJIT_DEFINE_REG_TRAITS(ArmRegTraits, ArmVecS , Reg::kRegVec32     , Reg::kGroupVec     , 4 , 32, Type::kIdI32x1 );
+ASMJIT_DEFINE_REG_TRAITS(ArmRegTraits, ArmVecD , Reg::kRegVec64     , Reg::kGroupVec     , 8 , 32, Type::kIdI32x2 );
+ASMJIT_DEFINE_REG_TRAITS(ArmRegTraits, ArmVecV , Reg::kRegVec128    , Reg::kGroupVec     , 16, 32, Type::kIdI32x4 );
 
 // ============================================================================
 // [asmjit::ArmReg]
@@ -115,37 +113,37 @@ public:
   //! Get whether the register is a VEC-V register (128-bit).
   constexpr bool isVecV() const noexcept { return hasSignature(X86RegTraits<kRegVecV>::kSignature); }
 
-  template<uint32_t Type>
-  ASMJIT_INLINE void setArmRegT(uint32_t id) noexcept {
-    setSignature(ArmRegTraits<Type>::kSignature);
+  template<uint32_t REG_TYPE>
+  inline void setArmRegT(uint32_t id) noexcept {
+    setSignature(ArmRegTraits<REG_TYPE>::kSignature);
     setId(id);
   }
 
-  ASMJIT_INLINE void setTypeAndId(uint32_t regType, uint32_t id) noexcept {
+  inline void setTypeAndId(uint32_t regType, uint32_t id) noexcept {
     ASMJIT_ASSERT(regType < kRegCount);
     setSignature(signatureOf(regType));
     setId(id);
   }
 
-  static ASMJIT_INLINE uint32_t groupOf(uint32_t regType) noexcept;
-  template<uint32_t Type>
-  static ASMJIT_INLINE uint32_t groupOfT() noexcept { return ArmRegTraits<Type>::kGroup; }
+  static inline uint32_t groupOf(uint32_t regType) noexcept;
+  template<uint32_t REG_TYPE>
+  static inline uint32_t groupOfT() noexcept { return ArmRegTraits<REG_TYPE>::kGroup; }
 
-  static ASMJIT_INLINE uint32_t signatureOf(uint32_t regType) noexcept;
-  template<uint32_t Type>
-  static ASMJIT_INLINE uint32_t signatureOfT() noexcept { return ArmRegTraits<Type>::kSignature; }
+  static inline uint32_t signatureOf(uint32_t regType) noexcept;
+  template<uint32_t REG_TYPE>
+  static inline uint32_t signatureOfT() noexcept { return ArmRegTraits<REG_TYPE>::kSignature; }
 
-  static ASMJIT_INLINE bool isGpw(const Operand_& op) noexcept { return op.as<ArmReg>().isGpW(); }
-  static ASMJIT_INLINE bool isGpx(const Operand_& op) noexcept { return op.as<ArmReg>().isGpX(); }
-  static ASMJIT_INLINE bool isGpw(const Operand_& op, uint32_t id) noexcept { return isGpW(op) & (op.getId() == id); }
-  static ASMJIT_INLINE bool isGpx(const Operand_& op, uint32_t id) noexcept { return isGpX(op) & (op.getId() == id); }
+  static inline bool isGpw(const Operand_& op) noexcept { return op.as<ArmReg>().isGpW(); }
+  static inline bool isGpx(const Operand_& op) noexcept { return op.as<ArmReg>().isGpX(); }
+  static inline bool isGpw(const Operand_& op, uint32_t id) noexcept { return isGpW(op) & (op.getId() == id); }
+  static inline bool isGpx(const Operand_& op, uint32_t id) noexcept { return isGpX(op) & (op.getId() == id); }
 
-  static ASMJIT_INLINE bool isVecS(const Operand_& op) noexcept { return op.as<ArmReg>().isVecS(); }
-  static ASMJIT_INLINE bool isVecD(const Operand_& op) noexcept { return op.as<ArmReg>().isVecD(); }
-  static ASMJIT_INLINE bool isVecV(const Operand_& op) noexcept { return op.as<ArmReg>().isVecV(); }
-  static ASMJIT_INLINE bool isVecS(const Operand_& op, uint32_t id) noexcept { return isVecS(op) & (op.getId() == id); }
-  static ASMJIT_INLINE bool isVecD(const Operand_& op, uint32_t id) noexcept { return isVecD(op) & (op.getId() == id); }
-  static ASMJIT_INLINE bool isVecV(const Operand_& op, uint32_t id) noexcept { return isVecV(op) & (op.getId() == id); }
+  static inline bool isVecS(const Operand_& op) noexcept { return op.as<ArmReg>().isVecS(); }
+  static inline bool isVecD(const Operand_& op) noexcept { return op.as<ArmReg>().isVecD(); }
+  static inline bool isVecV(const Operand_& op) noexcept { return op.as<ArmReg>().isVecV(); }
+  static inline bool isVecS(const Operand_& op, uint32_t id) noexcept { return isVecS(op) & (op.getId() == id); }
+  static inline bool isVecD(const Operand_& op, uint32_t id) noexcept { return isVecD(op) & (op.getId() == id); }
+  static inline bool isVecV(const Operand_& op, uint32_t id) noexcept { return isVecV(op) & (op.getId() == id); }
 };
 
 //! General purpose register (ARM/AArch64).
@@ -189,11 +187,11 @@ constexpr ArmVecS ArmVec::s() const noexcept { return ArmVecS(getId()); }
 constexpr ArmVecD ArmVec::d() const noexcept { return ArmVecD(getId()); }
 constexpr ArmVecV ArmVec::v() const noexcept { return ArmVecV(getId()); }
 
-ASMJIT_DEFINE_TYPE_ID(ArmGpw, TypeId::kI32);
-ASMJIT_DEFINE_TYPE_ID(ArmGpx, TypeId::kI64);
-ASMJIT_DEFINE_TYPE_ID(ArmVecS, TypeId::kF32x1);
-ASMJIT_DEFINE_TYPE_ID(ArmVecD, TypeId::kF64x1);
-ASMJIT_DEFINE_TYPE_ID(ArmVecV, TypeId::kI32x4);
+ASMJIT_DEFINE_TYPE_ID(ArmGpw, kIdI32);
+ASMJIT_DEFINE_TYPE_ID(ArmGpx, kIdI64);
+ASMJIT_DEFINE_TYPE_ID(ArmVecS, kIdF32x1);
+ASMJIT_DEFINE_TYPE_ID(ArmVecD, kIdF64x1);
+ASMJIT_DEFINE_TYPE_ID(ArmVecV, kIdI32x4);
 
 // ============================================================================
 // [asmjit::ArmMem]
@@ -313,12 +311,12 @@ struct ArmOpData {
 ASMJIT_VARAPI const ArmOpData armOpData;
 
 // ... ArmReg methods that require `armOpData`.
-ASMJIT_INLINE uint32_t ArmReg::signatureOf(uint32_t regType) noexcept {
+inline uint32_t ArmReg::signatureOf(uint32_t regType) noexcept {
   ASMJIT_ASSERT(regType <= Reg::kRegMax);
   return armOpData.archRegs.regInfo[regType].signature;
 }
 
-ASMJIT_INLINE uint32_t ArmReg::groupOf(uint32_t regType) noexcept {
+inline uint32_t ArmReg::groupOf(uint32_t regType) noexcept {
   ASMJIT_ASSERT(regType <= Reg::kRegMax);
   return armOpData.archRegs.regInfo[regType].group;
 }
@@ -418,10 +416,7 @@ constexpr ArmGpx x31(31);
 
 //! \}
 
-} // asmjit namespace
-
-// [Api-End]
-#include "../asmjit_apiend.h"
+ASMJIT_END_NAMESPACE
 
 // [Guard]
 #endif // _ASMJIT_ARM_ARMOPERAND_H
