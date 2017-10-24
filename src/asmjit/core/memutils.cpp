@@ -16,8 +16,8 @@ ASMJIT_BEGIN_NAMESPACE
 // [asmjit::MemUtils - Unit]
 // ============================================================================
 
-#if defined(ASMJIT_TEST)
-UNIT(base_memutils) {
+#if defined(ASMJIT_BUILD_TEST)
+UNIT(core_memutils) {
   uint8_t arr[32] = { 0 };
 
   INFO("Testing unaligned read/write and basic endianness conversion");

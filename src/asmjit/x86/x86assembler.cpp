@@ -460,7 +460,7 @@ X86Assembler::~X86Assembler() noexcept {}
 // [asmjit::X86Assembler - Emit (Low-Level)]
 // ============================================================================
 
-Error X86Assembler::_emit(uint32_t instId, const Operand_& o0, const Operand_& o1, const Operand_& o2, const Operand_& o3) {
+ASMJIT_FAVOR_SPEED Error X86Assembler::_emit(uint32_t instId, const Operand_& o0, const Operand_& o1, const Operand_& o2, const Operand_& o3) {
   typedef IntUtils::FastUInt8 FastUInt8;
 
   Error err;

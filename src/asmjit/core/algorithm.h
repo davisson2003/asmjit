@@ -12,9 +12,10 @@
 #include "../core/globals.h"
 
 ASMJIT_BEGIN_NAMESPACE
+
 namespace Algorithm {
 
-//! \addtogroup asmjit_base
+//! \addtogroup asmjit_core
 //! \{
 
 // ============================================================================
@@ -33,25 +34,9 @@ enum Order : uint32_t {
 template<uint32_t ORDER = kOrderAscending>
 struct Compare {
   template<typename T>
-  inline bool eq(const T& a, const T& b) const noexcept { return a == b; }
-
-  template<typename T>
-  inline bool lt(const T& a, const T& b) const noexcept { return ORDER == kOrderAscending ? a <  b : a >  b; }
-
-  template<typename T>
-  inline bool le(const T& a, const T& b) const noexcept { return ORDER == kOrderAscending ? a <= b : a >= b; }
-};
-
-template<class BASE, uint32_t ORDER = kOrderAscending>
-struct CompareMember : public BASE {
-  template<typename T>
-  inline bool eq(const T& a, const T& b) const noexcept { return BASE::get(a) == BASE::get(b); }
-
-  template<typename T>
-  inline bool lt(const T& a, const T& b) const noexcept { return ORDER == kOrderAscending ? BASE::get(a) < BASE::get(b) : BASE::get(a) > BASE::get(b); }
-
-  template<typename T>
-  inline bool le(const T& a, const T& b) const noexcept { return ORDER == kOrderAscending ? BASE::get(a) <= BASE::get(b) : BASE::get(a) >= BASE::get(b); }
+  inline T operator()(const T& a, const T& b) const noexcept {
+    return (ORDER == kOrderAscending) ? a - b : b - a;
+  }
 };
 
 // ============================================================================
@@ -60,9 +45,9 @@ struct CompareMember : public BASE {
 
 //! Insertion sort.
 template<typename T, typename CMP = Compare<kOrderAscending>>
-static inline void iSortT(T* base, size_t len, const CMP& cmp = CMP()) noexcept {
+static inline void iSort(T* base, size_t len, const CMP& cmp = CMP()) noexcept {
   for (T* pm = base + 1; pm < base + len; pm++)
-    for (T* pl = pm; pl > base && !cmp.le(pl[-1], pl[0]); pl--)
+    for (T* pl = pm; pl > base && cmp(pl[-1], pl[0]) > 0; pl--)
       std::swap(pl[-1], pl[0]);
 }
 
@@ -91,14 +76,14 @@ struct QSortImpl {
         T* pj = end - 1;
         std::swap(base[(size_t)(end - base) / 2], base[0]);
 
-        if (!cmp.le(*pi  , *pj  )) std::swap(*pi  , *pj  );
-        if (!cmp.le(*base, *pj  )) std::swap(*base, *pj  );
-        if (!cmp.le(*pi  , *base)) std::swap(*pi  , *base);
+        if (cmp(*pi  , *pj  ) > 0) std::swap(*pi  , *pj  );
+        if (cmp(*base, *pj  ) > 0) std::swap(*base, *pj  );
+        if (cmp(*pi  , *base) > 0) std::swap(*pi  , *base);
 
         // Now we have the median for pivot element, entering main loop.
         for (;;) {
-          while (pi < pj   &&  cmp.lt(*++pi, *base)) continue; // Move `i` right until `*i >= pivot`.
-          while (pj > base && !cmp.le(*--pj, *base)) continue; // Move `j` left  until `*j <= pivot`.
+          while (pi < pj   && cmp(*++pi, *base) < 0) continue; // Move `i` right until `*i >= pivot`.
+          while (pj > base && cmp(*--pj, *base) > 0) continue; // Move `j` left  until `*j <= pivot`.
 
           if (pi > pj) break;
           std::swap(*pi, *pj);
@@ -123,7 +108,7 @@ struct QSortImpl {
         ASMJIT_ASSERT(stackptr <= stack + kStackSize);
       }
       else {
-        iSortT(base, (size_t)(end - base), cmp);
+        iSort(base, (size_t)(end - base), cmp);
         if (stackptr == stack)
           break;
         end = *--stackptr;
@@ -135,13 +120,14 @@ struct QSortImpl {
 
 //! Quick sort.
 template<typename T, class CMP = Compare<kOrderAscending>>
-static inline void qSortT(T* base, size_t len, const CMP& cmp = CMP()) noexcept {
+static inline void qSort(T* base, size_t len, const CMP& cmp = CMP()) noexcept {
   QSortImpl<T, CMP>::sort(base, len, cmp);
 }
 
 //! \}
 
 } // Algorithm namespace
+
 ASMJIT_END_NAMESPACE
 
 // [Guard]

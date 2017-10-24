@@ -83,13 +83,13 @@ Important
 ---------
 
 Breaking the official API is sometimes inevitable, what to do?
-  * Breaking changes are described in [BREAKING.md](./BREAKING.md) document.
-  * Visit our [Official Chat](https://gitter.im/asmjit/asmjit) if you need a quick help.
   * See asmjit tests, they always compile and provide an implementation of a lot of use-cases:
-    * [asmjit_test_x86_asm.cpp](./test/asmjit_test_x86_cc.cpp) - Tests that use **X86Assembler** and **X86Builder**.
+    * [asmjit_test_x86_asm.cpp](./test/asmjit_test_x86_asm.cpp) - Tests that use all emitters.
     * [asmjit_test_x86_cc.cpp](./test/asmjit_test_x86_cc.cpp) - Tests that use **X86Compiler**.
+  * Visit our [Official Chat](https://gitter.im/asmjit/asmjit) if you need a quick help.
 
 TODOs:
+  * [ ] Add support for user external buffers.
   * [ ] AsmJit added support for code sections, but only the first section (executable code) works atm.
 
 Supported Environments
@@ -97,48 +97,48 @@ Supported Environments
 
 ### C++ Compilers:
 
-  * Tested
-    * **Clang** - tested by Travis-CI.
-    * **GCC** - tested by Travis-CI.
-    * **MinGW** - tested by AppVeyor.
-    * **MSVC** - tested by AppVeyor.
-  * Maybe
-    * **CodeGear** - no maintainers.
-    * **Intel** - no maintainers.
-  * Other c++ compilers would require some testing and support in [asmjit_build.h](./src/asmjit/asmjit_build.h).
+  * Standard:
+    * AsmJit won't build without C++11 enabled. If you use older GCC and Clang you would have to enable it through compiler flags.
+  * Tested:
+    * **Clang** - tested by Travis-CI - Clang 3.9+ (with C++11 enabled) is officially supported (older Clang versions having C++11 support are probably fine, but are not regularly tested).
+    * **GNU** - tested by Travis-CI - GCC 4.8+ (with C++11 enabled) is officially supported.
+    * **MINGW** - tested by AppVeyor - Use the latest version if possible.
+    * **MSVC** - tested by AppVeyor - **MSVC2017+ only!** - there is a severe bug in MSVC2015's `constexpr` implementation that makes that compiler officially unsupported.
+  * Untested:
+    * **Intel** - no maintainers, no CI environment to regularly test this compiler.
+    * Other c++ compilers would require basic support in [core/build.h](./src/asmjit/core/build.h).
 
 ### Operating Systems:
 
-  * Tested
-    * **Linux** - tested by Travis-CI.
-    * **Mac** - tested by Travis-CI.
-    * **Windows** - tested by AppVeyor.
-  * Maybe
-    * **BSDs** - no maintainers.
-  * Other operating systems would require some testing and support in [asmjit_build.h](./src/asmjit/asmjit_build.h) and [osutils.cpp](./src/asmjit/core/osutils.cpp).
+  * Tested:
+    * **Linux** - tested by Travis-CI - any distribution is generally supported.
+    * **Mac** - tested by Travis-CI - any version is supported.
+    * **Windows** - tested by AppVeyor - Windows 7+ is officially supported although Windows XP should work as well.
+  * Untested:
+    * **BSDs** - no maintainers, no CI environment to regularly test this OS.
+    * Other operating systems would require some testing and support in [core/build.h](./src/asmjit/core/build.h) and [core/osutils.cpp](./src/asmjit/core/osutils.cpp).
 
 ### Backends:
 
-  * **X86** - tested by both Travis-CI and AppVeyor.
-  * **X64** - tested by both Travis-CI and AppVeyor.
+  * **X86** - tested by both Travis-CI and AppVeyor - both 32-bit and 64-bit backends are fully functional.
   * **ARM** - work-in-progress (not public at the moment).
 
 Project Organization
 --------------------
 
-  * **`/`**        - Project root
-    * **src**      - Source code
-      * **asmjit** - Source code and headers (always point include path in here)
-        * **core** - Core API, backend independent
-        * **arm**  - ARM specific API, used only by ARM32 and ARM64 backends
-        * **x86**  - X86 specific API, used only by X86 and X64 backends
-    * **test**     - Unit and integration tests (don't embed in your project)
-    * **tools**    - Tools used for configuring, documenting and generating files
+  * **`/`**        - Project root.
+    * **src**      - Source code.
+      * **asmjit** - Source code and headers (always point include path in here).
+        * **core** - Core API, backend independent.
+        * **arm**  - ARM specific API, used only by ARM32 and ARM64 backends.
+        * **x86**  - X86 specific API, used only by X86 and X64 backends.
+    * **test**     - Unit and integration tests (don't embed in your project).
+    * **tools**    - Tools used for configuring, documenting and generating data files.
 
 Configuring & Building
 ----------------------
 
-AsmJit is designed to be easy embeddable in any project. However, it depends on some compile-time macros that can be used to build a specific version of AsmJit that includes or excludes certain features. A typical way of building AsmJit is to use [cmake](https://www.cmake.org), but it's also possible to just include AsmJit source code in your project and just build it. The easiest way to include AsmJit in your project is to just include **src** directory in your project and to define `ASMJIT_STATIC` or `ASMJIT_EMBED`. AsmJit can be just updated from time to time without any changes to this integration process. Do not embed AsmJit's [/test](./test) files in such case as these are used for testing.
+AsmJit is designed to be easy embeddable in any project. However, it depends on some compile-time macros that can be used to build a specific version of AsmJit that includes or excludes certain features. A typical way of building AsmJit is to use [cmake](https://www.cmake.org), but it's also possible to just include AsmJit source code in your project and just build it. The easiest way to include AsmJit in your project is to just include **src** directory in your project and to define `ASMJIT_BUILD_STATIC` or `ASMJIT_BUILD_EMBED`. AsmJit can be just updated from time to time without any changes to this integration process. Do not embed AsmJit's [/test](./test) files in such case as these are used for testing.
 
 ### Build Type:
 
@@ -149,10 +149,10 @@ By default none of these is defined, AsmJit detects build-type based on compile-
 
 ### Build Mode:
 
-  * `ASMJIT_EMBED` - Define to embed AsmJit in another project. Embedding means that neither shared nor static library is created and AsmJit's source files and source files of the product that embeds AsmJit are part of the same target. This way of building AsmJit has certain advantages that are beyond this manual. `ASMJIT_EMBED` behaves similarly to `ASMJIT_STATIC` (no API exports).
-  * `ASMJIT_STATIC` - Define to build AsmJit as a static library. No symbols are exported in such case.
+  * `ASMJIT_BUILD_EMBED` - Define to embed AsmJit in another project. Embedding means that neither shared nor static library is created and AsmJit's source files and source files of the product that embeds AsmJit are part of the same target. This way of building AsmJit has certain advantages that are beyond this manual. `ASMJIT_BUILD_EMBED` behaves similarly to `ASMJIT_BUILD_STATIC` (no API exports).
+  * `ASMJIT_BUILD_STATIC` - Define to build AsmJit as a static library. No symbols are exported in such case.
 
-By default AsmJit build is configured to be built as a shared library, thus none of `ASMJIT_EMBED` and `ASMJIT_STATIC` is defined.
+By default AsmJit build is configured to be built as a shared library, thus none of `ASMJIT_BUILD_EMBED` and `ASMJIT_BUILD_STATIC` is defined.
 
 ### Build Backends:
 
@@ -248,14 +248,15 @@ void usingOperandsExample(X86Assembler& a) {
 
   m == op;                                // True, `op` is just a copy of `m`.
   static_cast<Mem&>(op).addOffset(1);     // Static cast is fine and valid here.
+  op.as<Mem>().addOffset(1);              // However, using `as<T>()` to cast to a derived type is preferred.
   m == op;                                // False, `op` now points to [rax + r10 + 1], which is not [rax + r10].
 
   // Emitting 'mov'
   a.mov(dst, m);                          // Type-safe way.
-  a.mov(dst, op);                         // Not possible, `mov` doesn't provide `X86Reg, Operand` overload.
+  a.mov(dst, op);                         // Not possible, `mov` doesn't provide `mov(X86Gp, Operand)` overload.
 
   a.emit(X86Inst::kIdMov, dst, m);        // Type-unsafe, but possible.
-  a.emit(X86Inst::kIdMov, dst, op);       // Also possible, `emit()` is typeless and can be used dynamically.
+  a.emit(X86Inst::kIdMov, dst, op);       // Also possible, `emit()` is typeless and can be used with raw `Operand`s.
 }
 ```
 
@@ -416,22 +417,22 @@ X86Mem m = x86::ptr(eax);                 // Construct [eax] memory operand.
 // One way of emitting bunch of loads is to use `mem.adjusted()`. It returns
 // a new memory operand and keeps the source operand unchanged.
 a.movaps(x86::xmm0, m);                   // No adjustment needed to load [eax].
-a.movaps(x86::xmm1, m.adjusted(16));      // Loads [eax + 16].
-a.movaps(x86::xmm2, m.adjusted(32));      // Loads [eax + 32].
-a.movaps(x86::xmm3, m.adjusted(48));      // Loads [eax + 48].
+a.movaps(x86::xmm1, m.adjusted(16));      // Loads from [eax + 16].
+a.movaps(x86::xmm2, m.adjusted(32));      // Loads from [eax + 32].
+a.movaps(x86::xmm3, m.adjusted(48));      // Loads from [eax + 48].
 
 // ... do something with xmm0-3 ...
 
 // Another way of adjusting memory is to change the operand in-place. If you
 // want to keep the original operand you can simply clone it.
 X86Mem mx = m.clone();
-a.movaps(mx, x86::xmm0); mx.addOffset(16);// Stores [eax]      (and adds 16 to mx).
-a.movaps(mx, x86::xmm1); mx.addOffset(16);// Stores [eax + 16] (and adds 16 to mx).
-a.movaps(mx, x86::xmm2); mx.addOffset(16);// Stores [eax + 32] (and adds 16 to mx).
-a.movaps(mx, x86::xmm3);                  // Stores [eax + 48].
+a.movaps(mx, x86::xmm0); mx.addOffset(16);// Stores to [eax]      (and adds 16 to mx).
+a.movaps(mx, x86::xmm1); mx.addOffset(16);// Stores to [eax + 16] (and adds 16 to mx).
+a.movaps(mx, x86::xmm2); mx.addOffset(16);// Stores to [eax + 32] (and adds 16 to mx).
+a.movaps(mx, x86::xmm3);                  // Stores to [eax + 48].
 ```
 
-You can explore the possibilities by taking a look at [base/operand.h](./src/asmjit/base/operand.h) and [x86/x86operand.h](./src/asmjit/x86/x86operand.h). Always use `X86Mem` when targeting X86 as it extends the base `Mem` operand with features provided only by X86.
+You can explore the possibilities by taking a look at [core/operand.h](./src/asmjit/core/operand.h) and [x86/x86operand.h](./src/asmjit/x86/x86operand.h). Always use `X86Mem` when targeting X86 as it extends the base `Mem` operand with features provided only by X86.
 
 ### More About CodeInfo
 
@@ -764,9 +765,9 @@ The following concepts are used to describe and create functions in AsmJit:
 
   * `CallConv` - Describes a calling convention - this class contains instructions to assign registers and stack addresses to function arguments and return value(s), but doesn't specify any function signature. Calling conventions are architecture and OS dependent.
 
-  * `FuncSignature` - Describes a function signature, for example `int func(int, int)`. **FuncSignature** contains a function calling convention id, return value type, and function arguments. The signature itself is platform independent and uses **TypeId** to describe types of function arguments and its return value(s).
+  * `FuncSignature` - Describes a function signature, for example `int func(int, int)`. `FuncSignature` contains a function calling convention id, return value type, and function arguments. The signature itself is platform independent and uses `Type::Id` to describe types of function arguments and its return value(s).
 
-  * `FuncDetail` - Architecture and ABI dependent information that describes **CallConv** and expanded **FuncSignature**. Each function argument and return value is represented as **FuncValue** that contains the original **TypeId** enriched by additional information that specifies if the value is passed/returned by register (and which register) or by stack. Each value also contains some other metadata that provide additional information required to handle it properly (for example if a vector value is passed indirectly by a pointer as required by WIN64 calling convention, etc...).
+  * `FuncDetail` - Architecture and ABI dependent information that describes `CallConv` and expanded `FuncSignature`. Each function argument and return value is represented as `FuncValue` that contains the original `Type::Id` enriched by additional information that specifies if the value is passed/returned by register (and which register) or by stack. Each value also contains some other metadata that provide additional information required to handle it properly (for example if a vector value is passed indirectly by a pointer as required by WIN64 calling convention, etc...).
 
   * `FuncFrame` - Contains information about the function frame that can be used by prolog/epilog inserter (PEI). Holds call stack size size and alignment, local stack size and alignment, and various attributes that describe how prolog and epilog should be constructed. `FuncFrame` doesn't know anything about function's arguments or return values, it hold only information necessary to create a valid and ABI conforming function prologs and epilogs.
 
@@ -840,48 +841,48 @@ int main(int argc, char* argv[]) {
 CodeBuilder
 -----------
 
-Both **CodeBuilder** and **CodeCompiler** are emitters that emit everything to a representation that allows further processing. The code stored in such representation is completely safe to be patched, simplified, reordered, obfuscated, removed, injected, analyzed, and 'think-of-anything-else'. Each instruction (or label, directive, ...) is stored as **CBNode** (Code-Builder Node) and contains all the necessary information to emit machine code out of it later.
+Both `CodeBuilder` and `CodeCompiler` are emitters that emit everything to a representation that allows further processing. The code stored in such representation is completely safe to be patched, simplified, reordered, obfuscated, removed, injected, analyzed, and 'think-of-anything-else'. Each instruction (or label, directive, ...) is stored as `CBNode` (Code-Builder Node) and contains all the necessary information to emit machine code out of it later.
 
-There is a difference between **CodeBuilder** and **CodeCompiler**:
+There is a difference between `CodeBuilder` and `CodeCompiler`:
 
-  * **CodeBuilder** (low-level):
-    * Maximum compatibility with **Assembler**, easy to switch from **Assembler** to **CodeBuilder** and vice versa.
-    * Doesn't generate machine code directly, allows to serialize to **Assembler** when the whole code is ready to be encoded.
+  * `CodeBuilder` (low-level):
+    * Maximum compatibility with `Assembler`, easy to switch from `Assembler` to `CodeBuilder` and vice versa.
+    * Doesn't generate machine code directly, allows to serialize to `Assembler` when the whole code is ready to be encoded.
 
-  * **CodeCompiler** (high-level):
+  * `CodeCompiler` (high-level):
     * Virtual registers - allows to use unlimited number of virtual registers which are allocated into physical registers by a built-in register allocator.
     * Function nodes - allows to create functions by specifying their signatures and assigning virtual registers to function arguments and return value(s).
     * Function calls - allows to call other functions within the generated code by using the same interface that is used to create functions.
 
-There are multiple node types used by both **CodeBuilder** and **CodeCompiler**:
+There are multiple node types used by both `CodeBuilder` and `CodeCompiler`:
 
   * Basic nodes:
-    * **CBNode** - Base class for all nodes.
-    * **CBInst** - Instruction node.
-    * **CBAlign** - Alignment directive (.align).
-    * **CBLabel** - Label (location where to bound it).
+    * `CBNode` - Base class for all nodes.
+    * `CBInst` - Instruction node.
+    * `CBAlign` - Alignment directive (.align).
+    * `CBLabel` - Label (location where to bound it).
 
   * Data nodes:
-    * **CBData** - Data embedded into the code.
-    * **CBConstPool** - Constant pool data.
-    * **CBLabelData** - Label address embedded as data.
+    * `CBData` - Data embedded into the code.
+    * `CBConstPool` - Constant pool data.
+    * `CBLabelData` - Label address embedded as data.
 
   * Informative nodes:
-    * **CBComment** - Contains a comment string, doesn't affect code generation.
-    * **CBSentinel** - A marker that can be used to remember certain position, doesn't affect code generation.
+    * `CBComment` - Contains a comment string, doesn't affect code generation.
+    * `CBSentinel` - A marker that can be used to remember certain position, doesn't affect code generation.
 
-  * **CodeCompiler** nodes:
-    * **CCFunc** - Start of a function.
-    * **CCFuncExit** - Return from a function.
-    * **CCFuncCall** - Function call.
+  * `CodeCompiler` nodes:
+    * `CCFunc` - Start of a function.
+    * `CCFuncExit` - Return from a function.
+    * `CCFuncCall` - Function call.
 
-NOTE: All nodes that have **CB** prefix are used by both **CodeBuilder** and **CodeCompiler**. Nodes that have **CC** prefix are exclusive to **CodeCompiler** and are usually lowered to **CBNodes** by a **CodeBuilder** specific pass or treated as one of **CB** nodes; for example **CCFunc** inherits **CBLabel** so it's treated as **CBLabel** by **CodeBuilder** and as **CCFunc** by **CodeCompiler**.
+NOTE: All nodes that have `CB` prefix are used by both `CodeBuilder` and `CodeCompiler`. Nodes that have **CC** prefix are exclusive to `CodeCompiler` and are usually lowered to `CBNodes` by a `CodeBuilder` specific pass or treated as one of **CB** nodes; for example `CCFunc` inherits `CBLabel` so it's treated as `CBLabel` by `CodeBuilder` and as `CCFunc` by `CodeCompiler`.
 
 ### Using CodeBuilder
 
-**CodeBuilder** was designed to be used as an **Assembler** replacement in case that post-processing of the generated code is required. The code can be modified during or after code generation. The post processing can be done manually or through **Pass** (Code-Builder Pass) object. **CodeBuilder** stores the emitted code as a double-linked list, which allows O(1) insertion and removal.
+`CodeBuilder` was designed to be used as an `Assembler` replacement in case that post-processing of the generated code is required. The code can be modified during or after code generation. The post processing can be done manually or through `Pass` (Code-Builder Pass) object. `CodeBuilder` stores the emitted code as a double-linked list, which allows O(1) insertion and removal.
 
-The code representation used by **CodeBuilder** is compatible with everything AsmJit provides. Each instruction is stored as **CBInst**, which contains instruction id, options, and operands. Each instruction emitted will create a new **CBInst** instance and add it to the current cursor in the double-linked list of nodes. Since the instruction stream used by **CodeBuilder** can be manipulated, we can rewrite the **SumInts** example into the following:
+The code representation used by `CodeBuilder` is compatible with everything AsmJit provides. Each instruction is stored as `CBInst`, which contains instruction id, options, and operands. Each instruction emitted will create a new `CBInst` instance and add it to the current cursor in the double-linked list of nodes. Since the instruction stream used by `CodeBuilder` can be manipulated, we can rewrite the **SumInts** example into the following:
 
 ```c++
 using namespace asmjit;

@@ -6,12 +6,12 @@ if(NOT CMAKE_PROJECT_NAME OR "${CMAKE_PROJECT_NAME}" STREQUAL "asmjit")
   project(asmjit CXX)
 endif()
 
-if (NOT DEFINED ASMJIT_EMBED)
-  set(ASMJIT_EMBED FALSE)
+if (NOT DEFINED ASMJIT_BUILD_EMBED)
+  set(ASMJIT_BUILD_EMBED FALSE)
 endif()
 
-if (NOT DEFINED ASMJIT_STATIC)
-  set(ASMJIT_STATIC ${ASMJIT_EMBED})
+if (NOT DEFINED ASMJIT_BUILD_STATIC)
+  set(ASMJIT_BUILD_STATIC ${ASMJIT_BUILD_EMBED})
 endif()
 
 if (NOT DEFINED ASMJIT_BUILD_ARM)
@@ -30,13 +30,13 @@ endif()
 # [AsmJit - Configuration]
 # =============================================================================
 
-set(ASMJIT_DIR        "${CMAKE_CURRENT_LIST_DIR}" CACHE PATH "Location of 'asmjit'")
-set(ASMJIT_EMBED      ${ASMJIT_EMBED}             CACHE BOOLEAN "Embed 'asmjit' library (no targets)")
-set(ASMJIT_STATIC     ${ASMJIT_STATIC}            CACHE BOOLEAN "Build 'asmjit' library as static")
-set(ASMJIT_SANITIZE   ${ASMJIT_SANITIZE}          CACHE BOOLEAN "Use C/C++ sanitizers if possible")
-set(ASMJIT_BUILD_ARM  ${ASMJIT_BUILD_ARM}         CACHE BOOLEAN "Build ARM32/ARM64 backends")
-set(ASMJIT_BUILD_X86  ${ASMJIT_BUILD_X86}         CACHE BOOLEAN "Build X86/X64 backends")
-set(ASMJIT_BUILD_TEST ${ASMJIT_BUILD_TEST}        CACHE BOOLEAN "Build 'asmjit_test' applications")
+set(ASMJIT_DIR            "${CMAKE_CURRENT_LIST_DIR}" CACHE PATH "Location of 'asmjit'")
+set(ASMJIT_BUILD_EMBED    ${ASMJIT_BUILD_EMBED}       CACHE BOOLEAN "Embed 'asmjit' library (no targets)")
+set(ASMJIT_BUILD_STATIC   ${ASMJIT_BUILD_STATIC}      CACHE BOOLEAN "Build 'asmjit' library as static")
+set(ASMJIT_BUILD_SANITIZE ${ASMJIT_BUILD_SANITIZE}    CACHE BOOLEAN "Use C/C++ sanitizers if possible")
+set(ASMJIT_BUILD_TEST     ${ASMJIT_BUILD_TEST}        CACHE BOOLEAN "Build 'asmjit_test' applications")
+set(ASMJIT_BUILD_X86      ${ASMJIT_BUILD_X86}         CACHE BOOLEAN "Build X86 backends (X86 and X86_64)")
+set(ASMJIT_BUILD_ARM      ${ASMJIT_BUILD_ARM}         CACHE BOOLEAN "Build ARM backends")
 
 # =============================================================================
 # [AsmJit - Project]
@@ -50,33 +50,33 @@ cxx_detect_standard(ASMJIT_PRIVATE_CFLAGS)
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
   set(ASMJIT_PRIVATE_LFLAGS "/OPT:REF /OPT:ICF")
 
-  list(APPEND ASMJIT_PRIVATE_CFLAGS /GF)
-  list(APPEND ASMJIT_PRIVATE_CFLAGS_DBG /GS /GR-)
-  list(APPEND ASMJIT_PRIVATE_CFLAGS_REL /Oi /Oy /GS- /GR-)
+  list(APPEND ASMJIT_PRIVATE_CFLAGS /MP)      # [+] Multi-process compilation
+  list(APPEND ASMJIT_PRIVATE_CFLAGS /GF)      # [+] Eliminate duplicate strings.
+  list(APPEND ASMJIT_PRIVATE_CFLAGS /GR-)     # [-] Runtime type information.
 
-  # Enable multi-process compilation.
-  if(NOT MSVC60 AND NOT MSVC70 AND NOT MSVC71)
-    list(APPEND ASMJIT_PRIVATE_CFLAGS /MP)
-  endif()
+  list(APPEND ASMJIT_PRIVATE_CFLAGS_DBG /GS)  # [+] Buffer security-check.
+  list(APPEND ASMJIT_PRIVATE_CFLAGS_REL /GS-) # [-] Buffer security-check.
+
+  list(APPEND ASMJIT_PRIVATE_CFLAGS_REL /Ox)  # [+] Global optimization.
 endif()
 
 if("${CMAKE_CXX_COMPILER_ID}" MATCHES "^(GNU|Clang)$")
   cxx_detect_cflags(ASMJIT_PRIVATE_CFLAGS
-    "-fno-tree-vectorize"
     "-fvisibility=hidden"
+    "-fno-tree-vectorize"
     "-Wconversion"
     "-Wall"
-    "-Wextra"
-    "-Winconsistent-missing-override")
+    "-Wextra")
   cxx_detect_cflags(ASMJIT_PRIVATE_CFLAGS_REL
     "-O2" # CMake by default uses -O3, which does nothing useful.
     "-fno-keep-static-consts"
     "-fmerge-all-constants")
 endif()
 
-if(ASMJIT_SANITIZE AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "^(GNU|Clang)$")
-  cxx_detect_cflags(ASMJIT_PRIVATE_CFLAGS "-fsanitize=undefined")
-  list(APPEND ASMJIT_PRIVATE_LFLAGS "-fsanitize=undefined")
+if(ASMJIT_BUILD_SANITIZE AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "^(GNU|Clang)$")
+  cxx_detect_cflags(ASMJIT_SANITIZE_FLAGS "-fsanitize=undefined")
+  list(APPEND ASMJIT_PRIVATE_CFLAGS ${ASMJIT_SANITIZE_FLAGS})
+  list(APPEND ASMJIT_PRIVATE_LFLAGS ${ASMJIT_SANITIZE_FLAGS})
 endif()
 
 if(WIN32)
@@ -90,7 +90,7 @@ if("${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
 endif()
 
 set(ASMJIT_LIBS ${ASMJIT_DEPS})
-if(NOT ASMJIT_EMBED)
+if(NOT ASMJIT_BUILD_EMBED)
   list(INSERT ASMJIT_LIBS 0 asmjit)
 endif()
 
@@ -235,7 +235,7 @@ cxx_add_source(asmjit ASMJIT_SRC asmjit/x86
 # [AsmJit - Targets]
 # =============================================================================
 
-if(NOT ASMJIT_EMBED)
+if(NOT ASMJIT_BUILD_EMBED)
   # Add `asmjit` library.
   cxx_add_library(asmjit asmjit
     "${ASMJIT_SRC}"
@@ -263,7 +263,7 @@ if(NOT ASMJIT_EMBED)
     cxx_add_executable(asmjit asmjit_test_unit
       "${ASMJIT_SRC};${ASMJIT_TEST_SRC}"
       "${ASMJIT_DEPS}"
-      "${ASMJIT_PRIVATE_CFLAGS};${CXX_DEFINE}ASMJIT_TEST;${CXX_DEFINE}ASMJIT_EMBED;${CXX_STD}"
+      "${ASMJIT_PRIVATE_CFLAGS};${CXX_DEFINE}ASMJIT_BUILD_TEST;${CXX_DEFINE}ASMJIT_BUILD_EMBED;${CXX_STD}"
       "${ASMJIT_PRIVATE_CFLAGS_DBG}"
       "${ASMJIT_PRIVATE_CFLAGS_REL}")
 

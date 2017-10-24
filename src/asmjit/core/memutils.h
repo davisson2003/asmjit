@@ -12,9 +12,10 @@
 #include "../core/intutils.h"
 
 ASMJIT_BEGIN_NAMESPACE
+
 namespace MemUtils {
 
-//! \addtogroup asmjit_base
+//! \addtogroup asmjit_core
 //! \{
 
 // ============================================================================
@@ -422,6 +423,7 @@ static inline void writeI64u(void* p, int64_t x) noexcept { writeI64x<1>(p, x); 
 //! \}
 
 } // MemUtils namespace
+
 ASMJIT_END_NAMESPACE
 
 // [Guard]

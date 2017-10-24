@@ -38,7 +38,7 @@ class CBLabelData;
 class CBSentinel;
 class CBPass;
 
-//! \addtogroup asmjit_base
+//! \addtogroup asmjit_core
 //! \{
 
 // ============================================================================

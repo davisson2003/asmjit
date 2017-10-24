@@ -66,7 +66,10 @@ CCFunc* CodeCompiler::newFunc(const FuncSignature& sign) noexcept {
   Error err;
 
   CCFunc* func = newNodeT<CCFunc>();
-  if (!func) goto _NoMemory;
+  if (ASMJIT_UNLIKELY(!func)) {
+    reportError(DebugUtils::errored(kErrorNoHeapMemory));
+    return nullptr;
+  }
 
   err = registerLabelNode(func);
   if (ASMJIT_UNLIKELY(err)) {
@@ -79,8 +82,10 @@ CCFunc* CodeCompiler::newFunc(const FuncSignature& sign) noexcept {
   func->_exitNode = newLabelNode();
   func->_end = newNodeT<CBSentinel>(CBSentinel::kSentinelFuncEnd);
 
-  if (!func->_exitNode || !func->_end)
-    goto _NoMemory;
+  if (ASMJIT_UNLIKELY(!func->_exitNode || !func->_end)) {
+    reportError(DebugUtils::errored(kErrorNoHeapMemory));
+    return nullptr;
+  }
 
   // Initialize the function info.
   err = func->getDetail().init(sign);
@@ -104,16 +109,15 @@ CCFunc* CodeCompiler::newFunc(const FuncSignature& sign) noexcept {
   func->_args = nullptr;
   if (func->getArgCount() != 0) {
     func->_args = _allocator.allocT<VirtReg*>(func->getArgCount() * sizeof(VirtReg*));
-    if (!func->_args) goto _NoMemory;
+    if (ASMJIT_UNLIKELY(!func->_args)) {
+      reportError(DebugUtils::errored(kErrorNoHeapMemory));
+      return nullptr;
+    }
 
     std::memset(func->_args, 0, func->getArgCount() * sizeof(VirtReg*));
   }
 
   return func;
-
-_NoMemory:
-  reportError(DebugUtils::errored(kErrorNoHeapMemory));
-  return nullptr;
 }
 
 CCFunc* CodeCompiler::addFunc(CCFunc* func) {

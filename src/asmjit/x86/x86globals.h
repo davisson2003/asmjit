@@ -417,7 +417,7 @@ enum RoundPredicate : uint32_t {
 };
 
 // ============================================================================
-// [asmjit::x86::Utils]
+// [asmjit::x86::ImmUtils]
 // ============================================================================
 
 //! Pack a shuffle constant to be used by SSE/AVX/AVX-512 instructions (2 values).

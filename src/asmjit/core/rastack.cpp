@@ -67,10 +67,6 @@ struct RAStackGap {
   uint32_t size;
 };
 
-struct RAStackSlot_GetWeight {
-  inline uint32_t get(const RAStackSlot* item) const noexcept { return item->getWeight(); }
-};
-
 Error RAStackAllocator::calculateStackFrame() noexcept {
   // Base weight added to all registers regardless of their size and alignment.
   uint32_t kBaseRegWeight = 16;
@@ -110,7 +106,10 @@ Error RAStackAllocator::calculateStackFrame() noexcept {
   // STEP 2:
   //
   // Sort stack slots based on their newly calculated weight (in descending order).
-  slots.sort<Algorithm::CompareMember<RAStackSlot_GetWeight, Algorithm::kOrderDescending>>();
+  slots.sort([](const RAStackSlot* a, const RAStackSlot* b) noexcept {
+    return a->getWeight() >  b->getWeight() ? 1 :
+           a->getWeight() == b->getWeight() ? 0 : -1;
+  });
 
   // STEP 3:
   //

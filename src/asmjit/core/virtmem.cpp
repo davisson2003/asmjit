@@ -889,7 +889,7 @@ Error VirtMemManager::shrink(void* p, size_t used) noexcept {
 // [asmjit::VMem - Test]
 // ============================================================================
 
-#if defined(ASMJIT_TEST)
+#if defined(ASMJIT_BUILD_TEST)
 static void VirtMemTest_fill(void* a, void* b, int i) noexcept {
   int pattern = rand() % 256;
   *(int *)a = i;
@@ -926,7 +926,7 @@ static void VirtMemTest_shuffle(void** a, void** b, size_t count) noexcept {
   }
 }
 
-UNIT(base_virtmem) {
+UNIT(core_virtmem) {
   VirtMemManager memmgr;
 
   // Should be predictible.

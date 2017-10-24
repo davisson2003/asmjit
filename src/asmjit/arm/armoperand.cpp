@@ -40,7 +40,7 @@ const ArmOpData armOpData = {
 // [asmjit::ArmOperand - Test]
 // ============================================================================
 
-#if defined(ASMJIT_TEST)
+#if defined(ASMJIT_BUILD_TEST)
 UNIT(arm_operand) {
   Label L;
 

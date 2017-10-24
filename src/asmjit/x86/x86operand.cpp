@@ -42,7 +42,7 @@ const X86OpData x86OpData = {
 // [asmjit::X86Operand - Test]
 // ============================================================================
 
-#if defined(ASMJIT_TEST)
+#if defined(ASMJIT_BUILD_TEST)
 UNIT(x86_operand) {
   Label L(1000); // Label with some ID.
 

@@ -21,7 +21,7 @@ ASMJIT_BEGIN_NAMESPACE
 
 class CodeHolder;
 
-//! \addtogroup asmjit_base
+//! \addtogroup asmjit_core
 //! \{
 
 // ============================================================================

@@ -30,7 +30,7 @@ ASMJIT_BEGIN_NAMESPACE
 struct RATiedReg;
 class RAWorkReg;
 
-//! \addtogroup asmjit_base
+//! \addtogroup asmjit_core
 //! \{
 
 // ============================================================================
@@ -482,6 +482,10 @@ public:
   //!
   //! NOTE: Only new name will appear in the logger.
   ASMJIT_API void rename(Reg& reg, const char* fmt, ...);
+
+  // TODO:
+  inline void alloc(Reg& reg) { ASMJIT_UNUSED(reg); }
+  inline void spill(Reg& reg) { ASMJIT_UNUSED(reg); }
 
   // --------------------------------------------------------------------------
   // [Events]

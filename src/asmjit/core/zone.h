@@ -14,7 +14,7 @@
 
 ASMJIT_BEGIN_NAMESPACE
 
-//! \addtogroup asmjit_base
+//! \addtogroup asmjit_core
 //! \{
 
 // ============================================================================
@@ -1073,7 +1073,7 @@ public:
 
   template<typename CMP = Algorithm::Compare<Algorithm::kOrderAscending>>
   inline void sort(const CMP& cmp = CMP()) noexcept {
-    Algorithm::qSortT<T, CMP>(getData(), getLength(), cmp);
+    Algorithm::qSort<T, CMP>(getData(), getLength(), cmp);
   }
 
   //! Get item at index `i`.

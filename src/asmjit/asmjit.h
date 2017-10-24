@@ -18,7 +18,7 @@
 //!
 //! Introduction provided by the project page at https://github.com/asmjit/asmjit.
 
-//! \defgroup asmjit_base AsmJit Base API (architecture independent)
+//! \defgroup asmjit_core AsmJit Base API (architecture independent)
 //!
 //! \brief Backend Neutral API.
 

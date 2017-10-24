@@ -14,7 +14,7 @@
 ASMJIT_BEGIN_NAMESPACE
 namespace StringUtils {
 
-//! \addtogroup asmjit_base
+//! \addtogroup asmjit_core
 //! \{
 
 // ============================================================================

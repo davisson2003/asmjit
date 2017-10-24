@@ -16,9 +16,17 @@ ASMJIT_BEGIN_NAMESPACE
 // [asmjit::IntUtils - Unit]
 // ============================================================================
 
-#if defined(ASMJIT_TEST)
-UNIT(base_intutils) {
+#if defined(ASMJIT_BUILD_TEST)
+UNIT(core_intutils) {
   uint32_t i;
+
+  INFO("IntUtils::shl() / shr()");
+  EXPECT(IntUtils::shl<int32_t>(0x00001111, 16) == int32_t(0x11110000U));
+  EXPECT(IntUtils::shl<uint32_t>(0x00001111, 16) == uint32_t(0x11110000U));
+  EXPECT(IntUtils::shr<int32_t>(0x11110000U, 16) == int32_t(0x00001111U));
+  EXPECT(IntUtils::shr<uint32_t>(0x11110000U, 16) == uint32_t(0x00001111U));
+  EXPECT(IntUtils::sar<int32_t>(0xFFFF0000U, 16) == int32_t(0xFFFFFFFFU));
+  EXPECT(IntUtils::sar<uint32_t>(0xFFFF0000U, 16) == uint32_t(0xFFFFFFFFU));
 
   INFO("IntUtils::blsi()");
   for (i = 0; i < 32; i++) EXPECT(IntUtils::blsi(uint32_t(1) << i) == uint32_t(1) << i);
@@ -31,6 +39,24 @@ UNIT(base_intutils) {
   for (i = 0; i < 64; i++) EXPECT(IntUtils::ctz(uint64_t(1) << i) == i);
   for (i = 0; i < 32; i++) EXPECT(IntUtils::_ctzGeneric(uint32_t(1) << i) == i);
   for (i = 0; i < 64; i++) EXPECT(IntUtils::_ctzGeneric(uint64_t(1) << i) == i);
+
+  INFO("IntUtils::mask()");
+  EXPECT(IntUtils::mask(0, 1, 7) == 0x83U);
+  for (i = 0; i < 32; i++)
+    EXPECT(IntUtils::mask(i) == (1U << i));
+
+  INFO("IntUtils::bitTest()");
+  for (i = 0; i < 32; i++) {
+    EXPECT(IntUtils::bitTest((1 << i), i) == true, "IntUtils::bitTest(%X, %u) should return true", (1 << i), i);
+  }
+
+  INFO("IntUtils::lsbMask()");
+  for (i = 0; i < 32; i++) {
+    uint32_t expectedBits = 0;
+    for (uint32_t b = 0; b < i; b++)
+      expectedBits |= uint32_t(1) << b;
+    EXPECT(IntUtils::lsbMask<uint32_t>(i) == expectedBits);
+  }
 
   INFO("IntUtils::popcnt()");
   for (i = 0; i < 32; i++) EXPECT(IntUtils::popcnt((uint32_t(1) << i)) == 1);
@@ -46,6 +72,50 @@ UNIT(base_intutils) {
     EXPECT(IntUtils::isPowerOf2(uint64_t(1) << i) == true);
     EXPECT(IntUtils::isPowerOf2((uint64_t(1) << i) ^ 0x001101) == false);
   }
+
+  INFO("IntUtils::isAligned()");
+  EXPECT(IntUtils::isAligned<size_t>(0xFFFF,  4) == false);
+  EXPECT(IntUtils::isAligned<size_t>(0xFFF4,  4) == true);
+  EXPECT(IntUtils::isAligned<size_t>(0xFFF8,  8) == true);
+  EXPECT(IntUtils::isAligned<size_t>(0xFFF0, 16) == true);
+
+  INFO("IntUtils::alignUp()");
+  EXPECT(IntUtils::alignUp<size_t>(0xFFFF,  4) == 0x10000);
+  EXPECT(IntUtils::alignUp<size_t>(0xFFF4,  4) == 0x0FFF4);
+  EXPECT(IntUtils::alignUp<size_t>(0xFFF8,  8) == 0x0FFF8);
+  EXPECT(IntUtils::alignUp<size_t>(0xFFF0, 16) == 0x0FFF0);
+  EXPECT(IntUtils::alignUp<size_t>(0xFFF0, 32) == 0x10000);
+
+  INFO("IntUtils::alignUpDiff()");
+  EXPECT(IntUtils::alignUpDiff<size_t>(0xFFFF,  4) == 1);
+  EXPECT(IntUtils::alignUpDiff<size_t>(0xFFF4,  4) == 0);
+  EXPECT(IntUtils::alignUpDiff<size_t>(0xFFF8,  8) == 0);
+  EXPECT(IntUtils::alignUpDiff<size_t>(0xFFF0, 16) == 0);
+  EXPECT(IntUtils::alignUpDiff<size_t>(0xFFF0, 32) == 16);
+
+  INFO("IntUtils::alignUpPowerOf2()");
+  EXPECT(IntUtils::alignUpPowerOf2<size_t>(0x0000) == 0x00000);
+  EXPECT(IntUtils::alignUpPowerOf2<size_t>(0xFFFF) == 0x10000);
+  EXPECT(IntUtils::alignUpPowerOf2<size_t>(0xF123) == 0x10000);
+  EXPECT(IntUtils::alignUpPowerOf2<size_t>(0x0F00) == 0x01000);
+  EXPECT(IntUtils::alignUpPowerOf2<size_t>(0x0100) == 0x00100);
+  EXPECT(IntUtils::alignUpPowerOf2<size_t>(0x1001) == 0x02000);
+
+  INFO("IntUtils::byteswap()");
+  EXPECT(IntUtils::byteswap32(int32_t(0x01020304)) == int32_t(0x04030201));
+  EXPECT(IntUtils::byteswap32(uint32_t(0x01020304)) == uint32_t(0x04030201));
+
+  INFO("IntUtils::bytepack()");
+  union BytePackData {
+    uint8_t bytes[4];
+    uint32_t u32;
+  } bpdata;
+
+  bpdata.u32 = IntUtils::bytepack32_4x8(0x00, 0x11, 0x22, 0x33);
+  EXPECT(bpdata.bytes[0] == 0x00);
+  EXPECT(bpdata.bytes[1] == 0x11);
+  EXPECT(bpdata.bytes[2] == 0x22);
+  EXPECT(bpdata.bytes[3] == 0x33);
 
   INFO("IntUtils::isBetween()");
   EXPECT(IntUtils::isBetween<int>(11 , 10, 20) == true);
@@ -92,52 +162,6 @@ UNIT(base_intutils) {
   EXPECT(IntUtils::isUInt32(ASMJIT_UINT64_C(0xFFFFFFFF)) == true);
   EXPECT(IntUtils::isUInt32(ASMJIT_UINT64_C(0xFFFFFFFF) + 1) == false);
   EXPECT(IntUtils::isUInt32(-1) == false);
-
-  INFO("IntUtils::isAligned()");
-  EXPECT(IntUtils::isAligned<size_t>(0xFFFF,  4) == false);
-  EXPECT(IntUtils::isAligned<size_t>(0xFFF4,  4) == true);
-  EXPECT(IntUtils::isAligned<size_t>(0xFFF8,  8) == true);
-  EXPECT(IntUtils::isAligned<size_t>(0xFFF0, 16) == true);
-
-  INFO("IntUtils::alignUp()");
-  EXPECT(IntUtils::alignUp<size_t>(0xFFFF,  4) == 0x10000);
-  EXPECT(IntUtils::alignUp<size_t>(0xFFF4,  4) == 0x0FFF4);
-  EXPECT(IntUtils::alignUp<size_t>(0xFFF8,  8) == 0x0FFF8);
-  EXPECT(IntUtils::alignUp<size_t>(0xFFF0, 16) == 0x0FFF0);
-  EXPECT(IntUtils::alignUp<size_t>(0xFFF0, 32) == 0x10000);
-
-  INFO("IntUtils::alignUpDiff()");
-  EXPECT(IntUtils::alignUpDiff<size_t>(0xFFFF,  4) == 1);
-  EXPECT(IntUtils::alignUpDiff<size_t>(0xFFF4,  4) == 0);
-  EXPECT(IntUtils::alignUpDiff<size_t>(0xFFF8,  8) == 0);
-  EXPECT(IntUtils::alignUpDiff<size_t>(0xFFF0, 16) == 0);
-  EXPECT(IntUtils::alignUpDiff<size_t>(0xFFF0, 32) == 16);
-
-  INFO("IntUtils::alignUpPowerOf2()");
-  EXPECT(IntUtils::alignUpPowerOf2<size_t>(0x0000) == 0x00000);
-  EXPECT(IntUtils::alignUpPowerOf2<size_t>(0xFFFF) == 0x10000);
-  EXPECT(IntUtils::alignUpPowerOf2<size_t>(0xF123) == 0x10000);
-  EXPECT(IntUtils::alignUpPowerOf2<size_t>(0x0F00) == 0x01000);
-  EXPECT(IntUtils::alignUpPowerOf2<size_t>(0x0100) == 0x00100);
-  EXPECT(IntUtils::alignUpPowerOf2<size_t>(0x1001) == 0x02000);
-
-  INFO("IntUtils::mask()");
-  EXPECT(IntUtils::mask(0, 1, 7) == 0x83U);
-  for (i = 0; i < 32; i++)
-    EXPECT(IntUtils::mask(i) == (1U << i));
-
-  INFO("IntUtils::bitTest()");
-  for (i = 0; i < 32; i++) {
-    EXPECT(IntUtils::bitTest((1 << i), i) == true, "IntUtils::bitTest(%X, %u) should return true", (1 << i), i);
-  }
-
-  INFO("IntUtils::lsbMask()");
-  for (i = 0; i < 32; i++) {
-    uint32_t expectedBits = 0;
-    for (uint32_t b = 0; b < i; b++)
-      expectedBits |= uint32_t(1) << b;
-    EXPECT(IntUtils::lsbMask<uint32_t>(i) == expectedBits);
-  }
 
   INFO("IntUtils::BitWordIterator<uint32_t>");
   {

@@ -13,17 +13,17 @@
 ASMJIT_BEGIN_NAMESPACE
 
 // ============================================================================
-// [asmjit::Algorithm]
+// [asmjit::Algorithm - Unit]
 // ============================================================================
 
-#if defined(ASMJIT_TEST)
+#if defined(ASMJIT_BUILD_TEST)
 template<typename T>
 static void testArrays(const T* a, const T* b, size_t len) noexcept {
   for (size_t i = 0; i < len; i++)
     EXPECT(a[i] == b[i], "Mismatch at %u", unsigned(i));
 }
 
-UNIT(base_algorithm) {
+UNIT(core_algorithm) {
   INFO("Testing qsort and isort of predefined arrays");
   {
     constexpr size_t kArraySize = 11;
@@ -34,8 +34,8 @@ UNIT(base_algorithm) {
 
     std::memcpy(arr2, arr1, kArraySize * sizeof(int));
 
-    Algorithm::iSortT(arr1, kArraySize);
-    Algorithm::qSortT(arr2, kArraySize);
+    Algorithm::iSort(arr1, kArraySize);
+    Algorithm::qSort(arr2, kArraySize);
     testArrays(arr1, ref_, kArraySize);
     testArrays(arr2, ref_, kArraySize);
   }
@@ -55,8 +55,8 @@ UNIT(base_algorithm) {
         ref_[i] = int(i);
       }
 
-      Algorithm::iSortT(arr1, len);
-      Algorithm::qSortT(arr2, len);
+      Algorithm::iSort(arr1, len);
+      Algorithm::qSort(arr2, len);
       testArrays(arr1, ref_, len);
       testArrays(arr2, ref_, len);
     }
@@ -72,11 +72,11 @@ UNIT(base_algorithm) {
     std::memcpy(arr2, arr1, kArraySize * sizeof(float));
 
     // We don't test as it's undefined where the NaN would be.
-    Algorithm::iSortT(arr1, kArraySize);
-    Algorithm::qSortT(arr2, kArraySize);
+    Algorithm::iSort(arr1, kArraySize);
+    Algorithm::qSort(arr2, kArraySize);
   }
 }
 
-#endif // ASMJIT_TEST
+#endif
 
 ASMJIT_END_NAMESPACE

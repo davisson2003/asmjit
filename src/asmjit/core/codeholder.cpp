@@ -297,7 +297,8 @@ Error CodeHolder::growBuffer(CodeBuffer* cb, size_t n) noexcept {
   // that this function is called while there is still room for `n` bytes.
   size_t capacity = cb->getCapacity();
   size_t required = cb->getLength() + n;
-  if (ASMJIT_UNLIKELY(required <= capacity)) return kErrorOk;
+  if (ASMJIT_UNLIKELY(required <= capacity))
+    return kErrorOk;
 
   if (cb->isFixed())
     return DebugUtils::errored(kErrorCodeTooLarge);

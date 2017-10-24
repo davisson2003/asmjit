@@ -3670,7 +3670,7 @@ const X86Inst::MiscData X86InstDB::miscData = {
 // [asmjit::X86Inst - Test]
 // ============================================================================
 
-#if defined(ASMJIT_TEST)
+#if defined(ASMJIT_BUILD_TEST)
 UNIT(x86_inst_bits) {
   INFO("Checking validity of X86Inst enums");
 
@@ -3694,7 +3694,7 @@ UNIT(x86_inst_bits) {
 }
 #endif
 
-#if defined(ASMJIT_TEST) && !defined(ASMJIT_DISABLE_TEXT)
+#if defined(ASMJIT_BUILD_TEST) && !defined(ASMJIT_DISABLE_TEXT)
 UNIT(x86_inst_names) {
   // All known instructions should be matched.
   INFO("Matching all X86/X64 instructions");

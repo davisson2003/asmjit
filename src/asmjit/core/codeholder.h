@@ -19,7 +19,7 @@
 
 ASMJIT_BEGIN_NAMESPACE
 
-//! \addtogroup asmjit_base
+//! \addtogroup asmjit_core
 //! \{
 
 // ============================================================================
@@ -403,9 +403,8 @@ public:
   // Let's round the size of `LabelEntry` to 64 bytes (as `ZoneAllocator` has
   // granularity of 32 bytes anyway). This gives `_name` the remaining space,
   // which is roughly 16 bytes on 64-bit and 28 bytes on 32-bit architectures.
-  enum : uint32_t {
-    kStaticNameLength = 64 - (sizeof(ZoneHashNode) + 16 + sizeof(intptr_t) + sizeof(LabelLink*))
-  };
+  static constexpr uint32_t kStaticNameLength =
+    64 - (sizeof(ZoneHashNode) + 16 + sizeof(intptr_t) + sizeof(LabelLink*));
 
   uint8_t _type;                         //!< Label type, see Label::Type.
   uint8_t _flags;                        //!< Must be zero.

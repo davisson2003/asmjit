@@ -14,7 +14,7 @@
 
 ASMJIT_BEGIN_NAMESPACE
 
-//! \addtogroup asmjit_base
+//! \addtogroup asmjit_core
 //! \{
 
 #if !defined(ASMJIT_DISABLE_LOGGING)

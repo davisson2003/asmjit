@@ -272,6 +272,17 @@ static void onBeforeRun(void) {
 }
 
 int main(int argc, const char* argv[]) {
-  INFO("AsmJit Unit-Test\n\n");
+  #if defined(ASMJIT_BUILD_DEBUG)
+  const char buildType[] = "DEBUG";
+  #else
+  const char buildType[] = "RELEASE";
+  #endif
+
+  INFO("AsmJit Unit-Test (v%u.%u.%u [%s])\n\n",
+    unsigned((ASMJIT_LIBRARY_VERSION >> 16)       ),
+    unsigned((ASMJIT_LIBRARY_VERSION >>  8) & 0xFF),
+    unsigned((ASMJIT_LIBRARY_VERSION      ) & 0xFF),
+    buildType
+  );
   return BrokenAPI::run(argc, argv, onBeforeRun);
 }

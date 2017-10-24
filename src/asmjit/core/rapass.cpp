@@ -746,7 +746,7 @@ namespace LiveOps {
   }
 }
 
-Error RAPass::buildLiveness() noexcept {
+ASMJIT_FAVOR_SPEED Error RAPass::buildLiveness() noexcept {
   ASMJIT_RA_LOG_INIT(
     Logger* logger = getDebugLogger();
     StringBuilderTmp<512> sb;
@@ -1022,10 +1022,6 @@ Error RAPass::buildLiveness() noexcept {
 // [asmjit::RAPass - Allocation - Global]
 // ============================================================================
 
-struct RAWorkReg_GetFreq {
-  inline float get(const RAWorkReg* item) const noexcept { return item->getLiveStats().getFreq(); }
-};
-
 Error RAPass::runGlobalAllocator() noexcept {
   for (uint32_t group = 0; group < Reg::kGroupVirt; group++) {
     binPack(group);
@@ -1046,7 +1042,7 @@ static void dumpSpans(StringBuilder& sb, uint32_t index, const LiveRegSpans& liv
   sb.appendChar('\n');
 }
 
-Error RAPass::binPack(uint32_t group) noexcept {
+ASMJIT_FAVOR_SPEED Error RAPass::binPack(uint32_t group) noexcept {
   if (getWorkRegCount(group) == 0)
     return kErrorOk;
 
@@ -1066,7 +1062,9 @@ Error RAPass::binPack(uint32_t group) noexcept {
   LiveRegSpans tmpSpans;
 
   ASMJIT_PROPAGATE(workRegs.concat(allocator, getWorkRegs(group)));
-  workRegs.sort<Algorithm::CompareMember<RAWorkReg_GetFreq, Algorithm::kOrderDescending>>();
+  workRegs.sort([](const RAWorkReg* a, const RAWorkReg* b) noexcept {
+    return b->getLiveStats().getFreq() - a->getLiveStats().getFreq();
+  });
 
   IntUtils::BitWordIterator<uint32_t> it(_availableRegs[group]);
   while (it.hasNext() && !workRegs.isEmpty()) {
@@ -1445,12 +1443,12 @@ Error RAPass::rewrite() noexcept {
   ASMJIT_RA_LOG_INIT(
     Logger* logger = getDebugLogger();
   );
-  ASMJIT_RA_LOG_FORMAT("[RAPass::Rewrite]\n");
 
+  ASMJIT_RA_LOG_FORMAT("[RAPass::Rewrite]\n");
   return _rewrite(_func, _stop);
 }
 
-Error RAPass::_rewrite(CBNode* first, CBNode* stop) noexcept {
+ASMJIT_FAVOR_SPEED Error RAPass::_rewrite(CBNode* first, CBNode* stop) noexcept {
   uint32_t virtCount = cc()->_vRegArray.getLength();
 
   CBNode* node = first;

@@ -853,8 +853,8 @@ ZoneHashNode* ZoneHashBase::_del(ZoneAllocator* allocator, ZoneHashNode* node) n
 // [asmjit::Zone - Test]
 // ============================================================================
 
-#if defined(ASMJIT_TEST)
-UNIT(base_zone_bit_vector) {
+#if defined(ASMJIT_BUILD_TEST)
+UNIT(core_zone_bit_vector) {
   Zone zone(8096 - Zone::kZoneOverhead);
   ZoneAllocator allocator(&zone);
 
@@ -1000,7 +1000,7 @@ static void test_zone_stack(ZoneAllocator* allocator, const char* typeName) {
   EXPECT(stack.isEmpty());
 }
 
-UNIT(base_zone_int_vector) {
+UNIT(core_zone_int_vector) {
   Zone zone(8096 - Zone::kZoneOverhead);
   ZoneAllocator allocator(&zone);
 
@@ -1008,7 +1008,7 @@ UNIT(base_zone_int_vector) {
   test_zone_vector<int64_t>(&allocator, "int64_t");
 }
 
-UNIT(base_zone_stack) {
+UNIT(core_zone_stack) {
   Zone zone(8096 - Zone::kZoneOverhead);
   ZoneAllocator allocator(&zone);
 

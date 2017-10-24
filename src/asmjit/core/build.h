@@ -11,8 +11,8 @@
 // when AsmJit's source code is embedded directly in another project, implies
 // static build as well.
 //
-// #define ASMJIT_EMBED              // Asmjit is embedded (implies ASMJIT_STATIC).
-// #define ASMJIT_STATIC             // Define to enable static-library build.
+// #define ASMJIT_BUILD_EMBED        // Asmjit is embedded (implies ASMJIT_BUILD_STATIC).
+// #define ASMJIT_BUILD_STATIC       // Define to enable static-library build.
 
 // AsmJit Build Mode
 // -----------------
@@ -60,7 +60,25 @@
 // [asmjit::Build - Globals - Version]
 // ============================================================================
 
-#define ASMJIT_LIBRARY_VERSION ((1 << 16) | (0 << 8) | (0))
+#define ASMJIT_LIBRARY_VERSION 0x010200 /* 1.2.0 */
+
+// ============================================================================
+// [asmjit::Build - Globals - Build Mode]
+// ============================================================================
+
+// Detect ASMJIT_BUILD_DEBUG and ASMJIT_BUILD_RELEASE if not defined.
+#if !defined(ASMJIT_BUILD_DEBUG) && !defined(ASMJIT_BUILD_RELEASE)
+  #if !defined(NDEBUG)
+    #define ASMJIT_BUILD_DEBUG
+  #else
+    #define ASMJIT_BUILD_RELEASE
+  #endif
+#endif
+
+// Prevent compile-time errors caused by misconfiguration.
+#if defined(ASMJIT_DISABLE_TEXT) && !defined(ASMJIT_DISABLE_LOGGING)
+  #error "[asmjit] ASMJIT_DISABLE_TEXT requires ASMJIT_DISABLE_LOGGING to be defined."
+#endif
 
 // ============================================================================
 // [asmjit::Build - Globals - Target Operating System]
@@ -149,6 +167,22 @@
   #define ASMJIT_ARCH_BE      0
 #endif
 
+// Build host architecture if no architecture is selected.
+#if !defined(ASMJIT_BUILD_HOST) && \
+    !defined(ASMJIT_BUILD_X86)  && \
+    !defined(ASMJIT_BUILD_ARM)
+  #define ASMJIT_BUILD_HOST
+#endif
+
+// Detect host architecture if building only for host.
+#if ASMJIT_ARCH_X86 && defined(ASMJIT_BUILD_HOST) && !defined(ASMJIT_BUILD_X86)
+  #define ASMJIT_BUILD_X86
+#endif
+
+#if ASMJIT_ARCH_ARM && defined(ASMJIT_BUILD_HOST) && !defined(ASMJIT_BUILD_ARM)
+  #define ASMJIT_BUILD_ARM
+#endif
+
 // ============================================================================
 // [asmjit::Build - Globals - C++ Compiler and Features Detection]
 // ============================================================================
@@ -157,7 +191,7 @@
 #define ASMJIT_CXX_INTEL      0
 #define ASMJIT_CXX_GNU_ONLY   0
 #define ASMJIT_CXX_MSC_ONLY   0
-#define ASMJIT_CXX_VER(MAJOR, MINOR, PATCH) ((MAJOR) * 10000000 + (MINOR) * 100000 + (PATCH))
+#define ASMJIT_CXX_MAKE_VER(MAJOR, MINOR, PATCH) ((MAJOR) * 10000000 + (MINOR) * 100000 + (PATCH))
 
 #if defined(__INTEL_COMPILER)
   // Intel compiler pretends to be GNU or MSC, so it must be checked first.
@@ -165,7 +199,7 @@
   //   https://software.intel.com/en-us/articles/c14-features-supported-by-intel-c-compiler
   //   https://software.intel.com/en-us/articles/c17-features-supported-by-intel-c-compiler
   #undef ASMJIT_CXX_INTEL
-  #define ASMJIT_CXX_INTEL ASMJIT_CXX_VER(__INTEL_COMPILER / 100, (__INTEL_COMPILER / 10) % 10, __INTEL_COMPILER % 10)
+  #define ASMJIT_CXX_INTEL ASMJIT_CXX_MAKE_VER(__INTEL_COMPILER / 100, (__INTEL_COMPILER / 10) % 10, __INTEL_COMPILER % 10)
 #elif defined(_MSC_VER) && defined(_MSC_FULL_VER)
   // MSC compiler:
   //   https://msdn.microsoft.com/en-us/library/hh567368.aspx
@@ -178,60 +212,60 @@
   //   19.10.0 == VS2017
   #undef ASMJIT_CXX_MSC_ONLY
   #if _MSC_VER == _MSC_FULL_VER / 10000
-    #define ASMJIT_CXX_MSC_ONLY ASMJIT_CXX_VER(_MSC_VER / 100, _MSC_VER % 100, _MSC_FULL_VER % 10000)
+    #define ASMJIT_CXX_MSC_ONLY ASMJIT_CXX_MAKE_VER(_MSC_VER / 100, _MSC_VER % 100, _MSC_FULL_VER % 10000)
   #else
-    #define ASMJIT_CXX_MSC_ONLY ASMJIT_CXX_VER(_MSC_VER / 100, (_MSC_FULL_VER / 100000) % 100, _MSC_FULL_VER % 100000)
+    #define ASMJIT_CXX_MSC_ONLY ASMJIT_CXX_MAKE_VER(_MSC_VER / 100, (_MSC_FULL_VER / 100000) % 100, _MSC_FULL_VER % 100000)
   #endif
 #elif defined(__clang_major__) && defined(__clang_minor__) && defined(__clang_patchlevel__)
   // Clang compiler:
   #undef ASMJIT_CXX_CLANG
-  #define ASMJIT_CXX_CLANG ASMJIT_CXX_VER(__clang_major__, __clang_minor__, __clang_patchlevel__)
+  #define ASMJIT_CXX_CLANG ASMJIT_CXX_MAKE_VER(__clang_major__, __clang_minor__, __clang_patchlevel__)
 #elif defined(__GNUC__) && defined(__GNUC_MINOR__) && defined(__GNUC_PATCHLEVEL__)
   // GNU compiler:
   //   https://gcc.gnu.org/projects/cxx-status.html
   #undef ASMJIT_CXX_GNU_ONLY
-  #define ASMJIT_CXX_GNU_ONLY ASMJIT_CXX_VER(__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__)
+  #define ASMJIT_CXX_GNU_ONLY ASMJIT_CXX_MAKE_VER(__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__)
 #endif
 
-// GNU [Compatibility] - GNU compiler or compiler that is compatible with it.
+// GNU [Compatibility] - GNU compiler or compatible.
 #if defined(__GNUC__) && defined(__GNUC_MINOR__) && defined(__GNUC_PATCHLEVEL__)
-  #define ASMJIT_CXX_GNU ASMJIT_CXX_VER(__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__)
+  #define ASMJIT_CXX_GNU ASMJIT_CXX_MAKE_VER(__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__)
 #else
-  #define ASMJIT_CXX_GNU 0
+  #define ASMJIT_CXX_GNU ASMJIT_CXX_GNU_ONLY
 #endif
 
-// MSC [Compatibility] - MSC compiler or compiler that is compatible with it
+// MSC [Compatibility] - MSC compiler or compatible.
 #if !ASMJIT_CXX_MSC_ONLY && defined(_MSC_VER)
-  #define ASMJIT_CXX_MSC ASMJIT_CXX_VER(_MSC_VER / 100, _MSC_VER % 100, 0)
+  #define ASMJIT_CXX_MSC ASMJIT_CXX_MAKE_VER(_MSC_VER / 100, _MSC_VER % 100, 0)
 #else
-  #define ASMJIT_CXX_MSC 0
+  #define ASMJIT_CXX_MSC ASMJIT_CXX_MSC_ONLY
 #endif
 
 // Compiler features detection macros.
 #if ASMJIT_CXX_CLANG && defined(__has_builtin)
-  #define ASMJIT_CXX_HAS_BUILTIN(NAME, ALTERNATIVE) (__has_builtin(NAME))
+  #define ASMJIT_CXX_HAS_BUILTIN(NAME, CHECK) (__has_builtin(NAME))
 #else
-  #define ASMJIT_CXX_HAS_BUILTIN(NAME, ALTERNATIVE) (!(!(ALTERNATIVE)))
+  #define ASMJIT_CXX_HAS_BUILTIN(NAME, CHECK) (!(!(CHECK)))
 #endif
 
 #if ASMJIT_CXX_CLANG && defined(__has_extension)
-  #define ASMJIT_CXX_HAS_FEATURE(NAME, ALTERNATIVE) (__has_extension(NAME))
+  #define ASMJIT_CXX_HAS_FEATURE(NAME, CHECK) (__has_extension(NAME))
 #elif ASMJIT_CXX_CLANG && defined(__has_feature)
-  #define ASMJIT_CXX_HAS_FEATURE(NAME, ALTERNATIVE) (__has_feature(NAME))
+  #define ASMJIT_CXX_HAS_FEATURE(NAME, CHECK) (__has_feature(NAME))
 #else
-  #define ASMJIT_CXX_HAS_FEATURE(NAME, ALTERNATIVE) (!(!(ALTERNATIVE)))
+  #define ASMJIT_CXX_HAS_FEATURE(NAME, CHECK) (!(!(CHECK)))
 #endif
 
 #if ASMJIT_CXX_CLANG && defined(__has_attribute)
-  #define ASMJIT_CXX_HAS_ATTRIBUTE(NAME, ALTERNATIVE) (__has_attribute(NAME))
+  #define ASMJIT_CXX_HAS_ATTRIBUTE(NAME, CHECK) (__has_attribute(NAME))
 #else
-  #define ASMJIT_CXX_HAS_ATTRIBUTE(NAME, ALTERNATIVE) (!(!(ALTERNATIVE)))
+  #define ASMJIT_CXX_HAS_ATTRIBUTE(NAME, CHECK) (!(!(CHECK)))
 #endif
 
 #if ASMJIT_CXX_CLANG && defined(__has_cpp_attribute)
-  #define ASMJIT_CXX_HAS_CPP_ATTRIBUTE(NAME, ALTERNATIVE) (__has_cpp_attribute(NAME))
+  #define ASMJIT_CXX_HAS_CPP_ATTRIBUTE(NAME, CHECK) (__has_cpp_attribute(NAME))
 #else
-  #define ASMJIT_CXX_HAS_CPP_ATTRIBUTE(NAME, ALTERNATIVE) (!(!(ALTERNATIVE)))
+  #define ASMJIT_CXX_HAS_CPP_ATTRIBUTE(NAME, CHECK) (!(!(CHECK)))
 #endif
 
 // Compiler features by vendor.
@@ -242,22 +276,22 @@
 #endif
 
 #define ASMJIT_CXX_HAS_UNICODE_LITERALS \
-  ASMJIT_CXX_HAS_FEATURE(__cxx_unicode_literals__, ( \
-                        (ASMJIT_CXX_INTEL    >= ASMJIT_CXX_VER(14, 0, 0)) || \
-                        (ASMJIT_CXX_MSC_ONLY >= ASMJIT_CXX_VER(19, 0, 0)) || \
-                        (ASMJIT_CXX_GNU_ONLY >= ASMJIT_CXX_VER(4 , 5, 0) && __cplusplus >= 201103L) ))
+  ASMJIT_CXX_HAS_FEATURE(cxx_unicode_literals, ( \
+                        (ASMJIT_CXX_INTEL    >= ASMJIT_CXX_MAKE_VER(14, 0, 0)) || \
+                        (ASMJIT_CXX_MSC_ONLY >= ASMJIT_CXX_MAKE_VER(19, 0, 0)) || \
+                        (ASMJIT_CXX_GNU_ONLY >= ASMJIT_CXX_MAKE_VER(4 , 5, 0) && __cplusplus >= 201103L) ))
 
 // ============================================================================
 // [asmjit::Build - Globals - API Decorators & Language Extensions]
 // ============================================================================
 
-// ASMJIT_EMBED implies ASMJIT_STATIC.
-#if defined(ASMJIT_EMBED) && !defined(ASMJIT_STATIC)
-  #define ASMJIT_STATIC
+// ASMJIT_BUILD_EMBED implies ASMJIT_BUILD_STATIC.
+#if defined(ASMJIT_BUILD_EMBED) && !defined(ASMJIT_BUILD_STATIC)
+  #define ASMJIT_BUILD_STATIC
 #endif
 
 // API (Export / Import).
-#if !defined(ASMJIT_API) && !defined(ASMJIT_STATIC)
+#if !defined(ASMJIT_API) && !defined(ASMJIT_BUILD_STATIC)
   #if ASMJIT_OS_WINDOWS && (ASMJIT_CXX_MSC || defined(__MINGW32__))
     #if defined(ASMJIT_EXPORTS)
       #define ASMJIT_API __declspec(dllexport)
@@ -270,7 +304,7 @@
     #else
       #define ASMJIT_API __attribute__((dllimport))
     #endif
-  #elif ASMJIT_CXX_GNU >= ASMJIT_CXX_VER(4, 0, 0)
+  #elif ASMJIT_CXX_GNU >= ASMJIT_CXX_MAKE_VER(4, 0, 0)
     #define ASMJIT_API __attribute__((visibility("default")))
   #endif
 #endif
@@ -288,7 +322,7 @@
 // automatically exports typeinfo and vtable if at least one symbol of the
 // class is exported. However, GCC has some strange behavior that even if
 // one or more symbol is exported it doesn't export typeinfo unless the
-// class itself is decorated with "visibility(default)" (i.e. asmjit_API).
+// class itself is decorated with "visibility(default)" (i.e. ASMJIT_API).
 #if ASMJIT_CXX_GNU && !ASMJIT_OS_WINDOWS
   #define ASMJIT_VIRTAPI ASMJIT_API
 #else
@@ -296,7 +330,7 @@
 #endif
 
 // Function attributes.
-#if (ASMJIT_CXX_GNU >= ASMJIT_CXX_VER(4, 4, 0) && !defined(__MINGW32__))
+#if (ASMJIT_CXX_GNU >= ASMJIT_CXX_MAKE_VER(4, 4, 0) && !defined(__MINGW32__))
   #define ASMJIT_FORCEINLINE inline __attribute__((always_inline))
 #elif ASMJIT_CXX_MSC
   #define ASMJIT_FORCEINLINE __forceinline
@@ -343,28 +377,28 @@
 #endif
 
 // Annotations.
-#if ASMJIT_CXX_HAS_BUILTIN(__builtin_expect, ASMJIT_CXX_GNU >= ASMJIT_CXX_VER(3, 0, 0))
-  #define ASMJIT_LIKELY(EXP) __builtin_expect(!!(EXP), 1)
-  #define ASMJIT_UNLIKELY(EXP) __builtin_expect(!!(EXP), 0)
+#if ASMJIT_CXX_HAS_BUILTIN(__builtin_expect, ASMJIT_CXX_GNU >= ASMJIT_CXX_MAKE_VER(3, 0, 0))
+  #define ASMJIT_LIKELY(...) __builtin_expect(!!(__VA_ARGS__), 1)
+  #define ASMJIT_UNLIKELY(...) __builtin_expect(!!(__VA_ARGS__), 0)
 #else
-  #define ASMJIT_LIKELY(EXP) (EXP)
-  #define ASMJIT_UNLIKELY(EXP) (EXP)
+  #define ASMJIT_LIKELY(...) (__VA_ARGS__)
+  #define ASMJIT_UNLIKELY(...) (__VA_ARGS__)
 #endif
 
 #if ASMJIT_CXX_CLANG && __cplusplus >= 201103L
   #define ASMJIT_FALLTHROUGH [[clang::fallthrough]]
-#elif ASMJIT_CXX_GNU_ONLY >= ASMJIT_CXX_VER(7, 0, 0)
+#elif ASMJIT_CXX_GNU_ONLY >= ASMJIT_CXX_MAKE_VER(7, 0, 0)
   #define ASMJIT_FALLTHROUGH __attribute__((fallthrough))
 #else
   #define ASMJIT_FALLTHROUGH ((void)0) /* fallthrough */
 #endif
 
-#define ASMJIT_UNUSED(x) (void)(x)
+#define ASMJIT_UNUSED(X) (void)(X)
 
 // Utilities.
-#define ASMJIT_UINT64_C(VALUE) static_cast<uint64_t>(VALUE##ull)
+#define ASMJIT_UINT64_C(X) static_cast<uint64_t>(X##ull)
 #define ASMJIT_OFFSET_OF(STRUCT, MEMBER) ((int)(intptr_t)((const char*)&((const STRUCT*)0x1)->MEMBER) - 1)
-#define ASMJIT_ARRAY_SIZE(VAR) uint32_t(sizeof(VAR) / sizeof(VAR[0]))
+#define ASMJIT_ARRAY_SIZE(X) uint32_t(sizeof(X) / sizeof(X[0]))
 
 // ============================================================================
 // [asmjit::Build - Globals - Begin-Namespace / End-Namespace]
@@ -419,16 +453,17 @@
   public:
 
 // ============================================================================
-// [asmjit::Build - Globals - Build]
+// [asmjit::Build - Globals - Build-Only]
 // ============================================================================
 
 // Internal macros that are only used when building AsmJit itself.
 #if defined(ASMJIT_EXPORTS)
-  // Code marked `ASMJIT_FAVOR_SIZE` can be compiled for size instead of speed.
-  #if !defined(ASMJIT_BUILD_DEBUG) && ASMJIT_CXX_HAS_ATTRIBUTE(optimize, ASMJIT_CXX_GNU >= ASMJIT_CXX_VER(4, 4, 0))
-    #define ASMJIT_FAVOR_SIZE __attribute__((optimize("Os")))
+  #if !defined(ASMJIT_BUILD_DEBUG) && ASMJIT_CXX_HAS_ATTRIBUTE(optimize, ASMJIT_CXX_GNU >= ASMJIT_CXX_MAKE_VER(4, 4, 0))
+    #define ASMJIT_FAVOR_SIZE  __attribute__((optimize("Os")))
+    #define ASMJIT_FAVOR_SPEED __attribute__((optimize("O3")))
   #else
     #define ASMJIT_FAVOR_SIZE
+    #define ASMJIT_FAVOR_SPEED
   #endif
 
   // Only turn-off these warnings when building asmjit itself.
@@ -440,40 +475,6 @@
       #define _CRT_SECURE_NO_WARNINGS
     #endif
   #endif
-#endif
-
-// ============================================================================
-// [asmjit::Build - Globals - Configuration]
-// ============================================================================
-
-// Prevent compile-time errors caused by misconfiguration.
-#if defined(ASMJIT_DISABLE_TEXT) && !defined(ASMJIT_DISABLE_LOGGING)
-  #error "[asmjit] ASMJIT_DISABLE_TEXT requires ASMJIT_DISABLE_LOGGING to be defined."
-#endif
-
-// Detect ASMJIT_BUILD_DEBUG and ASMJIT_BUILD_RELEASE if not defined.
-#if !defined(ASMJIT_BUILD_DEBUG) && !defined(ASMJIT_BUILD_RELEASE)
-  #if !defined(NDEBUG)
-    #define ASMJIT_BUILD_DEBUG
-  #else
-    #define ASMJIT_BUILD_RELEASE
-  #endif
-#endif
-
-// Build host architecture if no architecture is selected.
-#if !defined(ASMJIT_BUILD_HOST) && \
-    !defined(ASMJIT_BUILD_X86)  && \
-    !defined(ASMJIT_BUILD_ARM)
-  #define ASMJIT_BUILD_HOST
-#endif
-
-// Detect host architecture if building only for host.
-#if ASMJIT_ARCH_X86 && defined(ASMJIT_BUILD_HOST) && !defined(ASMJIT_BUILD_X86)
-  #define ASMJIT_BUILD_X86
-#endif
-
-#if ASMJIT_ARCH_ARM && defined(ASMJIT_BUILD_HOST) && !defined(ASMJIT_BUILD_ARM)
-  #define ASMJIT_BUILD_ARM
 #endif
 
 // ============================================================================
@@ -518,16 +519,16 @@
 #endif
 
 // ============================================================================
-// [asmjit::Build - Globals - Unit-Tests]
+// [asmjit::Build - Globals - Unit Testing Boilerplate]
 // ============================================================================
 
-// VS-ONLY: Allows to see all tests highlighted instead of gray.
-#if defined(__INTELLISENSE__) && !defined(ASMJIT_TEST)
-  #define ASMJIT_TEST
+// IDE: Make sure '#ifdef'ed unit tests are properly highlighted.
+#if defined(__INTELLISENSE__) && !defined(ASMJIT_BUILD_TEST)
+  #define ASMJIT_BUILD_TEST
 #endif
 
-// Include a unit testing package if this is a `asmjit_test` build.
-#if defined(ASMJIT_TEST)
+// IDE: Make sure '#ifdef'ed unit tests are not disabled by IDE.
+#if defined(ASMJIT_BUILD_TEST)
   #include "../../../test/broken.h"
 #endif
 
