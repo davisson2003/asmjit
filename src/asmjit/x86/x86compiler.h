@@ -9,7 +9,7 @@
 #define _ASMJIT_X86_X86COMPILER_H
 
 #include "../core/build.h"
-#if !defined(ASMJIT_DISABLE_COMPILER)
+#ifndef ASMJIT_DISABLE_COMPILER
 
 // [Dependencies]
 #include "../core/codecompiler.h"
@@ -62,7 +62,7 @@ public:
   // [VirtReg]
   // --------------------------------------------------------------------------
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+#ifndef ASMJIT_DISABLE_LOGGING
 # define ASMJIT_NEW_REG(OUT, PARAM, NAME_FMT)                 \
     std::va_list ap;                                          \
     va_start(ap, NAME_FMT);                                   \

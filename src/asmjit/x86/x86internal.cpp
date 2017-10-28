@@ -1264,11 +1264,9 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitProlog(X86Emitter* emitter, const FuncF
   uint32_t gpSaved = frame.getSavedRegs(X86Reg::kGroupGp);
 
   X86Gp zsp = emitter->zsp();   // ESP|RSP register.
-  X86Gp zbp = emitter->zsp();   // EBP|RBP register.
-  zbp.setId(X86Gp::kIdBp);
-
-  X86Gp gpReg = emitter->zsp(); // General purpose register (temporary).
-  X86Gp saReg = emitter->zsp(); // Stack-arguments base pointer.
+  X86Gp zbp = emitter->zbp();   // EBP|RBP register.
+  X86Gp gpReg = zsp;            // General purpose register (temporary).
+  X86Gp saReg = zsp;            // Stack-arguments base pointer.
 
   // Emit: 'push zbp'
   //       'mov  zbp, zsp'.
@@ -1348,9 +1346,7 @@ ASMJIT_FAVOR_SIZE Error X86Internal::emitEpilog(X86Emitter* emitter, const FuncF
   uint32_t gpSaved = frame.getSavedRegs(X86Reg::kGroupGp);
 
   X86Gp zsp = emitter->zsp();   // ESP|RSP register.
-  X86Gp zbp = emitter->zsp();   // EBP|RBP register.
-  zbp.setId(X86Gp::kIdBp);
-
+  X86Gp zbp = emitter->zbp();   // EBP|RBP register.
   X86Gp gpReg = emitter->zsp(); // General purpose register (temporary).
 
   // Don't emit 'pop zbp' in the pop sequence, this case is handled separately.

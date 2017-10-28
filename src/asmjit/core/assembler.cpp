@@ -13,7 +13,6 @@
 #include "../core/intutils.h"
 #include "../core/logging.h"
 #include "../core/memutils.h"
-#include "../core/virtmem.h"
 
 ASMJIT_BEGIN_NAMESPACE
 
@@ -29,11 +28,7 @@ Assembler::Assembler() noexcept
     _bufferPtr(nullptr),
     _op4(),
     _op5() {}
-
-Assembler::~Assembler() noexcept {
-  if (_code)
-    onSync();
-}
+Assembler::~Assembler() noexcept {}
 
 // ============================================================================
 // [asmjit::Assembler - Buffer Management]
@@ -46,12 +41,6 @@ Error Assembler::setOffset(size_t offset) {
   size_t length = std::max<size_t>(_section->getBuffer().getLength(), getOffset());
   if (ASMJIT_UNLIKELY(offset > length))
     return reportError(DebugUtils::errored(kErrorInvalidArgument));
-
-  // If the `Assembler` generated some code `_bufferPtr` may be higher than
-  // the section length stored in `CodeHolder` as it doesn't update it each
-  // time it generates machine code. This is the same as calling `sync()`.
-  if (_section->_buffer._length < length)
-    _section->_buffer._length = length;
 
   _bufferPtr = _bufferData + offset;
   return kErrorOk;
@@ -91,7 +80,7 @@ Error Assembler::bind(const Label& label) {
   if (ASMJIT_UNLIKELY(le->isBound()))
     return reportError(DebugUtils::errored(kErrorLabelAlreadyBound));
 
-  #if !defined(ASMJIT_DISABLE_LOGGING)
+  #ifndef ASMJIT_DISABLE_LOGGING
   if (hasEmitterOption(kOptionLoggingEnabled)) {
     StringBuilderTmp<256> sb;
     if (le->hasName())
@@ -170,11 +159,13 @@ Error Assembler::_emit(uint32_t instId, const Operand_& o0, const Operand_& o1, 
 
 Error Assembler::_emitOpArray(uint32_t instId, const Operand_* operands, size_t count) {
   const Operand_* op = operands;
+  const Operand& none_ = Globals::none;
+
   switch (count) {
-    case 0: return _emit(instId, _none, _none, _none, _none);
-    case 1: return _emit(instId, op[0], _none, _none, _none);
-    case 2: return _emit(instId, op[0], op[1], _none, _none);
-    case 3: return _emit(instId, op[0], op[1], op[2], _none);
+    case 0: return _emit(instId, none_, none_, none_, none_);
+    case 1: return _emit(instId, op[0], none_, none_, none_);
+    case 2: return _emit(instId, op[0], op[1], none_, none_);
+    case 3: return _emit(instId, op[0], op[1], op[2], none_);
     case 4: return _emit(instId, op[0], op[1], op[2], op[3]);
 
     case 5:
@@ -194,7 +185,7 @@ Error Assembler::_emitOpArray(uint32_t instId, const Operand_* operands, size_t 
   }
 }
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+#ifndef ASMJIT_DISABLE_LOGGING
 void Assembler::_emitLog(
   uint32_t instId, uint32_t options, const Operand_& o0, const Operand_& o1, const Operand_& o2, const Operand_& o3,
   uint32_t relSize, uint32_t imLen, uint8_t* afterCursor) {
@@ -282,20 +273,20 @@ Error Assembler::embed(const void* data, uint32_t size) {
   if (ASMJIT_UNLIKELY(!_code))
     return DebugUtils::errored(kErrorNotInitialized);
 
-  if (ASMJIT_UNLIKELY(getRemainingSpace() < size)) {
-    Error err = _code->growBuffer(&_section->_buffer, size);
-    if (ASMJIT_UNLIKELY(err))
-      return reportError(err);
-  }
+  if (size == 0)
+    return DebugUtils::errored(kErrorInvalidArgument);
 
-  std::memcpy(_bufferPtr, data, size);
-  _bufferPtr += size;
+  AsmBufferWriter writer(this);
+  ASMJIT_PROPAGATE(writer.ensureSpace(this, size));
 
-  #if !defined(ASMJIT_DISABLE_LOGGING)
-    if (ASMJIT_UNLIKELY(hasEmitterOption(kOptionLoggingEnabled)))
-      _code->_logger->logBinary(data, size);
+  writer.emitData(data, size);
+
+  #ifndef ASMJIT_DISABLE_LOGGING
+  if (ASMJIT_UNLIKELY(hasEmitterOption(kOptionLoggingEnabled)))
+    _code->_logger->logBinary(data, size);
   #endif
 
+  writer.done(this);
   return kErrorOk;
 }
 
@@ -310,21 +301,16 @@ Error Assembler::embedLabel(const Label& label) {
   if (ASMJIT_UNLIKELY(!le))
     return reportError(DebugUtils::errored(kErrorInvalidLabel));
 
-  Error err;
   uint32_t size = getGpSize();
+  AsmBufferWriter writer(this);
+  ASMJIT_PROPAGATE(writer.ensureSpace(this, size));
 
-  if (ASMJIT_UNLIKELY(getRemainingSpace() < size)) {
-    err = _code->growBuffer(&_section->_buffer, size);
-    if (ASMJIT_UNLIKELY(err))
-      return reportError(err);
-  }
-
-  #if !defined(ASMJIT_DISABLE_LOGGING)
-    if (ASMJIT_UNLIKELY(hasEmitterOption(kOptionLoggingEnabled)))
-      _code->_logger->logf(size == 4 ? ".dd L%u\n" : ".dq L%u\n", Operand::unpackId(label.getId()));
+  #ifndef ASMJIT_DISABLE_LOGGING
+  if (ASMJIT_UNLIKELY(hasEmitterOption(kOptionLoggingEnabled)))
+    _code->_logger->logf(size == 4 ? ".dd L%u\n" : ".dq L%u\n", Operand::unpackId(label.getId()));
   #endif
 
-  err = _code->newRelocEntry(&re, RelocEntry::kTypeRelToAbs, size);
+  Error err = _code->newRelocEntry(&re, RelocEntry::kTypeRelToAbs, size);
   if (ASMJIT_UNLIKELY(err))
     return reportError(err);
 
@@ -343,8 +329,8 @@ Error Assembler::embedLabel(const Label& label) {
   }
 
   // Emit dummy DWORD/QWORD depending on the address size.
-  std::memset(_bufferPtr, 0, size);
-  _bufferPtr += size;
+  writer.emitZeros(size);
+  writer.done(this);
 
   return kErrorOk;
 }
@@ -360,21 +346,19 @@ Error Assembler::embedConstPool(const Label& label, const ConstPool& pool) {
   ASMJIT_PROPAGATE(bind(label));
 
   size_t size = pool.getSize();
-  if (ASMJIT_UNLIKELY(getRemainingSpace() < size)) {
-    Error err = _code->growBuffer(&_section->_buffer, size);
-    if (ASMJIT_UNLIKELY(err))
-      return reportError(err);
-  }
+  AsmBufferWriter writer(this);
+  ASMJIT_PROPAGATE(writer.ensureSpace(this, size));
 
-  uint8_t* p = _bufferPtr;
-  pool.fill(p);
+  pool.fill(writer.getCursor());
 
-  #if !defined(ASMJIT_DISABLE_LOGGING)
-    if (ASMJIT_UNLIKELY(hasEmitterOption(kOptionLoggingEnabled)))
-      _code->_logger->logBinary(p, size);
+  #ifndef ASMJIT_DISABLE_LOGGING
+  if (ASMJIT_UNLIKELY(hasEmitterOption(kOptionLoggingEnabled)))
+    _code->_logger->logBinary(writer.getCursor(), size);
   #endif
 
-  _bufferPtr += size;
+  writer.advance(size);
+  writer.done(this);
+
   return kErrorOk;
 }
 
@@ -386,16 +370,16 @@ Error Assembler::comment(const char* s, size_t len) {
   if (ASMJIT_UNLIKELY(!_code))
     return DebugUtils::errored(kErrorNotInitialized);
 
-  #if !defined(ASMJIT_DISABLE_LOGGING)
-    if (hasEmitterOption(kOptionLoggingEnabled)) {
-      Logger* logger = _code->getLogger();
-      logger->log(s, len);
-      logger->log("\n", 1);
-      return kErrorOk;
-    }
+  #ifndef ASMJIT_DISABLE_LOGGING
+  if (hasEmitterOption(kOptionLoggingEnabled)) {
+    Logger* logger = _code->getLogger();
+    logger->log(s, len);
+    logger->log("\n", 1);
+    return kErrorOk;
+  }
   #else
-    ASMJIT_UNUSED(s);
-    ASMJIT_UNUSED(len);
+  ASMJIT_UNUSED(s);
+  ASMJIT_UNUSED(len);
   #endif
 
   return kErrorOk;
@@ -432,17 +416,6 @@ Error Assembler::onDetach(CodeHolder* code) noexcept {
   _op5.reset();
 
   return Base::onDetach(code);
-}
-
-void Assembler::onSync() noexcept {
-  ASMJIT_ASSERT(_code != nullptr);                       // Only called by CodeHolder or ~Assembler().
-  ASMJIT_ASSERT(_section != nullptr);                    // One section must always be active, no matter what.
-  ASMJIT_ASSERT(_bufferData == _section->_buffer._data); // `_bufferData` is shortcut to `_section->buffer.data`.
-
-  // Update only if the current offset is greater than the section length.
-  size_t offset = (size_t)(_bufferPtr - _bufferData);
-  if (_section->getBuffer().getLength() < offset)
-    _section->_buffer._length = offset;
 }
 
 ASMJIT_END_NAMESPACE

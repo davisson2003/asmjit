@@ -4,24 +4,15 @@
 // [License]
 // Zlib - See LICENSE.md file in the package.
 
-// [Export]
 #define ASMJIT_EXPORTS
 
-// [Dependencies]
-#include "../core/assembler.h"
+#include "../core/build.h"
+#ifndef ASMJIT_DISABLE_JIT
+
 #include "../core/cpuinfo.h"
-#include "../core/runtime.h"
+#include "../core/jitruntime.h"
 
 ASMJIT_BEGIN_NAMESPACE
-
-// ============================================================================
-// [asmjit::Runtime - Construction / Destruction]
-// ============================================================================
-
-Runtime::Runtime() noexcept
-  : _codeInfo(),
-    _runtimeType(kRuntimeNone) {}
-Runtime::~Runtime() noexcept {}
 
 // ============================================================================
 // [asmjit::JitRuntime - Utilities]
@@ -44,27 +35,29 @@ static inline uint32_t JitRuntime_detectNaturalStackAlignment() noexcept {
   // Alignment is assumed to match the pointer-size by default.
   uint32_t alignment = sizeof(intptr_t);
 
-  // X86 & X64
-  // ---------
+  // X86 Target
+  // ----------
   //
-  //   - 32-bit X86 requires stack to be aligned to 4 bytes. Modern Linux, Mac
-  //     and UNIX guarantees 16-byte stack alignment even on 32-bit. I'm not
-  //     sure about all other UNIX operating systems, because 16-byte alignment
-  //!    is addition to an older specification.
-  //   - 64-bit X86 requires stack to be aligned to at least 16 bytes.
-#if ASMJIT_ARCH_X86
-  unsigned int kIsModernOS = ASMJIT_OS_BSD | ASMJIT_OS_LINUX | ASMJIT_OS_DARWIN;
-  alignment = (ASMJIT_ARCH_X86 == 64 || kIsModernOS) ? 16 : 4;
-#endif
+  //   - 32-bit - stack must be aligned to at least 4 bytes. Modern Linux, Mac,
+  //              and BSD guarantee 16-byte stack alignment even on 32-bit. I'm
+  //              not sure about other unices as 16-byte alignment was a recent
+  //              addition to the specification.
+  //   - 64-bit - stack must be aligned to at least 16 bytes.
+  #if ASMJIT_ARCH_X86
+  unsigned int kIsModernOS = ASMJIT_OS_BSD    |
+                              ASMJIT_OS_DARWIN |
+                              ASMJIT_OS_LINUX  ;
+  alignment = (ASMJIT_ARCH_X86 == 64 || kIsModernOS != 0) ? 16 : 4;
+  #endif
 
-  // ARM32 & ARM64
-  // -------------
+  // ARM Target
+  // ----------
   //
-  //   - 32-bit ARM requires stack to be aligned to 8 bytes.
-  //   - 64-bit ARM requires stack to be aligned to 16 bytes.
-#if ASMJIT_ARCH_ARM
+  //   - 32-bit - Stack must be aligned to at least 8 bytes.
+  //   - 64-bit - Stack must be aligned to at least 16 bytes (hardware requirement).
+  #if ASMJIT_ARCH_ARM
   alignment = (ASMJIT_ARCH_ARM == 32) ? 8 : 16;
-#endif
+  #endif
 
   return alignment;
 }
@@ -74,9 +67,8 @@ static inline uint32_t JitRuntime_detectNaturalStackAlignment() noexcept {
 // ============================================================================
 
 JitRuntime::JitRuntime() noexcept {
-  _runtimeType = kRuntimeJit;
-
-  // Setup the CodeInfo of this Runtime.
+  // Setup target properties.
+  _targetType = kTargetJit;
   _codeInfo._archInfo       = CpuInfo::getHost().getArchInfo();
   _codeInfo._stackAlignment = uint8_t(JitRuntime_detectNaturalStackAlignment());
   _codeInfo._cdeclCallConv  = CallConv::kIdHostCDecl;
@@ -96,22 +88,22 @@ Error JitRuntime::_add(void** dst, CodeHolder* code) noexcept {
     return DebugUtils::errored(kErrorNoCodeGenerated);
   }
 
-  void* p = _virtMemMgr.alloc(codeSize);
+  void* p = _jitAllocator.alloc(codeSize);
   if (ASMJIT_UNLIKELY(!p)) {
     *dst = nullptr;
     return DebugUtils::errored(kErrorNoVirtualMemory);
   }
 
-  // Relocate the code and release the unused memory back to `VirtMemManager`.
+  // Relocate the code and release the unused memory back to `JitAllocator`.
   size_t relocSize = code->relocate(p);
   if (ASMJIT_UNLIKELY(relocSize == 0)) {
     *dst = nullptr;
-    _virtMemMgr.release(p);
+    _jitAllocator.release(p);
     return DebugUtils::errored(kErrorInvalidState);
   }
 
   if (relocSize < codeSize)
-    _virtMemMgr.shrink(p, relocSize);
+    _jitAllocator.shrink(p, relocSize);
 
   flush(p, relocSize);
   *dst = p;
@@ -120,7 +112,7 @@ Error JitRuntime::_add(void** dst, CodeHolder* code) noexcept {
 }
 
 Error JitRuntime::_release(void* p) noexcept {
-  return _virtMemMgr.release(p);
+  return _jitAllocator.release(p);
 }
 
 void JitRuntime::flush(const void* p, size_t size) noexcept {
@@ -128,3 +120,5 @@ void JitRuntime::flush(const void* p, size_t size) noexcept {
 }
 
 ASMJIT_END_NAMESPACE
+
+#endif

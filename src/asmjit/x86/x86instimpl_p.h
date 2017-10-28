@@ -26,7 +26,7 @@ ASMJIT_BEGIN_NAMESPACE
 //!
 //! The purpose of `X86InstImpl` is to move most of the logic out of `X86Inst`.
 struct X86InstImpl {
-#if !defined(ASMJIT_DISABLE_INST_API)
+#ifndef ASMJIT_DISABLE_INST_API
   static Error validate(uint32_t archType, const Inst::Detail& detail, const Operand_* operands, uint32_t count) noexcept;
   static Error queryRWInfo(uint32_t archType, const Inst::Detail& detail, const Operand_* operands, uint32_t count, Inst::IRWInfo& out) noexcept;
   static Error queryCpuFeatures(uint32_t archType, const Inst::Detail& detail, const Operand_* operands, uint32_t count, CpuFeatures& out) noexcept;

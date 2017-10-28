@@ -9,7 +9,7 @@
 
 // [Guard]
 #include "../core/build.h"
-#if !defined(ASMJIT_DISABLE_COMPILER)
+#ifndef ASMJIT_DISABLE_COMPILER
 
 // [Dependencies]
 #include "../core/assembler.h"
@@ -281,11 +281,11 @@ VirtReg* CodeCompiler::newVirtReg(uint32_t typeId, uint32_t signature, const cha
 
   vReg = new(vReg) VirtReg(Operand::packId(index), signature, size, alignment, typeId);
 
-  #if !defined(ASMJIT_DISABLE_LOGGING)
-    if (name && name[0] != '\0')
-      vReg->_name.setData(&_dataZone, name, Globals::kNullTerminated);
-    else
-      CodeCompiler_assignGenericName(this, vReg);
+  #ifndef ASMJIT_DISABLE_LOGGING
+  if (name && name[0] != '\0')
+    vReg->_name.setData(&_dataZone, name, Globals::kNullTerminated);
+  else
+    CodeCompiler_assignGenericName(this, vReg);
   #endif
 
   _vRegArray.appendUnsafe(vReg);

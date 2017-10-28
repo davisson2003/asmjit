@@ -19,7 +19,7 @@ ASMJIT_BEGIN_NAMESPACE
 // [asmjit::X86InstImpl - Validate]
 // ============================================================================
 
-#if !defined(ASMJIT_DISABLE_INST_API)
+#ifndef ASMJIT_DISABLE_INST_API
 template<uint32_t REG_TYPE>
 struct X86OpTypeFromRegTypeT {
   enum {
@@ -256,7 +256,8 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::validate(uint32_t archType, const Inst::Det
           if (ASMJIT_UNLIKELY(IntUtils::bitTest(vd->allowedRegMask[regType], regId) == 0))
             return DebugUtils::errored(kErrorInvalidPhysId);
 
-          combinedRegMask |= IntUtils::mask(regId);
+          regMask = IntUtils::mask(regId);
+          combinedRegMask |= regMask;
         }
         else {
           regMask = 0xFFFFFFFFU;
@@ -611,7 +612,7 @@ Next:
 // [asmjit::X86InstImpl - QueryRWInfo]
 // ============================================================================
 
-#if !defined(ASMJIT_DISABLE_INST_API)
+#ifndef ASMJIT_DISABLE_INST_API
 ASMJIT_FAVOR_SIZE Error X86InstImpl::queryRWInfo(uint32_t archType, const Inst::Detail& detail, const Operand_* operands, uint32_t count, Inst::IRWInfo& out) noexcept {
   // Only called when `archType` matches X86 family.
   ASMJIT_ASSERT(ArchInfo::isX86Family(archType));
@@ -632,7 +633,7 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::queryRWInfo(uint32_t archType, const Inst::
 // [asmjit::X86InstImpl - QueryCpuFeatures]
 // ============================================================================
 
-#if !defined(ASMJIT_DISABLE_INST_API)
+#ifndef ASMJIT_DISABLE_INST_API
 ASMJIT_FAVOR_SIZE static uint32_t x86GetRegTypesMask(const Operand_* operands, uint32_t count) noexcept {
   uint32_t mask = 0;
   for (uint32_t i = 0; i < count; i++) {

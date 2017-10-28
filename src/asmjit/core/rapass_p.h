@@ -9,7 +9,7 @@
 #define _ASMJIT_CORE_RAPASS_P_H
 
 #include "../core/build.h"
-#if !defined(ASMJIT_DISABLE_COMPILER)
+#ifndef ASMJIT_DISABLE_COMPILER
 
 // [Dependencies]
 #include "../core/raassignment_p.h"
@@ -805,13 +805,13 @@ public:
   // [Logging]
   // --------------------------------------------------------------------------
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+  #ifndef ASMJIT_DISABLE_LOGGING
   Error annotateCode() noexcept;
 
   Error _logBlockIds(const RABlocks& blocks) noexcept;
   Error _dumpBlockLiveness(StringBuilder& sb, const RABlock* block) noexcept;
   Error _dumpLiveSpans(StringBuilder& sb) noexcept;
-#endif
+  #endif
 
   // --------------------------------------------------------------------------
   // [Emit]

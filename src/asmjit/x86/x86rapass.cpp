@@ -1192,12 +1192,13 @@ Error X86RAPass::onEmitMove(uint32_t workId, uint32_t dstPhysId, uint32_t srcPhy
   Reg src(wReg->getInfo().getSignature(), srcPhysId);
 
   const char* comment = nullptr;
-#if !defined(ASMJIT_DISABLE_LOGGING)
+
+  #ifndef ASMJIT_DISABLE_LOGGING
   if (_loggerOptions & Logger::kOptionAnnotate) {
     _tmpString.setFormat("<MOVE> %s", getWorkReg(workId)->getName());
     comment = _tmpString.getData();
   }
-#endif
+  #endif
 
   return X86Internal::emitRegMove(cc()->as<X86Emitter>(), dst, src, wReg->getTypeId(), _avxEnabled, comment);
 }
@@ -1210,12 +1211,12 @@ Error X86RAPass::onEmitSwap(uint32_t aWorkId, uint32_t aPhysId, uint32_t bWorkId
   uint32_t sign = is64Bit ? uint32_t(X86RegTraits<X86Reg::kRegGpq>::kSignature)
                           : uint32_t(X86RegTraits<X86Reg::kRegGpd>::kSignature);
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+  #ifndef ASMJIT_DISABLE_LOGGING
   if (_loggerOptions & Logger::kOptionAnnotate) {
     _tmpString.setFormat("<SWAP> %s, %s", waReg->getName(), wbReg->getName());
     cc()->setInlineComment(_tmpString.getData());
   }
-#endif
+  #endif
 
   return cc()->emit(X86Inst::kIdXchg, X86Reg(sign, aPhysId), X86Reg(sign, bPhysId));
 }
@@ -1226,12 +1227,13 @@ Error X86RAPass::onEmitLoad(uint32_t workId, uint32_t dstPhysId) noexcept {
   Mem srcMem(workRegAsMem(wReg));
 
   const char* comment = nullptr;
-#if !defined(ASMJIT_DISABLE_LOGGING)
+
+  #ifndef ASMJIT_DISABLE_LOGGING
   if (_loggerOptions & Logger::kOptionAnnotate) {
     _tmpString.setFormat("<LOAD> %s", getWorkReg(workId)->getName());
     comment = _tmpString.getData();
   }
-#endif
+  #endif
 
   return X86Internal::emitRegMove(cc()->as<X86Emitter>(), dstReg, srcMem, wReg->getTypeId(), _avxEnabled, comment);
 }
@@ -1242,12 +1244,13 @@ Error X86RAPass::onEmitSave(uint32_t workId, uint32_t srcPhysId) noexcept {
   Reg srcReg(wReg->getInfo().getSignature(), srcPhysId);
 
   const char* comment = nullptr;
-#if !defined(ASMJIT_DISABLE_LOGGING)
+
+  #ifndef ASMJIT_DISABLE_LOGGING
   if (_loggerOptions & Logger::kOptionAnnotate) {
     _tmpString.setFormat("<SAVE> %s", getWorkReg(workId)->getName());
     comment = _tmpString.getData();
   }
-#endif
+  #endif
 
   return X86Internal::emitRegMove(cc()->as<X86Emitter>(), dstMem, srcReg, wReg->getTypeId(), _avxEnabled, comment);
 }

@@ -13,7 +13,6 @@
 #include "../core/logging.h"
 #include "../core/memutils.h"
 #include "../core/stringutils.h"
-#include "../core/virtmem.h"
 
 ASMJIT_BEGIN_NAMESPACE
 
@@ -186,17 +185,12 @@ Error CodeHolder::detach(CodeEmitter* emitter) noexcept {
   if (ASMJIT_UNLIKELY(emitter->_code != this))
     return DebugUtils::errored(kErrorInvalidState);
 
-  uint32_t type = emitter->getEmitterType();
-  Error err = kErrorOk;
-
   // NOTE: We always detach if we were asked to, if error happens during
   // `emitter->onDetach()` we just propagate it, but the CodeEmitter will
   // be detached.
-  if (!emitter->isDestroyed()) {
-    if (type == CodeEmitter::kTypeAssembler)
-      static_cast<Assembler*>(emitter)->onSync();
+  Error err = kErrorOk;
+  if (!emitter->isDestroyed())
     err = emitter->onDetach(this);
-  }
 
   // Disconnect CodeHolder <-> CodeEmitter.
   uint32_t index = _emitters.indexOf(emitter);
@@ -209,26 +203,10 @@ Error CodeHolder::detach(CodeEmitter* emitter) noexcept {
 }
 
 // ============================================================================
-// [asmjit::CodeHolder - Sync]
-// ============================================================================
-
-void CodeHolder::sync() noexcept {
-  const ZoneVector<CodeEmitter*>& emitters = getEmitters();
-  for (uint32_t i = 0, count = emitters.getLength(); i < count; i++) {
-    CodeEmitter* emitter = emitters[i];
-    if (emitter->isAssembler())
-      static_cast<Assembler*>(emitter)->onSync();
-  }
-}
-
-// ============================================================================
 // [asmjit::CodeHolder - Result Information]
 // ============================================================================
 
 size_t CodeHolder::getCodeSize() const noexcept {
-  // Reflect all changes first.
-  const_cast<CodeHolder*>(this)->sync();
-
   // TODO: Support sections.
   return _sections[0]->_buffer._length + getTrampolinesSize();
 }
@@ -238,7 +216,7 @@ size_t CodeHolder::getCodeSize() const noexcept {
 // ============================================================================
 
 void CodeHolder::setLogger(Logger* logger) noexcept {
-  #if !defined(ASMJIT_DISABLE_LOGGING)
+  #ifndef ASMJIT_DISABLE_LOGGING
   _logger = logger;
   uint32_t option = !logger ? uint32_t(0) : uint32_t(CodeEmitter::kOptionLoggingEnabled);
   CodeHolder_modifyEmitterOptions(this, CodeEmitter::kOptionLoggingEnabled, option);
@@ -286,8 +264,6 @@ static Error CodeHolder_reserveInternal(CodeHolder* self, CodeBuffer* cb, size_t
 }
 
 Error CodeHolder::growBuffer(CodeBuffer* cb, size_t n) noexcept {
-  sync();
-
   // Now the length of the section must be valid.
   size_t length = cb->getLength();
   if (ASMJIT_UNLIKELY(n > std::numeric_limits<uintptr_t>::max() - length))
@@ -331,7 +307,6 @@ Error CodeHolder::reserveBuffer(CodeBuffer* cb, size_t n) noexcept {
   if (cb->isFixed())
     return DebugUtils::errored(kErrorCodeTooLarge);
 
-  sync();
   return CodeHolder_reserveInternal(this, cb, n);
 }
 
@@ -529,8 +504,6 @@ Error CodeHolder::newRelocEntry(RelocEntry** dst, uint32_t type, uint32_t size) 
 }
 
 // TODO: Support multiple sections, this only relocates the first.
-// TODO: This should go to Runtime as it's responsible for relocating the
-//       code, CodeHolder should just hold it.
 size_t CodeHolder::relocate(void* _dst, uint64_t baseAddress) const noexcept {
   SectionEntry* section = _sections[0];
   ASMJIT_ASSERT(section != nullptr);
@@ -539,7 +512,7 @@ size_t CodeHolder::relocate(void* _dst, uint64_t baseAddress) const noexcept {
   if (baseAddress == Globals::kNoBaseAddress)
     baseAddress = uint64_t((uintptr_t)dst);
 
-  #if !defined(ASMJIT_DISABLE_LOGGING)
+  #ifndef ASMJIT_DISABLE_LOGGING
   Logger* logger = getLogger();
   #endif
 
@@ -650,7 +623,7 @@ size_t CodeHolder::relocate(void* _dst, uint64_t baseAddress) const noexcept {
       MemUtils::writeU64u(dst + trampOffset, re->getData());
       trampOffset += 8;
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+#ifndef ASMJIT_DISABLE_LOGGING
       if (logger)
         logger->logf(".dq 0x%016llX ; TRAMP\n", re->getData());
 #endif

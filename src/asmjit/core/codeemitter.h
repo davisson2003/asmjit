@@ -285,53 +285,53 @@ public:
 
   // NOTE: These `emit()` helpers are designed to address a code-bloat generated
   // by C++ compilers to call a function having many arguments. Each parameter to
-  // `_emit()` requires code to pass it, which means that if we default to 4
+  // `_emit()` requires some code to pass it, which means that if we default to 4
   // operand parameters in `_emit()` and instId the C++ compiler would have to
   // generate a virtual function call having 5 parameters, which is quite a lot.
   // Since by default asm instructions have 2 to 3 operands it's better to
-  // introduce helpers that pass those and fill all the remaining operands
-  // by `_none` operand.
+  // introduce helpers that pass those and fill out the remaining operands.
 
-#define OP const Operand_&
+  #define OP const Operand_&
+  #define NONE Globals::none
 
   //! Emit an instruction.
-  ASMJIT_NOINLINE Error emit(uint32_t instId) { return _emit(instId, _none, _none, _none, _none); }
+  ASMJIT_NOINLINE Error emit(uint32_t instId) { return _emit(instId, NONE, NONE, NONE, NONE); }
   //! \overload
-  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0) { return _emit(instId, o0, _none, _none, _none); }
+  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0) { return _emit(instId, o0, NONE, NONE, NONE); }
   //! \overload
-  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, OP o1) { return _emit(instId, o0, o1, _none, _none); }
+  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, OP o1) { return _emit(instId, o0, o1, NONE, NONE); }
   //! \overload
-  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, OP o1, OP o2) { return _emit(instId, o0, o1, o2, _none); }
+  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, OP o1, OP o2) { return _emit(instId, o0, o1, o2, NONE); }
   //! \overload
   inline Error emit(uint32_t instId, OP o0, OP o1, OP o2, OP o3) { return _emit(instId, o0, o1, o2, o3); }
   //! \overload
-  inline Error emit(uint32_t instId, OP o0, OP o1, OP o2, OP o3, OP o4) { return _emit(instId, o0, o1, o2, o3, o4, _none); }
+  inline Error emit(uint32_t instId, OP o0, OP o1, OP o2, OP o3, OP o4) { return _emit(instId, o0, o1, o2, o3, o4, NONE); }
   //! \overload
   inline Error emit(uint32_t instId, OP o0, OP o1, OP o2, OP o3, OP o4, OP o5) { return _emit(instId, o0, o1, o2, o3, o4, o5); }
 
   //! \overload
-  ASMJIT_NOINLINE Error emit(uint32_t instId, int o0) { return _emit(instId, Imm(o0), _none, _none, _none); }
+  ASMJIT_NOINLINE Error emit(uint32_t instId, int o0) { return _emit(instId, Imm(o0), NONE, NONE, NONE); }
   //! \overload
-  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, int o1) { return _emit(instId, o0, Imm(o1), _none, _none); }
+  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, int o1) { return _emit(instId, o0, Imm(o1), NONE, NONE); }
   //! \overload
-  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, OP o1, int o2) { return _emit(instId, o0, o1, Imm(o2), _none); }
+  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, OP o1, int o2) { return _emit(instId, o0, o1, Imm(o2), NONE); }
   //! \overload
   ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, OP o1, OP o2, int o3) { return _emit(instId, o0, o1, o2, Imm(o3)); }
   //! \overload
-  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, OP o1, OP o2, OP o3, int o4) { return _emit(instId, o0, o1, o2, o3, Imm(o4), _none); }
+  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, OP o1, OP o2, OP o3, int o4) { return _emit(instId, o0, o1, o2, o3, Imm(o4), NONE); }
   //! \overload
   ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, OP o1, OP o2, OP o3, OP o4, int o5) { return _emit(instId, o0, o1, o2, o3, o4, Imm(o5)); }
 
   //! \overload
-  ASMJIT_NOINLINE Error emit(uint32_t instId, int64_t o0) { return _emit(instId, Imm(o0), _none, _none, _none); }
+  ASMJIT_NOINLINE Error emit(uint32_t instId, int64_t o0) { return _emit(instId, Imm(o0), NONE, NONE, NONE); }
   //! \overload
-  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, int64_t o1) { return _emit(instId, o0, Imm(o1), _none, _none); }
+  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, int64_t o1) { return _emit(instId, o0, Imm(o1), NONE, NONE); }
   //! \overload
-  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, OP o1, int64_t o2) { return _emit(instId, o0, o1, Imm(o2), _none); }
+  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, OP o1, int64_t o2) { return _emit(instId, o0, o1, Imm(o2), NONE); }
   //! \overload
   ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, OP o1, OP o2, int64_t o3) { return _emit(instId, o0, o1, o2, Imm(o3)); }
   //! \overload
-  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, OP o1, OP o2, OP o3, int64_t o4) { return _emit(instId, o0, o1, o2, o3, Imm(o4), _none); }
+  ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, OP o1, OP o2, OP o3, int64_t o4) { return _emit(instId, o0, o1, o2, o3, Imm(o4), NONE); }
   //! \overload
   ASMJIT_NOINLINE Error emit(uint32_t instId, OP o0, OP o1, OP o2, OP o3, OP o4, int64_t o5) { return _emit(instId, o0, o1, o2, o3, o4, Imm(o5)); }
 
@@ -361,7 +361,8 @@ public:
   //! \overload
   inline Error emit(uint32_t instId, OP o0, OP o1, OP o2, OP o3, OP o4, uint64_t o5) { return emit(instId, o0, o1, o2, o3, o4, int64_t(o5)); }
 
-#undef OP
+  #undef NONE
+  #undef OP
 
   inline Error emitOpArray(uint32_t instId, const Operand_* operands, size_t count) { return _emitOpArray(instId, operands, count); }
 
@@ -458,8 +459,6 @@ public:
   uint32_t _globalInstOptions;           //!< Global Instruction options              (combined with `_instOptions` by `emit...()`).
   RegOnly _extraReg;                     //!< Extra register (op-mask {k} on AVX-512) (affects the next instruction).
   const char* _inlineComment;            //!< Inline comment of the next instruction  (affects the next instruction).
-
-  Operand_ _none;                        //!< Used to pass unused operands to `_emit()` instead of passing null.
 };
 
 //! \}

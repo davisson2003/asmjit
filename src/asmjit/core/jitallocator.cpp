@@ -34,9 +34,9 @@
 // Bit array looks like this (empty = unused, X = used) - Size of block 64:
 //
 //   -------------------------------------------------------------------------
-//   | |X|X| | | | | |X|X|X|X|X|X| | | | | | | | | | | | |X| | | | |X|X|X| | |
+//   | |X|X| | | | | |X|X|X|X|X|X| | | | | | | | | | | | | | |X| | |X|X|X| | |
 //   -------------------------------------------------------------------------
-//                               (Maximum continuous block)
+//                                (Maximum unused cont. block)
 //
 // These bits show that there are 12 allocated blocks (X) of 64 bytes, so total
 // size allocated is 768 bytes. Maximum count of continuous memory is 12 * 64.
@@ -44,106 +44,28 @@
 // [Export]
 #define ASMJIT_EXPORTS
 
+#include "../core/build.h"
+#ifndef ASMJIT_DISABLE_JIT
+
 // [Dependencies]
 #include "../core/intutils.h"
-#include "../core/osutils.h"
-#include "../core/virtmem.h"
-
-#if ASMJIT_OS_POSIX
-# include <sys/types.h>
-# include <sys/mman.h>
-# include <unistd.h>
-#endif
+#include "../core/jitallocator.h"
+#include "../core/jitutils.h"
 
 ASMJIT_BEGIN_NAMESPACE
 
 // ============================================================================
-// [asmjit::VirtMem]
-// ============================================================================
-
-// Windows specific implementation using `VirtualAlloc` and `VirtualFree`.
-#if ASMJIT_OS_WINDOWS
-VirtMem::Info VirtMem::getInfo() noexcept {
-  VirtMem::Info vmInfo;
-  SYSTEM_INFO systemInfo;
-
-  ::GetSystemInfo(&systemInfo);
-  vmInfo.pageSize = IntUtils::alignUpPowerOf2<uint32_t>(systemInfo.dwPageSize);
-  vmInfo.pageGranularity = systemInfo.dwAllocationGranularity;
-
-  return vmInfo;
-}
-
-void* VirtMem::alloc(size_t size, uint32_t flags) noexcept {
-  if (size == 0)
-    return nullptr;
-
-  // Windows XP-SP2, Vista and newer support data-execution-prevention (DEP).
-  DWORD protectFlags = 0;
-  if (flags & kAccessExecute)
-    protectFlags |= (flags & kAccessWrite) ? PAGE_EXECUTE_READWRITE : PAGE_EXECUTE_READ;
-  else
-    protectFlags |= (flags & kAccessWrite) ? PAGE_READWRITE : PAGE_READONLY;
-  return ::VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, protectFlags);
-}
-
-Error VirtMem::release(void* p, size_t size) noexcept {
-  ASMJIT_UNUSED(size);
-  if (ASMJIT_UNLIKELY(!::VirtualFree(p, 0, MEM_RELEASE)))
-    return DebugUtils::errored(kErrorInvalidState);
-  return kErrorOk;
-}
-#endif
-
-// Posix specific implementation using `mmap()` and `munmap()`.
-#if ASMJIT_OS_POSIX
-
-// Mac uses MAP_ANON instead of MAP_ANONYMOUS.
-#if !defined(MAP_ANONYMOUS)
-# define MAP_ANONYMOUS MAP_ANON
-#endif
-
-VirtMem::Info VirtMem::getInfo() noexcept {
-  VirtMem::Info vmInfo;
-
-  uint32_t pageSize = uint32_t(::getpagesize());
-  vmInfo.pageSize = pageSize;
-  vmInfo.pageGranularity = std::max<uint32_t>(pageSize, 65536);
-
-  return vmInfo;
-}
-
-void* VirtMem::alloc(size_t size, uint32_t flags) noexcept {
-  int protection = PROT_READ;
-  if (flags & kAccessWrite  ) protection |= PROT_WRITE;
-  if (flags & kAccessExecute) protection |= PROT_EXEC;
-
-  void* mbase = ::mmap(nullptr, size, protection, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (ASMJIT_UNLIKELY(mbase == MAP_FAILED)) return nullptr;
-
-  return mbase;
-}
-
-Error VirtMem::release(void* p, size_t size) noexcept {
-  if (ASMJIT_UNLIKELY(::munmap(p, size) != 0))
-    return DebugUtils::errored(kErrorInvalidState);
-
-  return kErrorOk;
-}
-#endif
-
-// ============================================================================
-// [asmjit::VirtMemManager::TypeDefs]
+// [asmjit::JitAllocator::TypeDefs]
 // ============================================================================
 
 using Globals::BitWord;
 using Globals::kBitWordSize;
 
-typedef VirtMemManager::RBNode RBNode;
-typedef VirtMemManager::MemNode MemNode;
+typedef JitAllocator::RBNode RBNode;
+typedef JitAllocator::MemNode MemNode;
 
 // ============================================================================
-// [asmjit::VirtMemManager - BitOps]
+// [asmjit::JitAllocator - BitOps]
 // ============================================================================
 
 #define M_DIV(x, y) ((x) / (y))
@@ -152,7 +74,7 @@ typedef VirtMemManager::MemNode MemNode;
 //! \internal
 //!
 //! Set `len` bits in `buf` starting at `index` bit index.
-static void VirtMemManager_setBits(BitWord* buf, size_t index, size_t len) noexcept {
+static void JitAllocator_setBits(BitWord* buf, size_t index, size_t len) noexcept {
   if (len == 0)
     return;
 
@@ -174,13 +96,13 @@ static void VirtMemManager_setBits(BitWord* buf, size_t index, size_t len) noexc
 }
 
 // ============================================================================
-// [asmjit::VirtMemManager::RBNode]
+// [asmjit::JitAllocator::RBNode]
 // ============================================================================
 
 //! \internal
 //!
 //! Base red-black tree node.
-struct VirtMemManager::RBNode {
+struct JitAllocator::RBNode {
   // Implementation is based on article by Julienne Walker (Public Domain),
   // including C code and original comments. Thanks for the excellent article.
   //! Get whether the node is red (nullptr or node with red flag).
@@ -244,10 +166,10 @@ static ASMJIT_FORCEINLINE RBNode* rbRotateDouble(RBNode* root, int dir) noexcept
 }
 
 // ============================================================================
-// [asmjit::VirtMemManager::MemNode]
+// [asmjit::JitAllocator::MemNode]
 // ============================================================================
 
-struct VirtMemManager::MemNode : public RBNode {
+struct JitAllocator::MemNode : public RBNode {
   ASMJIT_FORCEINLINE void init(MemNode* other) noexcept {
     mem = other->mem;
 
@@ -278,13 +200,13 @@ struct VirtMemManager::MemNode : public RBNode {
 };
 
 // ============================================================================
-// [asmjit::VirtMemManager - Private]
+// [asmjit::JitAllocator - Private]
 // ============================================================================
 
 //! \internal
 //!
 //! Check whether the Red-Black tree is valid.
-static bool VirtMemManager_checkTree(VirtMemManager* self) noexcept {
+static bool JitAllocator_checkTree(JitAllocator* self) noexcept {
   return rbAssert(self->_root) > 0;
 }
 
@@ -293,10 +215,10 @@ static bool VirtMemManager_checkTree(VirtMemManager* self) noexcept {
 //! Alloc virtual memory including a heap memory needed for `MemNode` data.
 //!
 //! Returns set-up `MemNode*` or nullptr if allocation failed.
-static MemNode* VirtMemManager_newNode(VirtMemManager* self, size_t size, size_t density) noexcept {
+static MemNode* JitAllocator_newNode(JitAllocator* self, size_t size, size_t density) noexcept {
   ASMJIT_UNUSED(self);
 
-  uint8_t* vmem = static_cast<uint8_t*>(VirtMem::alloc(size, VirtMem::kAccessWrite | VirtMem::kAccessExecute));
+  uint8_t* vmem = static_cast<uint8_t*>(JitUtils::virtualAlloc(size, JitUtils::kAccessWriteExecute));
   if (ASMJIT_UNLIKELY(!vmem))
     return nullptr;
 
@@ -308,7 +230,7 @@ static MemNode* VirtMemManager_newNode(VirtMemManager* self, size_t size, size_t
 
   // Out of memory.
   if (!node || !data) {
-    VirtMem::release(vmem, size);
+    JitUtils::virtualRelease(vmem, size);
     if (node) AsmJitInternal::releaseMemory(node);
     if (data) AsmJitInternal::releaseMemory(data);
     return nullptr;
@@ -337,7 +259,7 @@ static MemNode* VirtMemManager_newNode(VirtMemManager* self, size_t size, size_t
   return node;
 }
 
-static void VirtMemManager_insertNode(VirtMemManager* self, MemNode* node) noexcept {
+static void JitAllocator_insertNode(JitAllocator* self, MemNode* node) noexcept {
   if (!self->_root) {
     // Empty tree case.
     self->_root = node;
@@ -420,7 +342,7 @@ static void VirtMemManager_insertNode(VirtMemManager* self, MemNode* node) noexc
 //!
 //! Returns node that should be freed, but it doesn't have to be necessarily
 //! the `node` passed.
-static MemNode* VirtMemManager_removeNode(VirtMemManager* self, MemNode* node) noexcept {
+static MemNode* JitAllocator_removeNode(JitAllocator* self, MemNode* node) noexcept {
   // False tree root.
   RBNode head = { { nullptr, nullptr }, 0, 0 };
 
@@ -519,7 +441,7 @@ static MemNode* VirtMemManager_removeNode(VirtMemManager* self, MemNode* node) n
   return static_cast<MemNode*>(q);
 }
 
-static MemNode* VirtMemManager_getNodeByPtr(VirtMemManager* self, uint8_t* mem) noexcept {
+static MemNode* JitAllocator_getNodeByPtr(JitAllocator* self, uint8_t* mem) noexcept {
   MemNode* node = self->_root;
   while (node) {
     uint8_t* nodeMem = node->mem;
@@ -544,14 +466,14 @@ static MemNode* VirtMemManager_getNodeByPtr(VirtMemManager* self, uint8_t* mem) 
 }
 
 // ============================================================================
-// [asmjit::VirtMemManager - Construction / Destruction]
+// [asmjit::JitAllocator - Construction / Destruction]
 // ============================================================================
 
-VirtMemManager::VirtMemManager() noexcept {
-  VirtMem::Info vmInfo = VirtMem::getInfo();
+JitAllocator::JitAllocator() noexcept {
+  JitUtils::MemInfo memInfo = JitUtils::getMemInfo();
 
-  _pageSize = vmInfo.pageSize;
-  _blockSize = vmInfo.pageGranularity;
+  _pageSize = memInfo.pageSize;
+  _blockSize = memInfo.pageGranularity;
   _blockDensity = 64;
 
   _usedBytes = 0;
@@ -563,21 +485,21 @@ VirtMemManager::VirtMemManager() noexcept {
   _optimal = nullptr;
 }
 
-VirtMemManager::~VirtMemManager() noexcept {
+JitAllocator::~JitAllocator() noexcept {
   reset();
 }
 
 // ============================================================================
-// [asmjit::VirtMemManager - Reset]
+// [asmjit::JitAllocator - Reset]
 // ============================================================================
 
-void VirtMemManager::reset() noexcept {
+void JitAllocator::reset() noexcept {
   MemNode* node = _first;
 
   while (node) {
     MemNode* next = node->next;
 
-    VirtMem::release(node->mem, node->size);
+    JitUtils::virtualRelease(node->mem, node->size);
     AsmJitInternal::releaseMemory(node->baUsed);
     AsmJitInternal::releaseMemory(node);
 
@@ -594,10 +516,10 @@ void VirtMemManager::reset() noexcept {
 }
 
 // ============================================================================
-// [asmjit::VirtMemManager - Alloc / Release]
+// [asmjit::JitAllocator - Alloc / Release]
 // ============================================================================
 
-void* VirtMemManager::alloc(size_t size) noexcept {
+void* JitAllocator::alloc(size_t size) noexcept {
   // Current index.
   size_t i;
 
@@ -663,7 +585,7 @@ void* VirtMemManager::alloc(size_t size) noexcept {
           if (++cont == need) {
             i += j;
             i -= cont;
-            goto L_Found;
+            goto Found;
           }
 
           continue;
@@ -689,12 +611,12 @@ void* VirtMemManager::alloc(size_t size) noexcept {
     size_t newBlockSize = _blockSize;
     if (newBlockSize < size) newBlockSize = size;
 
-    node = VirtMemManager_newNode(this, newBlockSize, this->_blockDensity);
+    node = JitAllocator_newNode(this, newBlockSize, this->_blockDensity);
     if (!node) return nullptr;
 
     // Update binary tree.
-    VirtMemManager_insertNode(this, node);
-    ASMJIT_ASSERT(VirtMemManager_checkTree(this));
+    JitAllocator_insertNode(this, node);
+    ASMJIT_ASSERT(JitAllocator_checkTree(this));
 
     // Alloc first node at start.
     i = 0;
@@ -704,10 +626,10 @@ void* VirtMemManager::alloc(size_t size) noexcept {
     _allocatedBytes += node->size;
   }
 
-L_Found:
+Found:
   // Update bits.
-  VirtMemManager_setBits(node->baUsed, i, need);
-  VirtMemManager_setBits(node->baCont, i, need - 1);
+  JitAllocator_setBits(node->baUsed, i, need);
+  JitAllocator_setBits(node->baCont, i, need - 1);
 
   // Update statistics.
   {
@@ -723,12 +645,12 @@ L_Found:
   return result;
 }
 
-Error VirtMemManager::release(void* p) noexcept {
+Error JitAllocator::release(void* p) noexcept {
   if (!p)
     return kErrorOk;
 
   AutoLock locked(_lock);
-  MemNode* node = VirtMemManager_getNodeByPtr(this, static_cast<uint8_t*>(p));
+  MemNode* node = JitAllocator_getNodeByPtr(this, static_cast<uint8_t*>(p));
   if (!node) return DebugUtils::errored(kErrorInvalidArgument);
 
   size_t offset = (size_t)((uint8_t*)p - (uint8_t*)node->mem);
@@ -790,7 +712,7 @@ Error VirtMemManager::release(void* p) noexcept {
   if (node->used == 0) {
     // Free memory associated with node (this memory is not accessed
     // anymore so it's safe).
-    VirtMem::release(node->mem, node->size);
+    JitUtils::virtualRelease(node->mem, node->size);
     AsmJitInternal::releaseMemory(node->baUsed);
 
     node->baUsed = nullptr;
@@ -801,20 +723,20 @@ Error VirtMemManager::release(void* p) noexcept {
 
     // Remove node. This function can return different node than
     // passed into, but data is copied into previous node if needed.
-    AsmJitInternal::releaseMemory(VirtMemManager_removeNode(this, node));
-    ASMJIT_ASSERT(VirtMemManager_checkTree(this));
+    AsmJitInternal::releaseMemory(JitAllocator_removeNode(this, node));
+    ASMJIT_ASSERT(JitAllocator_checkTree(this));
   }
 
   return kErrorOk;
 }
 
-Error VirtMemManager::shrink(void* p, size_t used) noexcept {
+Error JitAllocator::shrink(void* p, size_t used) noexcept {
   if (!p) return kErrorOk;
   if (used == 0)
     return release(p);
 
   AutoLock locked(_lock);
-  MemNode* node = VirtMemManager_getNodeByPtr(this, (uint8_t*)p);
+  MemNode* node = JitAllocator_getNodeByPtr(this, (uint8_t*)p);
   if (!node) return DebugUtils::errored(kErrorInvalidArgument);
 
   size_t offset = (size_t)((uint8_t*)p - (uint8_t*)node->mem);
@@ -890,7 +812,7 @@ Error VirtMemManager::shrink(void* p, size_t used) noexcept {
 // ============================================================================
 
 #if defined(ASMJIT_BUILD_TEST)
-static void VirtMemTest_fill(void* a, void* b, int i) noexcept {
+static void JitAllocatorTest_fill(void* a, void* b, int i) noexcept {
   int pattern = rand() % 256;
   *(int *)a = i;
   *(int *)b = i;
@@ -898,7 +820,7 @@ static void VirtMemTest_fill(void* a, void* b, int i) noexcept {
   std::memset((char*)b + sizeof(int), pattern, unsigned(i) - sizeof(int));
 }
 
-static void VirtMemTest_verify(void* a, void* b) noexcept {
+static void JitAllocatorTest_verify(void* a, void* b) noexcept {
   int ai = *(int*)a;
   int bi = *(int*)b;
 
@@ -906,12 +828,12 @@ static void VirtMemTest_verify(void* a, void* b) noexcept {
   EXPECT(std::memcmp(a, b, size_t(ai)) == 0, "Pattern (%p) doesn't match", a);
 }
 
-static void VirtMemTest_stats(VirtMemManager& memmgr) noexcept {
-  INFO("Used     : %llu", uint64_t(memmgr.getUsedBytes()));
-  INFO("Allocated: %llu", uint64_t(memmgr.getAllocatedBytes()));
+static void JitAllocatorTest_stats(JitAllocator& allocator) noexcept {
+  INFO("Used     : %llu", uint64_t(allocator.getUsedBytes()));
+  INFO("Allocated: %llu", uint64_t(allocator.getAllocatedBytes()));
 }
 
-static void VirtMemTest_shuffle(void** a, void** b, size_t count) noexcept {
+static void JitAllocatorTest_shuffle(void** a, void** b, size_t count) noexcept {
   for (size_t i = 0; i < count; ++i) {
     size_t si = size_t(unsigned(rand()) % count);
 
@@ -926,8 +848,8 @@ static void VirtMemTest_shuffle(void** a, void** b, size_t count) noexcept {
   }
 }
 
-UNIT(core_virtmem) {
-  VirtMemManager memmgr;
+UNIT(core_jitallocator) {
+  JitAllocator allocator;
 
   // Should be predictible.
   srand(100);
@@ -945,64 +867,64 @@ UNIT(core_virtmem) {
   for (i = 0; i < kCount; i++) {
     size_t r = (unsigned(rand()) % 1000) + 4;
 
-    a[i] = memmgr.alloc(r);
+    a[i] = allocator.alloc(r);
     EXPECT(a[i] != nullptr, "Couldn't allocate %d bytes of virtual memory", r);
     std::memset(a[i], 0, r);
   }
-  VirtMemTest_stats(memmgr);
+  JitAllocatorTest_stats(allocator);
 
   INFO("Freeing virtual memory...");
   for (i = 0; i < kCount; i++) {
-    EXPECT(memmgr.release(a[i]) == kErrorOk, "Failed to free %p", b[i]);
+    EXPECT(allocator.release(a[i]) == kErrorOk, "Failed to free %p", b[i]);
   }
-  VirtMemTest_stats(memmgr);
+  JitAllocatorTest_stats(allocator);
 
   INFO("Verified alloc/free test - %d allocations", kCount);
   for (i = 0; i < kCount; i++) {
     size_t r = (unsigned(rand()) % 1000) + 4;
 
-    a[i] = memmgr.alloc(r);
+    a[i] = allocator.alloc(r);
     EXPECT(a[i] != nullptr, "Couldn't allocate %d bytes of virtual memory", r);
 
     b[i] = AsmJitInternal::allocMemory(r);
     EXPECT(b[i] != nullptr, "Couldn't allocate %d bytes on heap", r);
 
-    VirtMemTest_fill(a[i], b[i], int(r));
+    JitAllocatorTest_fill(a[i], b[i], int(r));
   }
-  VirtMemTest_stats(memmgr);
+  JitAllocatorTest_stats(allocator);
 
   INFO("Shuffling...");
-  VirtMemTest_shuffle(a, b, unsigned(kCount));
+  JitAllocatorTest_shuffle(a, b, unsigned(kCount));
 
   INFO("Verify and free...");
   for (i = 0; i < kCount / 2; i++) {
-    VirtMemTest_verify(a[i], b[i]);
-    EXPECT(memmgr.release(a[i]) == kErrorOk, "Failed to free %p", a[i]);
+    JitAllocatorTest_verify(a[i], b[i]);
+    EXPECT(allocator.release(a[i]) == kErrorOk, "Failed to free %p", a[i]);
     AsmJitInternal::releaseMemory(b[i]);
   }
-  VirtMemTest_stats(memmgr);
+  JitAllocatorTest_stats(allocator);
 
   INFO("Alloc again");
   for (i = 0; i < kCount / 2; i++) {
     size_t r = (unsigned(rand()) % 1000) + 4;
 
-    a[i] = memmgr.alloc(r);
+    a[i] = allocator.alloc(r);
     EXPECT(a[i] != nullptr, "Couldn't allocate %d bytes of virtual memory", r);
 
     b[i] = AsmJitInternal::allocMemory(r);
     EXPECT(b[i] != nullptr, "Couldn't allocate %d bytes on heap");
 
-    VirtMemTest_fill(a[i], b[i], int(r));
+    JitAllocatorTest_fill(a[i], b[i], int(r));
   }
-  VirtMemTest_stats(memmgr);
+  JitAllocatorTest_stats(allocator);
 
   INFO("Verify and free...");
   for (i = 0; i < kCount; i++) {
-    VirtMemTest_verify(a[i], b[i]);
-    EXPECT(memmgr.release(a[i]) == kErrorOk, "Failed to free %p", a[i]);
+    JitAllocatorTest_verify(a[i], b[i]);
+    EXPECT(allocator.release(a[i]) == kErrorOk, "Failed to free %p", a[i]);
     AsmJitInternal::releaseMemory(b[i]);
   }
-  VirtMemTest_stats(memmgr);
+  JitAllocatorTest_stats(allocator);
 
   AsmJitInternal::releaseMemory(a);
   AsmJitInternal::releaseMemory(b);
@@ -1010,3 +932,5 @@ UNIT(core_virtmem) {
 #endif
 
 ASMJIT_END_NAMESPACE
+
+#endif

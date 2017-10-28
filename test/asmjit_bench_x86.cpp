@@ -18,8 +18,8 @@ using namespace asmjit;
 // [Configuration]
 // ============================================================================
 
-static const uint32_t kNumRepeats = 10;
-static const uint32_t kNumIterations = 2000;
+static const uint32_t kNumRepeats = 20;
+static const uint32_t kNumIterations = 1500;
 
 // ============================================================================
 // [Performance]

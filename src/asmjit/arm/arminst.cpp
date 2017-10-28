@@ -508,7 +508,7 @@ const ArmInst::CommonData ArmInstDB::commonData[] = {
 // [asmjit::ArmUtil - Id <-> Name]
 // ============================================================================
 
-#if !defined(ASMJIT_DISABLE_TEXT)
+#ifndef ASMJIT_DISABLE_TEXT
 // ${nameData:Begin}
 // ------------------- Automatically generated, do not edit -------------------
 const char ArmInstDB::nameData[] =
@@ -664,7 +664,7 @@ const char ArmInstDB::nameData[] = "";
 // [asmjit::ArmUtil - Validation]
 // ============================================================================
 
-#if !defined(ASMJIT_DISABLE_INST_API)
+#ifndef ASMJIT_DISABLE_INST_API
 ASMJIT_FAVOR_SIZE Error ArmInst::validate(
   uint32_t archType,
   uint32_t instId, uint32_t options,

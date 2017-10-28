@@ -62,97 +62,97 @@ ASMJIT_FAVOR_SIZE Error ArchUtils::typeIdToRegInfo(uint32_t archType, uint32_t& 
 
   // TODO: Move to X86 backend.
   #if defined(ASMJIT_BUILD_X86)
-    if (ArchInfo::isX86Family(archType)) {
-      // Passed RegType instead of TypeId?
-      if (typeId <= Reg::kRegMax)
-        typeId = x86OpData.archRegs.regTypeToTypeId[typeId];
+  if (ArchInfo::isX86Family(archType)) {
+    // Passed RegType instead of TypeId?
+    if (typeId <= Reg::kRegMax)
+      typeId = x86OpData.archRegs.regTypeToTypeId[typeId];
 
-      if (ASMJIT_UNLIKELY(!Type::isValid(typeId)))
-        return DebugUtils::errored(kErrorInvalidTypeId);
+    if (ASMJIT_UNLIKELY(!Type::isValid(typeId)))
+      return DebugUtils::errored(kErrorInvalidTypeId);
 
-      // First normalize architecture dependent types.
-      if (Type::isAbstract(typeId)) {
-        if (typeId == Type::kIdIntPtr)
-          typeId = (archType == ArchInfo::kTypeX86) ? Type::kIdI32 : Type::kIdI64;
-        else
-          typeId = (archType == ArchInfo::kTypeX86) ? Type::kIdU32 : Type::kIdU64;
-      }
-
-      // Type size helps to construct all groupss of registers. If the size is zero
-      // then the TypeId is invalid.
-      uint32_t size = Type::sizeOf(typeId);
-      if (ASMJIT_UNLIKELY(!size))
-        return DebugUtils::errored(kErrorInvalidTypeId);
-
-      if (ASMJIT_UNLIKELY(typeId == Type::kIdF80))
-        return DebugUtils::errored(kErrorInvalidUseOfF80);
-
-      uint32_t regType = 0;
-
-      switch (typeId) {
-        case Type::kIdI8:
-        case Type::kIdU8:
-          regType = X86Reg::kRegGpbLo;
-          break;
-
-        case Type::kIdI16:
-        case Type::kIdU16:
-          regType = X86Reg::kRegGpw;
-          break;
-
-        case Type::kIdI32:
-        case Type::kIdU32:
-          regType = X86Reg::kRegGpd;
-          break;
-
-        case Type::kIdI64:
-        case Type::kIdU64:
-          if (archType == ArchInfo::kTypeX86)
-            return DebugUtils::errored(kErrorInvalidUseOfGpq);
-
-          regType = X86Reg::kRegGpq;
-          break;
-
-        // F32 and F64 are always promoted to use vector registers.
-        case Type::kIdF32:
-          typeId = Type::kIdF32x1;
-          regType = X86Reg::kRegXmm;
-          break;
-
-        case Type::kIdF64:
-          typeId = Type::kIdF64x1;
-          regType = X86Reg::kRegXmm;
-          break;
-
-        // Mask registers {k}.
-        case Type::kIdMask8:
-        case Type::kIdMask16:
-        case Type::kIdMask32:
-        case Type::kIdMask64:
-          regType = X86Reg::kRegK;
-          break;
-
-        // MMX registers.
-        case Type::kIdMmx32:
-        case Type::kIdMmx64:
-          regType = X86Reg::kRegMm;
-          break;
-
-        // XMM|YMM|ZMM registers.
-        default:
-          if (size <= 16)
-            regType = X86Reg::kRegXmm;
-          else if (size == 32)
-            regType = X86Reg::kRegYmm;
-          else
-            regType = X86Reg::kRegZmm;
-          break;
-      }
-
-      typeIdInOut = typeId;
-      regInfo._signature = x86OpData.archRegs.regInfo[regType].getSignature();
-      return kErrorOk;
+    // First normalize architecture dependent types.
+    if (Type::isAbstract(typeId)) {
+      if (typeId == Type::kIdIntPtr)
+        typeId = (archType == ArchInfo::kTypeX86) ? Type::kIdI32 : Type::kIdI64;
+      else
+        typeId = (archType == ArchInfo::kTypeX86) ? Type::kIdU32 : Type::kIdU64;
     }
+
+    // Type size helps to construct all groupss of registers. If the size is zero
+    // then the TypeId is invalid.
+    uint32_t size = Type::sizeOf(typeId);
+    if (ASMJIT_UNLIKELY(!size))
+      return DebugUtils::errored(kErrorInvalidTypeId);
+
+    if (ASMJIT_UNLIKELY(typeId == Type::kIdF80))
+      return DebugUtils::errored(kErrorInvalidUseOfF80);
+
+    uint32_t regType = 0;
+
+    switch (typeId) {
+      case Type::kIdI8:
+      case Type::kIdU8:
+        regType = X86Reg::kRegGpbLo;
+        break;
+
+      case Type::kIdI16:
+      case Type::kIdU16:
+        regType = X86Reg::kRegGpw;
+        break;
+
+      case Type::kIdI32:
+      case Type::kIdU32:
+        regType = X86Reg::kRegGpd;
+        break;
+
+      case Type::kIdI64:
+      case Type::kIdU64:
+        if (archType == ArchInfo::kTypeX86)
+          return DebugUtils::errored(kErrorInvalidUseOfGpq);
+
+        regType = X86Reg::kRegGpq;
+        break;
+
+      // F32 and F64 are always promoted to use vector registers.
+      case Type::kIdF32:
+        typeId = Type::kIdF32x1;
+        regType = X86Reg::kRegXmm;
+        break;
+
+      case Type::kIdF64:
+        typeId = Type::kIdF64x1;
+        regType = X86Reg::kRegXmm;
+        break;
+
+      // Mask registers {k}.
+      case Type::kIdMask8:
+      case Type::kIdMask16:
+      case Type::kIdMask32:
+      case Type::kIdMask64:
+        regType = X86Reg::kRegK;
+        break;
+
+      // MMX registers.
+      case Type::kIdMmx32:
+      case Type::kIdMmx64:
+        regType = X86Reg::kRegMm;
+        break;
+
+      // XMM|YMM|ZMM registers.
+      default:
+        if (size <= 16)
+          regType = X86Reg::kRegXmm;
+        else if (size == 32)
+          regType = X86Reg::kRegYmm;
+        else
+          regType = X86Reg::kRegZmm;
+        break;
+    }
+
+    typeIdInOut = typeId;
+    regInfo._signature = x86OpData.archRegs.regInfo[regType].getSignature();
+    return kErrorOk;
+  }
   #endif
 
   return DebugUtils::errored(kErrorInvalidArch);

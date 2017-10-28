@@ -1817,14 +1817,6 @@ struct X86Inst {
     // AsmJit specific to emit FPU's 9B byte.
     kOpCode_PP_9B         = 0x07U << kOpCode_PP_Shift,
 
-    // EVEX.W Field
-    // ------------
-    //
-    // `W` field used by EVEX instruction encoding.
-
-    kOpCode_EW_Shift      = 24,
-    kOpCode_EW            = 0x01U << kOpCode_EW_Shift,
-
     // REX B|X|R|W Bits
     // ----------------
     //
@@ -1834,13 +1826,21 @@ struct X86Inst {
     // part of the opcode itself.
 
     // These must be binary compatible with instruction options.
-    kOpCode_REX_Shift     = 25,
+    kOpCode_REX_Shift     = 24,
     kOpCode_REX_Mask      = 0x0FU << kOpCode_REX_Shift,
     kOpCode_B             = 0x01U << kOpCode_REX_Shift, // Never stored in DB, used by encoder.
     kOpCode_X             = 0x02U << kOpCode_REX_Shift, // Never stored in DB, used by encoder.
     kOpCode_R             = 0x04U << kOpCode_REX_Shift, // Never stored in DB, used by encoder.
     kOpCode_W             = 0x08U << kOpCode_REX_Shift,
     kOpCode_W_Shift       = kOpCode_REX_Shift + 3,
+
+    // EVEX.W Field
+    // ------------
+    //
+    // `W` field used by EVEX instruction encoding.
+
+    kOpCode_EW_Shift      = 28,
+    kOpCode_EW            = 0x01U << kOpCode_EW_Shift,
 
     // `L` field in AVX/XOP/AVX-512
     // ----------------------------
@@ -2005,12 +2005,12 @@ struct X86Inst {
     kOptionZMask          = 0x00800000U, //!< AVX-512: Use zeroing {k}{z} instead of merging {k}.
     _kOptionAvx512Mask    = 0x00FC0000U, //!< AVX-512: Mask of all possible AVX-512 options except EVEX prefix flag.
 
-    _kOptionInvalidRex    = 0x01000000U, //!< REX prefix can't be emitted (internal).
-    kOptionOpCodeB        = 0x02000000U, //!< REX.B and/or VEX.B field (X64).
-    kOptionOpCodeX        = 0x04000000U, //!< REX.X and/or VEX.X field (X64).
-    kOptionOpCodeR        = 0x08000000U, //!< REX.R and/or VEX.R field (X64).
-    kOptionOpCodeW        = 0x10000000U, //!< REX.W and/or VEX.W field (X64).
-    kOptionRex            = 0x80000000U  //!< Use REX prefix (X64) (must be 0x80000000).
+    kOptionOpCodeB        = 0x01000000U, //!< REX.B and/or VEX.B field (X64).
+    kOptionOpCodeX        = 0x02000000U, //!< REX.X and/or VEX.X field (X64).
+    kOptionOpCodeR        = 0x04000000U, //!< REX.R and/or VEX.R field (X64).
+    kOptionOpCodeW        = 0x08000000U, //!< REX.W and/or VEX.W field (X64).
+    kOptionRex            = 0x40000000U, //!< Force REX prefix (X64).
+    _kOptionInvalidRex    = 0x80000000U  //!< Invalid REX prefix (set by X86 or when AH|BH|CH|DH regs are used on X64).
   };
 
   //! Supported architectures.
@@ -2445,7 +2445,7 @@ struct X86Inst {
   // [Id <-> Name]
   // --------------------------------------------------------------------------
 
-#if !defined(ASMJIT_DISABLE_TEXT)
+#ifndef ASMJIT_DISABLE_TEXT
   //! Get an instruction ID from a given instruction `name`.
   //!
   //! NOTE: Instruction name MUST BE in lowercase, otherwise there will be no
@@ -2483,7 +2483,7 @@ struct X86InstDB {
   ASMJIT_API static const char nameData[];
   ASMJIT_API static const X86Inst::MiscData miscData;
 
-#if !defined(ASMJIT_DISABLE_INST_API)
+#ifndef ASMJIT_DISABLE_INST_API
   ASMJIT_API static const X86Inst::ISignature iSignatureData[];
   ASMJIT_API static const X86Inst::OSignature oSignatureData[];
 #endif
@@ -2501,7 +2501,7 @@ inline const X86Inst::SseToAvxData& X86Inst::getSseToAvxData() const noexcept { 
 inline uint32_t X86Inst::CommonData::getAltOpCode() const noexcept { return X86InstDB::altOpCodeData[_altOpCodeIndex]; }
 inline const X86Inst::MiscData& X86Inst::getMiscData() noexcept { return X86InstDB::miscData; }
 
-#if !defined(ASMJIT_DISABLE_INST_API)
+#ifndef ASMJIT_DISABLE_INST_API
 inline const X86Inst::ISignature* X86Inst::CommonData::getISignatureData() const noexcept { return X86InstDB::iSignatureData + _iSignatureIndex; }
 inline const X86Inst::ISignature* X86Inst::CommonData::getISignatureEnd() const noexcept { return X86InstDB::iSignatureData + _iSignatureIndex + _iSignatureCount; }
 #else

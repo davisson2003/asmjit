@@ -9,7 +9,7 @@
 
 // [Guard]
 #include "../core/build.h"
-#if !defined(ASMJIT_DISABLE_COMPILER)
+#ifndef ASMJIT_DISABLE_COMPILER
 
 // [Dependencies]
 #include "../core/intutils.h"

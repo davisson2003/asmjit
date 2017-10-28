@@ -85,7 +85,7 @@ public:
   ASMJIT_API Error _emitOpArray(uint32_t instId, const Operand_* operands, size_t count) override;
 
 protected:
-  #if !defined(ASMJIT_DISABLE_LOGGING)
+  #ifndef ASMJIT_DISABLE_LOGGING
   void _emitLog(
     uint32_t instId, uint32_t options, const Operand_& o0, const Operand_& o1, const Operand_& o2, const Operand_& o3,
     uint32_t relSize, uint32_t imLen, uint8_t* afterCursor);
@@ -133,9 +133,6 @@ public:
   ASMJIT_API Error onAttach(CodeHolder* code) noexcept override;
   ASMJIT_API Error onDetach(CodeHolder* code) noexcept override;
 
-  //! Called by \ref CodeHolder::sync().
-  ASMJIT_API virtual void onSync() noexcept;
-
   // --------------------------------------------------------------------------
   // [Members]
   // --------------------------------------------------------------------------
@@ -146,6 +143,109 @@ public:
   uint8_t* _bufferPtr;                   //!< Pointer in the CodeBuffer of the current section.
   Operand_ _op4;                         //!< 5th operand data, used only temporarily.
   Operand_ _op5;                         //!< 6th operand data, used only temporarily.
+};
+
+// ============================================================================
+// [asmjit::AsmBufferWriter]
+// ============================================================================
+
+// TODO: Better name, should not be here, maybe hide from public API completely?
+class AsmBufferWriter {
+public:
+  explicit ASMJIT_FORCEINLINE AsmBufferWriter(Assembler* a) noexcept
+    : _cursor(a->_bufferPtr) {}
+
+  ASMJIT_FORCEINLINE Error ensureSpace(Assembler* a, size_t n) noexcept {
+    size_t remainingSpace = (size_t)(a->_bufferEnd - _cursor);
+    if (ASMJIT_UNLIKELY(remainingSpace < n)) {
+      CodeBuffer& buffer = a->_section->_buffer;
+      Error err = a->_code->growBuffer(&buffer, n);
+      if (ASMJIT_UNLIKELY(err))
+        return a->reportError(err);
+      _cursor = a->_bufferPtr;
+    }
+    return kErrorOk;
+  }
+
+  ASMJIT_FORCEINLINE uint8_t* getCursor() noexcept {
+    return _cursor;
+  }
+
+  ASMJIT_FORCEINLINE size_t getOffset(uint8_t* from) noexcept {
+    ASMJIT_ASSERT(_cursor >= from);
+    return (size_t)(_cursor - from);
+  }
+
+  ASMJIT_FORCEINLINE void advance(size_t n) noexcept {
+    _cursor += n;
+  }
+
+  template<typename T>
+  ASMJIT_FORCEINLINE void emit8(T val) noexcept {
+    typedef typename std::make_unsigned<T>::type U;
+    _cursor[0] = uint8_t(U(val) & U(0xFF));
+    _cursor++;
+  }
+
+  template<typename T, typename Y>
+  ASMJIT_FORCEINLINE void emit8If(T val, Y cond) noexcept {
+    typedef typename std::make_unsigned<T>::type U;
+    ASMJIT_ASSERT(size_t(cond) <= 1U);
+
+    _cursor[0] = uint8_t(U(val) & U(0xFF));
+    _cursor += size_t(cond);
+  }
+
+  template<typename T>
+  ASMJIT_FORCEINLINE void emit16uLE(T val) noexcept {
+    typedef typename std::make_unsigned<T>::type U;
+    MemUtils::writeU16uLE(_cursor, uint32_t(U(val) & 0xFFFFU));
+    _cursor += 2;
+  }
+
+  template<typename T>
+  ASMJIT_FORCEINLINE void emit16uBE(T val) noexcept {
+    typedef typename std::make_unsigned<T>::type U;
+    MemUtils::writeU16uBE(_cursor, uint32_t(U(val) & 0xFFFFU));
+    _cursor += 2;
+  }
+
+  template<typename T>
+  ASMJIT_FORCEINLINE void emit32uLE(T val) noexcept {
+    typedef typename std::make_unsigned<T>::type U;
+    MemUtils::writeU32uLE(_cursor, uint32_t(U(val) & 0xFFFFFFFFU));
+    _cursor += 4;
+  }
+
+  template<typename T>
+  ASMJIT_FORCEINLINE void emit32uBE(T val) noexcept {
+    typedef typename std::make_unsigned<T>::type U;
+    MemUtils::writeU32uBE(_cursor, uint32_t(U(val) & 0xFFFFFFFFU));
+    _cursor += 4;
+  }
+
+  ASMJIT_FORCEINLINE void emitData(const void* data, size_t size) noexcept {
+    ASMJIT_ASSERT(size != 0);
+    std::memcpy(_cursor, data, size);
+    _cursor += size;
+  }
+
+  ASMJIT_FORCEINLINE void emitZeros(size_t size) noexcept {
+    ASMJIT_ASSERT(size != 0);
+    std::memset(_cursor, 0, size);
+    _cursor += size;
+  }
+
+  ASMJIT_FORCEINLINE void done(Assembler* a) noexcept {
+    CodeBuffer& buffer = a->_section->_buffer;
+    size_t newLength = (size_t)(_cursor - a->_bufferData);
+    ASMJIT_ASSERT(newLength <= buffer.getCapacity());
+
+    a->_bufferPtr = _cursor;
+    buffer._length = std::max(buffer._length, newLength);
+  }
+
+  uint8_t* _cursor;
 };
 
 //! \}

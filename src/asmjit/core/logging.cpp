@@ -9,7 +9,7 @@
 
 // [Guard]
 #include "../core/build.h"
-#if !defined(ASMJIT_DISABLE_LOGGING)
+#ifndef ASMJIT_DISABLE_LOGGING
 
 // [Dependencies]
 #include "../core/codebuilder.h"
@@ -67,7 +67,7 @@ Error Logger::logv(const char* fmt, std::va_list ap) noexcept {
 }
 
 Error Logger::logBinary(const void* data, size_t size) noexcept {
-  static const char prefix[] = ".db ";
+  static const char prefix[] = "db ";
 
   StringBuilderTmp<256> sb;
   sb.appendString(prefix, ASMJIT_ARRAY_SIZE(prefix) - 1);
@@ -185,13 +185,13 @@ Error Logging::formatRegister(
   uint32_t regId) noexcept {
 
   #if defined(ASMJIT_BUILD_X86)
-    if (ArchInfo::isX86Family(archType))
-      return X86Logging::formatRegister(sb, logOptions, emitter, archType, regType, regId);
+  if (ArchInfo::isX86Family(archType))
+    return X86Logging::formatRegister(sb, logOptions, emitter, archType, regType, regId);
   #endif
 
   #if defined(ASMJIT_BUILD_ARM)
-    if (ArchInfo::isArmFamily(archType))
-      return ArmLogging::formatRegister(sb, logOptions, emitter, archType, regType, regId);
+  if (ArchInfo::isArmFamily(archType))
+    return ArmLogging::formatRegister(sb, logOptions, emitter, archType, regType, regId);
   #endif
 
   return kErrorInvalidArch;
@@ -205,13 +205,13 @@ Error Logging::formatOperand(
   const Operand_& op) noexcept {
 
   #if defined(ASMJIT_BUILD_X86)
-    if (ArchInfo::isX86Family(archType))
-      return X86Logging::formatOperand(sb, logOptions, emitter, archType, op);
+  if (ArchInfo::isX86Family(archType))
+    return X86Logging::formatOperand(sb, logOptions, emitter, archType, op);
   #endif
 
   #if defined(ASMJIT_BUILD_ARM)
-    if (ArchInfo::isArmFamily(archType))
-      return ArmLogging::formatOperand(sb, logOptions, emitter, archType, op);
+  if (ArchInfo::isArmFamily(archType))
+    return ArmLogging::formatOperand(sb, logOptions, emitter, archType, op);
   #endif
 
   return kErrorInvalidArch;
@@ -225,13 +225,13 @@ Error Logging::formatInstruction(
   const Inst::Detail& detail, const Operand_* operands, uint32_t count) noexcept {
 
   #if defined(ASMJIT_BUILD_X86)
-    if (ArchInfo::isX86Family(archType))
-      return X86Logging::formatInstruction(sb, logOptions, emitter, archType, detail, operands, count);
+  if (ArchInfo::isX86Family(archType))
+    return X86Logging::formatInstruction(sb, logOptions, emitter, archType, detail, operands, count);
   #endif
 
   #if defined(ASMJIT_BUILD_ARM)
-    if (ArchInfo::isArmFamily(archType))
-      return ArmLogging::formatInstruction(sb, logOptions, emitter, archType, detail, operands, count);
+  if (ArchInfo::isArmFamily(archType))
+    return ArmLogging::formatInstruction(sb, logOptions, emitter, archType, detail, operands, count);
   #endif
 
   return kErrorInvalidArch;
@@ -281,7 +281,7 @@ Error Logging::formatTypeId(StringBuilder& sb, uint32_t typeId) noexcept {
 
 }
 
-#if !defined(ASMJIT_DISABLE_BUILDER)
+#ifndef ASMJIT_DISABLE_BUILDER
 static Error formatFuncValue(StringBuilder& sb, uint32_t logOptions, const CodeEmitter* emitter, FuncValue value) noexcept {
   uint32_t typeId = value.getTypeId();
   ASMJIT_PROPAGATE(Logging::formatTypeId(sb, typeId));
@@ -312,11 +312,11 @@ static Error formatFuncRets(
     if (i) ASMJIT_PROPAGATE(sb.appendString(", "));
     ASMJIT_PROPAGATE(formatFuncValue(sb, logOptions, emitter, fd.getRet(i)));
 
-    #if !defined(ASMJIT_DISABLE_COMPILER)
-      if (vRegs) {
-        static const char nullRet[] = "<none>";
-        ASMJIT_PROPAGATE(sb.appendFormat(" %s", vRegs[i] ? vRegs[i]->getName() : nullRet));
-      }
+    #ifndef ASMJIT_DISABLE_COMPILER
+    if (vRegs) {
+      static const char nullRet[] = "<none>";
+      ASMJIT_PROPAGATE(sb.appendFormat(" %s", vRegs[i] ? vRegs[i]->getName() : nullRet));
+    }
     #endif
   }
 
@@ -338,11 +338,11 @@ static Error formatFuncArgs(
     if (i) ASMJIT_PROPAGATE(sb.appendString(", "));
     ASMJIT_PROPAGATE(formatFuncValue(sb, logOptions, emitter, fd.getArg(i)));
 
-    #if !defined(ASMJIT_DISABLE_COMPILER)
-      if (vRegs) {
-        static const char nullArg[] = "<none>";
-        ASMJIT_PROPAGATE(sb.appendFormat(" %s", vRegs[i] ? vRegs[i]->getName() : nullArg));
-      }
+    #ifndef ASMJIT_DISABLE_COMPILER
+    if (vRegs) {
+      static const char nullArg[] = "<none>";
+      ASMJIT_PROPAGATE(sb.appendFormat(" %s", vRegs[i] ? vRegs[i]->getName() : nullArg));
+    }
     #endif
   }
 
@@ -413,7 +413,7 @@ Error Logging::formatNode(
       break;
     }
 
-    #if !defined(ASMJIT_DISABLE_COMPILER)
+    #ifndef ASMJIT_DISABLE_COMPILER
     case CBNode::kNodeFunc: {
       const CCFunc* node = node_->as<CCFunc>();
 
@@ -504,4 +504,4 @@ Error Logging::formatLine(StringBuilder& sb, const uint8_t* binData, size_t binL
 ASMJIT_END_NAMESPACE
 
 // [Guard]
-#endif // !ASMJIT_DISABLE_LOGGING
+#endif

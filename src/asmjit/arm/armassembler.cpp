@@ -36,24 +36,6 @@ A32Assembler::~A32Assembler() noexcept {}
 // [asmjit::A32Assembler - Helpers]
 // ============================================================================
 
-#define EMIT_BYTE(VAL)                                            \
-  do {                                                            \
-    cursor[0] = uint8_t((VAL) & 0xFFU);                           \
-    cursor += 1;                                                  \
-  } while (0)
-
-#define EMIT_16(VAL)                                              \
-  do {                                                            \
-    MemUtils::writeU16uLE(cursor, uint32_t((VAL) & 0xFFFFU));     \
-    cursor += 2;                                                  \
-  } while (0)
-
-#define EMIT_32(VAL)                                              \
-  do {                                                            \
-    MemUtils::writeU32uLE(cursor, uint32_t((VAL) & 0xFFFFFFFFU)); \
-    cursor += 4;                                                  \
-  } while (0)
-
 #define ENC_OPS1(OP0)                     ((Operand::kOp##OP0))
 #define ENC_OPS2(OP0, OP1)                ((Operand::kOp##OP0) + ((Operand::kOp##OP1) << 3))
 #define ENC_OPS3(OP0, OP1, OP2)           ((Operand::kOp##OP0) + ((Operand::kOp##OP1) << 3) + ((Operand::kOp##OP2) << 6))
@@ -83,9 +65,9 @@ Error A32Assembler::_emit(uint32_t instId, const Operand_& o0, const Operand_& o
       goto InvalidInstruction;
 
     // Strict validation.
-    #if !defined(ASMJIT_DISABLE_INST_API)
-      if (hasEmitterOption(kOptionStrictValidation))
-        ASMJIT_PROPAGATE(_validate(instId, o0, o1, o2, o3));
+    #ifndef ASMJIT_DISABLE_INST_API
+    if (hasEmitterOption(kOptionStrictValidation))
+      ASMJIT_PROPAGATE(_validate(instId, o0, o1, o2, o3));
     #endif
   }
 
@@ -103,9 +85,9 @@ Error A32Assembler::_emit(uint32_t instId, const Operand_& o0, const Operand_& o
   // --------------------------------------------------------------------------
 
 EmitDone:
-  #if !defined(ASMJIT_DISABLE_LOGGING)
-    if (ASMJIT_UNLIKELY(hasEmitterOption(kOptionLoggingEnabled)))
-      _emitLog(instId, options, o0, o1, o2, o3, relSize, imLen, cursor);
+  #ifndef ASMJIT_DISABLE_LOGGING
+  if (ASMJIT_UNLIKELY(hasEmitterOption(kOptionLoggingEnabled)))
+    _emitLog(instId, options, o0, o1, o2, o3, relSize, imLen, cursor);
   #endif
 
   resetInstOptions();
@@ -139,9 +121,9 @@ Error A32Assembler::align(uint32_t mode, uint32_t alignment) {
   if (ASMJIT_UNLIKELY(!_code))
     return DebugUtils::errored(kErrorNotInitialized);
 
-  #if !defined(ASMJIT_DISABLE_LOGGING)
-    if (ASMJIT_UNLIKELY(hasEmitterOption(kOptionLoggingEnabled)))
-      _code->_logger->logf("%s.align %u\n", _code->_logger->getIndentation(), alignment);
+  #ifndef ASMJIT_DISABLE_LOGGING
+  if (ASMJIT_UNLIKELY(hasEmitterOption(kOptionLoggingEnabled)))
+    _code->_logger->logf("%s.align %u\n", _code->_logger->getIndentation(), alignment);
   #endif
 
   if (ASMJIT_UNLIKELY(mode >= kAlignCount))
@@ -159,17 +141,12 @@ Error A32Assembler::align(uint32_t mode, uint32_t alignment) {
   if (i == 0)
     return kErrorOk;
 
-  if (ASMJIT_UNLIKELY(getRemainingSpace() < i)) {
-    Error err = _code->growBuffer(&_section->_buffer, i);
-    if (ASMJIT_UNLIKELY(err))
-      return reportError(err);
-  }
+  AsmBufferWriter writer(this);
+  ASMJIT_PROPAGATE(writer.ensureSpace(this, i));
 
-  uint8_t* cursor = _bufferPtr;
-
-  const uint32_t kNopT16 = 0x0000BF00U; // [10111111|00000000].
-  const uint32_t kNopT32 = 0xF3AF8000U; // [11110011|10101111|10000000|00000000].
-  const uint32_t kNopA32 = 0xE3AF8000U; // [Cond0011|00100000|11110000|00000000].
+  constexpr uint32_t kNopT16 = 0x0000BF00U; // [10111111|00000000].
+  constexpr uint32_t kNopT32 = 0xF3AF8000U; // [11110011|10101111|10000000|00000000].
+  constexpr uint32_t kNopA32 = 0xE3AF8000U; // [Cond0011|00100000|11110000|00000000].
 
   switch (mode) {
     case kAlignCode: {
@@ -179,12 +156,12 @@ Error A32Assembler::align(uint32_t mode, uint32_t alignment) {
           return DebugUtils::errored(kErrorInvalidState);
 
         while (i >= 4) {
-          EMIT_32(kNopT32);
+          writer.emit32uLE(kNopT32);
           i -= 4;
         }
 
         if (i >= 2) {
-          EMIT_16(kNopT16);
+          writer.emit16uLE(kNopT16);
           i -= 2;
         }
       }
@@ -194,7 +171,7 @@ Error A32Assembler::align(uint32_t mode, uint32_t alignment) {
           return DebugUtils::errored(kErrorInvalidState);
 
         while (i >= 4) {
-          EMIT_32(kNopA32);
+          writer.emit32uLE(kNopA32);
           i -= 4;
         }
       }
@@ -205,14 +182,11 @@ Error A32Assembler::align(uint32_t mode, uint32_t alignment) {
 
     case kAlignData:
     case kAlignZero:
-      while (i) {
-        EMIT_BYTE(0);
-        i--;
-      }
+      writer.emitZeros(i);
       break;
   }
 
-  _bufferPtr = cursor;
+  writer.done(this);
   return kErrorOk;
 }
 
@@ -226,7 +200,7 @@ Error A32Assembler::onAttach(CodeHolder* code) noexcept {
     return DebugUtils::errored(kErrorInvalidArch);
 
   ASMJIT_PROPAGATE(Base::onAttach(code));
-  _gpRegInfo.setSignature(armOpData.gpw[0].getSignature());
+  _gpRegInfo.setSignature(ArmGpw::kSignature);
   return kErrorOk;
 }
 

@@ -48,7 +48,7 @@ struct Lock {
   // [Windows]
   // --------------------------------------------------------------------------
 
-#if ASMJIT_OS_WINDOWS
+  #if ASMJIT_OS_WINDOWS
   typedef CRITICAL_SECTION Handle;
 
   //! Create a new `Lock` instance.
@@ -60,13 +60,13 @@ struct Lock {
   inline void lock() noexcept { EnterCriticalSection(&_handle); }
   //! Unlock.
   inline void unlock() noexcept { LeaveCriticalSection(&_handle); }
-#endif
+  #endif
 
   // --------------------------------------------------------------------------
   // [Posix]
   // --------------------------------------------------------------------------
 
-#if ASMJIT_OS_POSIX
+  #if ASMJIT_OS_POSIX
   typedef pthread_mutex_t Handle;
 
   //! Create a new `Lock` instance.
@@ -78,7 +78,21 @@ struct Lock {
   inline void lock() noexcept { pthread_mutex_lock(&_handle); }
   //! Unlock.
   inline void unlock() noexcept { pthread_mutex_unlock(&_handle); }
-#endif
+  #endif
+
+  #if ASMJIT_OS_EMSCRIPTEN
+  typedef uint32_t Handle;
+
+  //! Create a new `Lock` instance.
+  inline Lock() noexcept { _handle = 0; }
+  //! Destroy the `Lock` instance.
+  inline ~Lock() noexcept { ASMJIT_ASSERT(_handle == 0); }
+
+  //! Lock.
+  inline void lock() noexcept { _handle++; }
+  //! Unlock.
+  inline void unlock() noexcept { _handle--; }
+  #endif
 
   // --------------------------------------------------------------------------
   // [Members]

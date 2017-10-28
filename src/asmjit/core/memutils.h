@@ -309,8 +309,8 @@ static inline void writeU32xLE(void* p, uint32_t x) noexcept {
     static_cast<U32AlignedToN*>(p)[0] = ASMJIT_ARCH_LE ? x : IntUtils::byteswap32(x);
   }
   else {
-    writeU16xLE<ALIGNMENT < 4 ? ALIGNMENT : size_t(2)>(static_cast<uint8_t*>(p) + 0, x >> 16);
-    writeU16xLE<ALIGNMENT < 4 ? ALIGNMENT : size_t(2)>(static_cast<uint8_t*>(p) + 2, x);
+    writeU16xLE<ALIGNMENT < 4 ? ALIGNMENT : size_t(2)>(static_cast<uint8_t*>(p) + 0, x);
+    writeU16xLE<ALIGNMENT < 4 ? ALIGNMENT : size_t(2)>(static_cast<uint8_t*>(p) + 2, x >> 16);
   }
 }
 
@@ -321,8 +321,8 @@ static inline void writeU32xBE(void* p, uint32_t x) noexcept {
     static_cast<U32AlignedToN*>(p)[0] = ASMJIT_ARCH_BE ? x : IntUtils::byteswap32(x);
   }
   else {
-    writeU16xBE<ALIGNMENT < 4 ? ALIGNMENT : size_t(2)>(static_cast<uint8_t*>(p) + 0, x);
-    writeU16xBE<ALIGNMENT < 4 ? ALIGNMENT : size_t(2)>(static_cast<uint8_t*>(p) + 2, x >> 16);
+    writeU16xBE<ALIGNMENT < 4 ? ALIGNMENT : size_t(2)>(static_cast<uint8_t*>(p) + 0, x >> 16);
+    writeU16xBE<ALIGNMENT < 4 ? ALIGNMENT : size_t(2)>(static_cast<uint8_t*>(p) + 2, x);
   }
 }
 
@@ -368,8 +368,8 @@ static inline void writeU64xLE(void* p, uint64_t x) noexcept {
     static_cast<U64AlignedToN*>(p)[0] = x;
   }
   else {
-    writeU32xLE<ALIGNMENT < 8 ? ALIGNMENT : size_t(4)>(static_cast<uint8_t*>(p) + 0, uint32_t(x >> 32));
-    writeU32xLE<ALIGNMENT < 8 ? ALIGNMENT : size_t(4)>(static_cast<uint8_t*>(p) + 4, uint32_t(x & 0xFFFFFFFFU));
+    writeU32xLE<ALIGNMENT < 8 ? ALIGNMENT : size_t(4)>(static_cast<uint8_t*>(p) + 0, uint32_t(x & 0xFFFFFFFFU));
+    writeU32xLE<ALIGNMENT < 8 ? ALIGNMENT : size_t(4)>(static_cast<uint8_t*>(p) + 4, uint32_t(x >> 32));
   }
 }
 
@@ -380,8 +380,8 @@ static inline void writeU64xBE(void* p, uint64_t x) noexcept {
     static_cast<U64AlignedToN*>(p)[0] = x;
   }
   else {
-    writeU32xBE<ALIGNMENT < 8 ? ALIGNMENT : size_t(4)>(static_cast<uint8_t*>(p) + 0, uint32_t(x & 0xFFFFFFFFU));
-    writeU32xBE<ALIGNMENT < 8 ? ALIGNMENT : size_t(4)>(static_cast<uint8_t*>(p) + 4, uint32_t(x >> 32));
+    writeU32xBE<ALIGNMENT < 8 ? ALIGNMENT : size_t(4)>(static_cast<uint8_t*>(p) + 0, uint32_t(x >> 32));
+    writeU32xBE<ALIGNMENT < 8 ? ALIGNMENT : size_t(4)>(static_cast<uint8_t*>(p) + 4, uint32_t(x & 0xFFFFFFFFU));
   }
 }
 

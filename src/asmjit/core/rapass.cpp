@@ -9,7 +9,7 @@
 
 // [Guard]
 #include "../core/build.h"
-#if !defined(ASMJIT_DISABLE_COMPILER)
+#ifndef ASMJIT_DISABLE_COMPILER
 
 // [Dependencies]
 #include "../core/algorithm.h"
@@ -145,7 +145,7 @@ static void RAPass_resetVirtRegData(RAPass* self) noexcept {
 Error RAPass::runOnFunction(Zone* zone, Logger* logger, CCFunc* func) noexcept {
   _allocator.reset(zone);
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+  #ifndef ASMJIT_DISABLE_LOGGING
   _logger = logger;
   _debugLogger = nullptr;
 
@@ -154,7 +154,7 @@ Error RAPass::runOnFunction(Zone* zone, Logger* logger, CCFunc* func) noexcept {
     if (_loggerOptions & Logger::kOptionDebugPasses)
       _debugLogger = logger;
   }
-#endif
+  #endif
 
   // Initialize all core structures to use `zone` and `func`.
   CBNode* end = func->getEnd();
@@ -174,11 +174,11 @@ Error RAPass::runOnFunction(Zone* zone, Logger* logger, CCFunc* func) noexcept {
   RAPass_reset(this, nullptr);
   _allocator.reset(nullptr);
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+  #ifndef ASMJIT_DISABLE_LOGGING
   _logger = nullptr;
   _debugLogger = nullptr;
   _loggerOptions = 0;
-#endif
+  #endif
 
   _func = nullptr;
   _stop = nullptr;
@@ -203,10 +203,10 @@ Error RAPass::onPerformAllSteps() noexcept {
   ASMJIT_PROPAGATE(buildDominators());
   ASMJIT_PROPAGATE(buildLiveness());
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+  #ifndef ASMJIT_DISABLE_LOGGING
   if (hasLogger() && getLogger()->hasOption(Logger::kOptionAnnotate))
     ASMJIT_PROPAGATE(annotateCode());
-#endif
+  #endif
 
   ASMJIT_PROPAGATE(runGlobalAllocator());
   ASMJIT_PROPAGATE(runLocalAllocator());
@@ -1540,7 +1540,7 @@ ASMJIT_FAVOR_SPEED Error RAPass::_rewrite(CBNode* first, CBNode* stop) noexcept 
 // [asmjit::RAPass - Logging]
 // ============================================================================
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+#ifndef ASMJIT_DISABLE_LOGGING
 static void RAPass_dumpRAInst(RAPass* pass, StringBuilder& sb, const RAInst* raInst) noexcept {
   const RATiedReg* tiedRegs = raInst->getTiedRegs();
   uint32_t tiedCount = raInst->getTiedCount();

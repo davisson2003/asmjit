@@ -9,7 +9,7 @@
 #define _ASMJIT_CORE_CODEBUILDER_H
 
 #include "../core/build.h"
-#if !defined(ASMJIT_DISABLE_BUILDER)
+#ifndef ASMJIT_DISABLE_BUILDER
 
 // [Dependencies]
 #include "../core/assembler.h"
@@ -227,7 +227,7 @@ public:
   // [Logging]
   // --------------------------------------------------------------------------
 
-  #if !defined(ASMJIT_DISABLE_LOGGING)
+  #ifndef ASMJIT_DISABLE_LOGGING
   ASMJIT_API Error dump(StringBuilder& sb, uint32_t logOptions = 0) const noexcept;
   #endif
 

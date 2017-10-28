@@ -10,11 +10,12 @@
 
 // [Dependencies]
 #include "../core/arch.h"
-#include "../core/func.h"
 #include "../core/intutils.h"
+#include "../core/memutils.h"
 #include "../core/operand.h"
 #include "../core/simdtypes.h"
 #include "../core/smallstring.h"
+#include "../core/target.h"
 #include "../core/zone.h"
 
 ASMJIT_BEGIN_NAMESPACE
@@ -26,7 +27,6 @@ ASMJIT_BEGIN_NAMESPACE
 // [Forward Declarations]
 // ============================================================================
 
-class Assembler;
 class CodeEmitter;
 class CodeHolder;
 class Logger;
@@ -88,136 +88,14 @@ public:
 };
 
 // ============================================================================
-// [asmjit::CodeInfo]
-// ============================================================================
-
-//! Basic information about a code (or target). It describes its architecture,
-//! code generation mode (or optimization level), and base address.
-class CodeInfo {
-public:
-  // --------------------------------------------------------------------------
-  // [Construction / Destruction]
-  // --------------------------------------------------------------------------
-
-  inline CodeInfo() noexcept
-    : _archInfo(),
-      _stackAlignment(0),
-      _cdeclCallConv(CallConv::kIdNone),
-      _stdCallConv(CallConv::kIdNone),
-      _fastCallConv(CallConv::kIdNone),
-      _baseAddress(Globals::kNoBaseAddress) {}
-  inline CodeInfo(const CodeInfo& other) noexcept { init(other); }
-
-  explicit inline CodeInfo(uint32_t archType, uint32_t archMode = 0, uint64_t baseAddress = Globals::kNoBaseAddress) noexcept
-    : _archInfo(archType, archMode),
-      _stackAlignment(0),
-      _cdeclCallConv(CallConv::kIdNone),
-      _stdCallConv(CallConv::kIdNone),
-      _fastCallConv(CallConv::kIdNone),
-      _baseAddress(baseAddress) {}
-
-  // --------------------------------------------------------------------------
-  // [Init / Reset]
-  // --------------------------------------------------------------------------
-
-  inline bool isInitialized() const noexcept {
-    return _archInfo._type != ArchInfo::kTypeNone;
-  }
-
-  inline void init(const CodeInfo& other) noexcept {
-    std::memcpy(this, &other, sizeof(*this));
-  }
-
-  inline void init(uint32_t archType, uint32_t archMode = 0, uint64_t baseAddress = Globals::kNoBaseAddress) noexcept {
-    _archInfo.init(archType, archMode);
-    _stackAlignment = 0;
-    _cdeclCallConv = CallConv::kIdNone;
-    _stdCallConv = CallConv::kIdNone;
-    _fastCallConv = CallConv::kIdNone;
-    _baseAddress = baseAddress;
-  }
-
-  inline void reset() noexcept {
-    _archInfo.reset();
-    _stackAlignment = 0;
-    _cdeclCallConv = CallConv::kIdNone;
-    _stdCallConv = CallConv::kIdNone;
-    _fastCallConv = CallConv::kIdNone;
-    _baseAddress = Globals::kNoBaseAddress;
-  }
-
-  // --------------------------------------------------------------------------
-  // [Architecture Information]
-  // --------------------------------------------------------------------------
-
-  //! Get architecture information, see \ref ArchInfo.
-  inline const ArchInfo& getArchInfo() const noexcept { return _archInfo; }
-
-  //! Get architecture type, see \ref ArchInfo::Type.
-  inline uint32_t getArchType() const noexcept { return _archInfo.getType(); }
-  //! Get architecture sub-type, see \ref ArchInfo::SubType.
-  inline uint32_t getArchSubType() const noexcept { return _archInfo.getSubType(); }
-  //! Get a size of a GP register of the architecture the code is using.
-  inline uint32_t getGpSize() const noexcept { return _archInfo.getGpSize(); }
-  //! Get number of GP registers available of the architecture the code is using.
-  inline uint32_t getGpCount() const noexcept { return _archInfo.getGpCount(); }
-
-  // --------------------------------------------------------------------------
-  // [High-Level Information]
-  // --------------------------------------------------------------------------
-
-  //! Get a natural stack alignment that must be honored (or 0 if not known).
-  inline uint32_t getStackAlignment() const noexcept { return _stackAlignment; }
-  //! Set a natural stack alignment that must be honored.
-  inline void setStackAlignment(uint32_t sa) noexcept { _stackAlignment = uint8_t(sa); }
-
-  inline uint32_t getCdeclCallConv() const noexcept { return _cdeclCallConv; }
-  inline void setCdeclCallConv(uint32_t cc) noexcept { _cdeclCallConv = uint8_t(cc); }
-
-  inline uint32_t getStdCallConv() const noexcept { return _stdCallConv; }
-  inline void setStdCallConv(uint32_t cc) noexcept { _stdCallConv = uint8_t(cc); }
-
-  inline uint32_t getFastCallConv() const noexcept { return _fastCallConv; }
-  inline void setFastCallConv(uint32_t cc) noexcept { _fastCallConv = uint8_t(cc); }
-
-  // --------------------------------------------------------------------------
-  // [Addressing Information]
-  // --------------------------------------------------------------------------
-
-  inline bool hasBaseAddress() const noexcept { return _baseAddress != Globals::kNoBaseAddress; }
-  inline uint64_t getBaseAddress() const noexcept { return _baseAddress; }
-  inline void setBaseAddress(uint64_t p) noexcept { _baseAddress = p; }
-  inline void resetBaseAddress() noexcept { _baseAddress = Globals::kNoBaseAddress; }
-
-  // --------------------------------------------------------------------------
-  // [Operator Overload]
-  // --------------------------------------------------------------------------
-
-  inline CodeInfo& operator=(const CodeInfo& other) noexcept { init(other); return *this; }
-  inline bool operator==(const CodeInfo& other) const noexcept { return std::memcmp(this, &other, sizeof(*this)) == 0; }
-  inline bool operator!=(const CodeInfo& other) const noexcept { return std::memcmp(this, &other, sizeof(*this)) != 0; }
-
-  // --------------------------------------------------------------------------
-  // [Members]
-  // --------------------------------------------------------------------------
-
-  ArchInfo _archInfo;                    //!< Architecture information.
-  uint8_t _stackAlignment;               //!< Natural stack alignment (ARCH+OS).
-  uint8_t _cdeclCallConv;                //!< Default CDECL calling convention.
-  uint8_t _stdCallConv;                  //!< Default STDCALL calling convention.
-  uint8_t _fastCallConv;                 //!< Default FASTCALL calling convention.
-  uint64_t _baseAddress;                 //!< Base address.
-};
-
-// ============================================================================
 // [asmjit::CodeBuffer]
 // ============================================================================
 
 //! Code or data buffer.
 struct CodeBuffer {
   enum Flags : uint32_t {
-    kFlagIsFixed          = 0x00000001U, //!< Buffer is fixed (cannot be reallocated).
-    kFlagIsExternal       = 0x00000002U  //!< Buffer is external (not allocated by asmjit).
+    kFlagIsExternal       = 0x00000001U, //!< Buffer is external (not allocated by asmjit).
+    kFlagIsFixed          = 0x00000002U  //!< Buffer is fixed (cannot be reallocated).
   };
 
   // --------------------------------------------------------------------------
@@ -264,7 +142,7 @@ public:
     kFlagConst       = 0x00000002U,      //!< Read-only (.text and .data sections).
     kFlagZero        = 0x00000004U,      //!< Zero initialized by the loader (BSS).
     kFlagInfo        = 0x00000008U,      //!< Info / comment flag.
-    kFlagImplicit    = 0x80000000U       //!< Section created implicitly (can be deleted by the Runtime).
+    kFlagImplicit    = 0x80000000U       //!< Section created implicitly and can be deleted by `Target`.
   };
 
   // --------------------------------------------------------------------------
@@ -274,10 +152,8 @@ public:
   inline uint32_t getId() const noexcept { return _id; }
   inline const char* getName() const noexcept { return _name; }
 
-  inline void _setDefaultName(
-    char c0 = 0, char c1 = 0, char c2 = 0, char c3 = 0,
-    char c4 = 0, char c5 = 0, char c6 = 0, char c7 = 0) noexcept {
-
+  inline void _setDefaultName(char c0 = 0, char c1 = 0, char c2 = 0, char c3 = 0,
+                              char c4 = 0, char c5 = 0, char c6 = 0, char c7 = 0) noexcept {
     _nameAsU32[0] = IntUtils::bytepack32_4x8(uint8_t(c0), uint8_t(c1), uint8_t(c2), uint8_t(c3));
     _nameAsU32[1] = IntUtils::bytepack32_4x8(uint8_t(c4), uint8_t(c5), uint8_t(c6), uint8_t(c7));
   }
@@ -365,7 +241,6 @@ public:
   inline bool hasParent() const noexcept { return _parentId != 0; }
   //! Get label's parent id.
   inline uint32_t getParentId() const noexcept { return _parentId; }
-
   //! Get label's section id where it's bound to (or `SectionEntry::kInvalidId` if it's not bound yet).
   inline uint32_t getSectionId() const noexcept { return _sectionId; }
 
@@ -511,17 +386,6 @@ public:
   ASMJIT_API Error detach(CodeEmitter* emitter) noexcept;
 
   // --------------------------------------------------------------------------
-  // [Sync]
-  // --------------------------------------------------------------------------
-
-  //! Synchronize all states of all code emitters associated with the CodeHolder.
-  //! This is required as some code generators don't sync every time they do
-  //! something - for example \ref Assembler generally syncs when it needs to
-  //! reallocate the \ref CodeBuffer, but not each time it encodes instruction
-  //! or directive.
-  ASMJIT_API void sync() noexcept;
-
-  // --------------------------------------------------------------------------
   // [Accessors]
   // --------------------------------------------------------------------------
 
@@ -598,7 +462,7 @@ public:
   //! Get array of `SectionEntry*` records.
   inline const ZoneVector<SectionEntry*>& getSections() const noexcept { return _sections; }
   //! Get the number of sections.
-  inline uint32_t getNumSections() const noexcept { return _sections.getLength(); }
+  inline uint32_t getSectionCount() const noexcept { return _sections.getLength(); }
   //! Get a section entry of the given index.
   inline SectionEntry* getSectionEntry(uint32_t index) const noexcept { return _sections[index]; }
 

@@ -152,6 +152,12 @@ cxx_add_source(asmjit ASMJIT_SRC asmjit/core
   inst.h
   intutils.cpp
   intutils.h
+  jitallocator.cpp
+  jitallocator.h
+  jitruntime.cpp
+  jitruntime.h
+  jitutils.cpp
+  jitutils.h
   logging.cpp
   logging.h
   memutils.cpp
@@ -170,17 +176,15 @@ cxx_add_source(asmjit ASMJIT_SRC asmjit/core
   rapass_p.h
   rastack.cpp
   rastack_p.h
-  runtime.cpp
-  runtime.h
   simdtypes.h
   smallstring.h
   stringbuilder.cpp
   stringbuilder.h
   stringutils.h
+  target.cpp
+  target.h
   type.cpp
   type.h
-  virtmem.cpp
-  virtmem.h
   zone.cpp
   zone.h
 )

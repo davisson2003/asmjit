@@ -17,7 +17,7 @@ ASMJIT_BEGIN_NAMESPACE
 //! \addtogroup asmjit_core
 //! \{
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+#ifndef ASMJIT_DISABLE_LOGGING
 
 // ============================================================================
 // [Forward Declarations]
@@ -28,7 +28,7 @@ class Logger;
 class Reg;
 struct Operand_;
 
-#if !defined(ASMJIT_DISABLE_BUILDER)
+#ifndef ASMJIT_DISABLE_BUILDER
 class CodeBuilder;
 class CBNode;
 #endif
@@ -257,7 +257,7 @@ struct Logging {
     StringBuilder& sb,
     uint32_t typeId) noexcept;
 
-  #if !defined(ASMJIT_DISABLE_BUILDER)
+  #ifndef ASMJIT_DISABLE_BUILDER
   ASMJIT_API static Error formatNode(
     StringBuilder& sb,
     uint32_t logOptions,

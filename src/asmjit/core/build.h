@@ -12,7 +12,7 @@
 // static build as well.
 //
 // #define ASMJIT_BUILD_EMBED        // Asmjit is embedded (implies ASMJIT_BUILD_STATIC).
-// #define ASMJIT_BUILD_STATIC       // Define to enable static-library build.
+// #define ASMJIT_BUILD_STATIC       // Enable static-library build.
 
 // AsmJit Build Mode
 // -----------------
@@ -24,8 +24,8 @@
 // Tracing is a feature that is never compiled by default and it's only used to
 // debug AsmJit itself.
 //
-// #define ASMJIT_BUILD_DEBUG        // Define to always use debug-mode (ASMJIT_ASSERT enabled).
-// #define ASMJIT_BUILD_RELEASE      // Define to always use release-mode (ASMJIT_ASSERT disabled).
+// #define ASMJIT_BUILD_DEBUG        // Always use debug-mode   (ASMJIT_ASSERT enabled).
+// #define ASMJIT_BUILD_RELEASE      // Always use release-mode (ASMJIT_ASSERT disabled).
 
 // AsmJit Build Backends
 // ---------------------
@@ -33,9 +33,9 @@
 // These definitions control which backends to compile. If none of these is
 // defined AsmJit will use host architecture by default (for JIT code generation).
 //
-// #define ASMJIT_BUILD_X86          // Define to enable X86 and X64 code-generation.
-// #define ASMJIT_BUILD_ARM          // Define to enable ARM32 and ARM64 code-generation.
-// #define ASMJIT_BUILD_HOST         // Define to enable host instruction set.
+// #define ASMJIT_BUILD_X86          // Enable X86 targets (X86 and X86_64).
+// #define ASMJIT_BUILD_ARM          // Enable ARM targets (ARM and AArch64).
+// #define ASMJIT_BUILD_HOST         // Enable targets based on target arch (default).
 
 // AsmJit Build Options
 // --------------------
@@ -46,6 +46,7 @@
 //
 // AsmJit features are enabled by default.
 // #define ASMJIT_DISABLE_COMPILER   // Disable CodeCompiler (completely).
+// #define ASMJIT_DISABLE_JIT        // Disable JIT memory manager and JitRuntime.
 // #define ASMJIT_DISABLE_LOGGING    // Disable logging and formatting (completely).
 // #define ASMJIT_DISABLE_TEXT       // Disable everything that contains text
 //                                   // representation (instructions, errors, ...).
@@ -85,86 +86,92 @@
 // ============================================================================
 
 #if defined(_WIN32)
-  #define ASMJIT_OS_WINDOWS   1
+  #define ASMJIT_OS_WINDOWS    1
 #else
-  #define ASMJIT_OS_WINDOWS   0
+  #define ASMJIT_OS_WINDOWS    0
 #endif
 
 #if defined(__linux__) || defined(__ANDROID__)
-  #define ASMJIT_OS_LINUX     1
+  #define ASMJIT_OS_LINUX      1
 #else
-  #define ASMJIT_OS_LINUX     0
+  #define ASMJIT_OS_LINUX      0
 #endif
 
 #if defined(__ANDROID__)
-  #define ASMJIT_OS_ANDROID   1
+  #define ASMJIT_OS_ANDROID    1
 #else
-  #define ASMJIT_OS_ANDROID   0
+  #define ASMJIT_OS_ANDROID    0
 #endif
 
 #if defined(__APPLE__)
-  #define ASMJIT_OS_DARWIN    1
+  #define ASMJIT_OS_DARWIN     1
 #else
-  #define ASMJIT_OS_DARWIN    0
+  #define ASMJIT_OS_DARWIN     0
 #endif
 
 #if defined(__FreeBSD__) || defined(__NetBSD__)    || \
     defined(__OpenBSD__) || defined(__DragonFly__) || \
     defined(__bsdi__)
-  #define ASMJIT_OS_BSD       1
+  #define ASMJIT_OS_BSD        1
 #else
-  #define ASMJIT_OS_BSD       0
+  #define ASMJIT_OS_BSD        0
 #endif
 
-#define ASMJIT_OS_POSIX       (!ASMJIT_OS_WINDOWS)
+#if defined(__EMSCRIPTEN__)
+  #define ASMJIT_OS_EMSCRIPTEN 1
+#else
+  #define ASMJIT_OS_EMSCRIPTEN 0
+#endif
+
+#define ASMJIT_OS_POSIX        (!ASMJIT_OS_WINDOWS && !ASMJIT_OS_EMSCRIPTEN)
 
 // ============================================================================
 // [asmjit::Build - Globals - Target Architecture]
 // ============================================================================
 
 #if defined(_M_X64) || defined(__amd64) || defined(__x86_64) || defined(__x86_64__)
-  #define ASMJIT_ARCH_X86     64
+  #define ASMJIT_ARCH_X86      64
 #elif defined(_M_IX86) || defined(__i386) || defined(__i386__)
-  #define ASMJIT_ARCH_X86     32
+  #define ASMJIT_ARCH_X86      32
 #else
-  #define ASMJIT_ARCH_X86     0
+  #define ASMJIT_ARCH_X86      0
 #endif
 
 #if defined(__ARM64__) || defined(__aarch64__)
-  #define ASMJIT_ARCH_ARM     64
+  #define ASMJIT_ARCH_ARM      64
 #elif (defined(_M_ARM  ) || defined(__arm    ) || defined(__thumb__ ) || \
        defined(_M_ARMT ) || defined(__arm__  ) || defined(__thumb2__))
-  #define ASMJIT_ARCH_ARM     32
+  #define ASMJIT_ARCH_ARM      32
 #else
-  #define ASMJIT_ARCH_ARM     0
+  #define ASMJIT_ARCH_ARM      0
 #endif
 
 #if defined(_MIPS_ARCH_MIPS64) || defined(__mips64)
-  #define ASMJIT_ARCH_MIPS    64
+  #define ASMJIT_ARCH_MIPS     64
 #elif defined(_MIPS_ARCH_MIPS32) || defined(_M_MRX000) || defined(__mips) || defined(__mips__)
-  #define ASMJIT_ARCH_MIPS    32
+  #define ASMJIT_ARCH_MIPS     32
 #else
-  #define ASMJIT_ARCH_MIPS    0
+  #define ASMJIT_ARCH_MIPS     0
 #endif
 
 #define ASMJIT_ARCH_BITS (ASMJIT_ARCH_X86 | ASMJIT_ARCH_ARM | ASMJIT_ARCH_MIPS)
 #if ASMJIT_ARCH_BITS == 0
   #undef ASMJIT_ARCH_BITS
   #if defined (__LP64__) || defined(_LP64)
-    #define ASMJIT_ARCH_BITS  64
+    #define ASMJIT_ARCH_BITS   64
   #else
-    #define ASMJIT_ARCH_BITS  32
+    #define ASMJIT_ARCH_BITS   32
   #endif
 #endif
 
 #if (defined(__ARMEB__)) || \
     (defined(__MIPSEB__)) || \
     (defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__))
-  #define ASMJIT_ARCH_LE      0
-  #define ASMJIT_ARCH_BE      1
+  #define ASMJIT_ARCH_LE       0
+  #define ASMJIT_ARCH_BE       1
 #else
-  #define ASMJIT_ARCH_LE      1
-  #define ASMJIT_ARCH_BE      0
+  #define ASMJIT_ARCH_LE       1
+  #define ASMJIT_ARCH_BE       0
 #endif
 
 // Build host architecture if no architecture is selected.
@@ -187,10 +194,10 @@
 // [asmjit::Build - Globals - C++ Compiler and Features Detection]
 // ============================================================================
 
-#define ASMJIT_CXX_CLANG      0
-#define ASMJIT_CXX_INTEL      0
-#define ASMJIT_CXX_GNU_ONLY   0
-#define ASMJIT_CXX_MSC_ONLY   0
+#define ASMJIT_CXX_CLANG       0
+#define ASMJIT_CXX_INTEL       0
+#define ASMJIT_CXX_GNU_ONLY    0
+#define ASMJIT_CXX_MSC_ONLY    0
 #define ASMJIT_CXX_MAKE_VER(MAJOR, MINOR, PATCH) ((MAJOR) * 10000000 + (MINOR) * 100000 + (PATCH))
 
 #if defined(__INTEL_COMPILER)

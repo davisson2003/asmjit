@@ -579,7 +579,7 @@ struct ArmInst {
   // [Id <-> Name]
   // --------------------------------------------------------------------------
 
-  #if !defined(ASMJIT_DISABLE_TEXT)
+  #ifndef ASMJIT_DISABLE_TEXT
   //! Get an instruction ID from a given instruction `name`.
   //!
   //! NOTE: Instruction name MUST BE in lowercase, otherwise there will be no
@@ -596,7 +596,7 @@ struct ArmInst {
   // [Validation]
   // --------------------------------------------------------------------------
 
-  #if !defined(ASMJIT_DISABLE_INST_API)
+  #ifndef ASMJIT_DISABLE_INST_API
   ASMJIT_API static Error validate(
     uint32_t archType, uint32_t instId, uint32_t options,
     const Operand_& opExtra,

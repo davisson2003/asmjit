@@ -34,11 +34,11 @@
 
 #if defined(ASMJIT_BUILD_X86)
   #include "./x86.h"
-#endif // ASMJIT_BUILD_X86
+#endif
 
 #if defined(ASMJIT_BUILD_ARM)
   #include "./arm.h"
-#endif // ASMJIT_BUILD_ARM
+#endif
 
 // [Guard]
 #endif // _ASMJIT_ASMJIT_H

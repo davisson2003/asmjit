@@ -181,8 +181,8 @@ class ArmVecD : public ArmVec { ASMJIT_DEFINE_FINAL_REG(ArmVecD, ArmVec, ArmRegT
 //! 128-bit vector register (Q or V).
 class ArmVecV : public ArmVec { ASMJIT_DEFINE_FINAL_REG(ArmVecV, ArmVec, ArmRegTraits<kRegVecV>) };
 
-constexpr ArmGpW ArmGp::w() const noexcept { return ArmGpw(getId()); }
-constexpr ArmGpX ArmGp::x() const noexcept { return ArmGpx(getId()); }
+constexpr ArmGpw ArmGp::w() const noexcept { return ArmGpw(getId()); }
+constexpr ArmGpx ArmGp::x() const noexcept { return ArmGpx(getId()); }
 constexpr ArmVecS ArmVec::s() const noexcept { return ArmVecS(getId()); }
 constexpr ArmVecD ArmVec::d() const noexcept { return ArmVecD(getId()); }
 constexpr ArmVecV ArmVec::v() const noexcept { return ArmVecV(getId()); }

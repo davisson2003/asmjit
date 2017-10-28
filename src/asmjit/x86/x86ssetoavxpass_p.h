@@ -9,7 +9,7 @@
 #define _ASMJIT_X86_X86SSETOAVXPASS_P_H
 
 #include "../core/build.h"
-#if !defined(ASMJIT_DISABLE_BUILDER)
+#ifndef ASMJIT_DISABLE_BUILDER
 
 // [Dependencies]
 #include "../core/intutils.h"

@@ -115,6 +115,8 @@ enum ErrorCode : uint32_t {
   //! Code generated is larger than allowed.
   kErrorCodeTooLarge,
 
+  //! Invalid directive.
+  kErrorInvalidDirective,
   //! Attempt to use uninitialized label.
   kErrorInvalidLabel,
   //! Label index overflow - a single `Assembler` instance can hold more than
@@ -227,13 +229,17 @@ enum ErrorCode : uint32_t {
 
 namespace AsmJitInternal {
   #if defined(ASMJIT_CUSTOM_ALLOC) && defined(ASMJIT_CUSTOM_REALLOC) && defined(ASMJIT_CUSTOM_FREE)
+
   static inline void* allocMemory(size_t size) noexcept { return ASMJIT_CUSTOM_ALLOC(size); }
   static inline void* reallocMemory(void* p, size_t size) noexcept { return ASMJIT_CUSTOM_REALLOC(p, size); }
   static inline void releaseMemory(void* p) noexcept { ASMJIT_CUSTOM_FREE(p); }
+
   #elif !defined(ASMJIT_CUSTOM_ALLOC) && !defined(ASMJIT_CUSTOM_REALLOC) && !defined(ASMJIT_CUSTOM_FREE)
+
   static inline void* allocMemory(size_t size) noexcept { return std::malloc(size); }
   static inline void* reallocMemory(void* p, size_t size) noexcept { return std::realloc(p, size); }
   static inline void releaseMemory(void* p) noexcept { std::free(p); }
+
   #else
   #error "[asmjit] You must provide either none or all of ASMJIT_CUSTOM_[ALLOC|REALLOC|FREE]"
   #endif

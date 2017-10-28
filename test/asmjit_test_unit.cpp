@@ -37,40 +37,10 @@ static void dumpCpu(void) {
   INFO("");
 
   // --------------------------------------------------------------------------
-  // [ARM]
+  // [X86]
   // --------------------------------------------------------------------------
 
-#if ASMJIT_ARCH_ARM
-  static const DumpCpuFeature armFeaturesList[] = {
-    { CpuInfo::kArmFeatureV6              , "ARMv6"            },
-    { CpuInfo::kArmFeatureV7              , "ARMv7"            },
-    { CpuInfo::kArmFeatureV8              , "ARMv8"            },
-    { CpuInfo::kArmFeatureTHUMB           , "THUMB"            },
-    { CpuInfo::kArmFeatureTHUMB2          , "THUMBv2"          },
-    { CpuInfo::kArmFeatureVFP2            , "VFPv2"            },
-    { CpuInfo::kArmFeatureVFP3            , "VFPv3"            },
-    { CpuInfo::kArmFeatureVFP4            , "VFPv4"            },
-    { CpuInfo::kArmFeatureVFP_D32         , "VFP D32"          },
-    { CpuInfo::kArmFeatureNEON            , "NEON"             },
-    { CpuInfo::kArmFeatureDSP             , "DSP"              },
-    { CpuInfo::kArmFeatureIDIV            , "IDIV"             },
-    { CpuInfo::kArmFeatureAES             , "AES"              },
-    { CpuInfo::kArmFeatureCRC32           , "CRC32"            },
-    { CpuInfo::kArmFeatureSHA1            , "SHA1"             },
-    { CpuInfo::kArmFeatureSHA256          , "SHA256"           },
-    { CpuInfo::kArmFeatureATOMIC64        , "ATOMIC64"         }
-  };
-
-  INFO("ARM Features:");
-  dumpCpuFeatures(cpu, armFeaturesList, ASMJIT_ARRAY_SIZE(armFeaturesList));
-  INFO("");
-#endif
-
-  // --------------------------------------------------------------------------
-  // [X86 / X64]
-  // --------------------------------------------------------------------------
-
-#if ASMJIT_ARCH_X86
+  #if ASMJIT_ARCH_X86
   static const DumpCpuFeature x86FeaturesList[] = {
     { CpuInfo::kX86FeatureNX              , "NX"               },
     { CpuInfo::kX86FeatureMT              , "MT"               },
@@ -159,7 +129,37 @@ static void dumpCpu(void) {
   INFO("X86 Features:");
   dumpCpuFeatures(cpu, x86FeaturesList, ASMJIT_ARRAY_SIZE(x86FeaturesList));
   INFO("");
-#endif
+  #endif
+
+  // --------------------------------------------------------------------------
+  // [ARM]
+  // --------------------------------------------------------------------------
+
+  #if ASMJIT_ARCH_ARM
+  static const DumpCpuFeature armFeaturesList[] = {
+    { CpuInfo::kArmFeatureV6              , "ARMv6"            },
+    { CpuInfo::kArmFeatureV7              , "ARMv7"            },
+    { CpuInfo::kArmFeatureV8              , "ARMv8"            },
+    { CpuInfo::kArmFeatureTHUMB           , "THUMB"            },
+    { CpuInfo::kArmFeatureTHUMB2          , "THUMBv2"          },
+    { CpuInfo::kArmFeatureVFP2            , "VFPv2"            },
+    { CpuInfo::kArmFeatureVFP3            , "VFPv3"            },
+    { CpuInfo::kArmFeatureVFP4            , "VFPv4"            },
+    { CpuInfo::kArmFeatureVFP_D32         , "VFP D32"          },
+    { CpuInfo::kArmFeatureNEON            , "NEON"             },
+    { CpuInfo::kArmFeatureDSP             , "DSP"              },
+    { CpuInfo::kArmFeatureIDIV            , "IDIV"             },
+    { CpuInfo::kArmFeatureAES             , "AES"              },
+    { CpuInfo::kArmFeatureCRC32           , "CRC32"            },
+    { CpuInfo::kArmFeatureSHA1            , "SHA1"             },
+    { CpuInfo::kArmFeatureSHA256          , "SHA256"           },
+    { CpuInfo::kArmFeatureATOMIC64        , "ATOMIC64"         }
+  };
+
+  INFO("ARM Features:");
+  dumpCpuFeatures(cpu, armFeaturesList, ASMJIT_ARRAY_SIZE(armFeaturesList));
+  INFO("");
+  #endif
 }
 
 // ============================================================================
@@ -167,7 +167,8 @@ static void dumpCpu(void) {
 // ============================================================================
 
 static void dumpSizeOf(void) {
-#define DUMP_TYPE(...) INFO("  %-26s: %u", #__VA_ARGS__, uint32_t(sizeof(__VA_ARGS__)))
+  #define DUMP_TYPE(...) \
+    INFO("  %-26s: %u", #__VA_ARGS__, uint32_t(sizeof(__VA_ARGS__)))
 
   INFO("Size of built-ins:");
     DUMP_TYPE(int8_t);
@@ -191,9 +192,9 @@ static void dumpSizeOf(void) {
     DUMP_TYPE(ConstPool);
     DUMP_TYPE(LabelEntry);
     DUMP_TYPE(RelocEntry);
-    DUMP_TYPE(Runtime);
     DUMP_TYPE(SectionEntry);
     DUMP_TYPE(StringBuilder);
+    DUMP_TYPE(Target);
     DUMP_TYPE(Zone);
     DUMP_TYPE(ZoneAllocator);
     DUMP_TYPE(ZoneHash<ZoneHashNode>);
@@ -218,7 +219,7 @@ static void dumpSizeOf(void) {
     DUMP_TYPE(FuncArgsAssignment);
   INFO("");
 
-#if !defined(ASMJIT_DISABLE_BUILDER)
+  #ifndef ASMJIT_DISABLE_BUILDER
   INFO("Size of CodeBuilder:");
     DUMP_TYPE(CodeBuilder);
     DUMP_TYPE(CBNode);
@@ -230,26 +231,26 @@ static void dumpSizeOf(void) {
     DUMP_TYPE(CBComment);
     DUMP_TYPE(CBSentinel);
   INFO("");
-#endif
+  #endif
 
-#if !defined(ASMJIT_DISABLE_COMPILER)
+  #ifndef ASMJIT_DISABLE_COMPILER
   INFO("Size of CodeCompiler:");
     DUMP_TYPE(CodeCompiler);
     DUMP_TYPE(CCFunc);
     DUMP_TYPE(CCFuncRet);
     DUMP_TYPE(CCFuncCall);
   INFO("");
-#endif
+  #endif
 
-#if defined(ASMJIT_BUILD_X86)
+  #if defined(ASMJIT_BUILD_X86)
   INFO("Size of X86-Backend:");
     DUMP_TYPE(X86Assembler);
-# if !defined(ASMJIT_DISABLE_BUILDER)
-      DUMP_TYPE(X86Builder);
-# endif
-# if !defined(ASMJIT_DISABLE_COMPILER)
-      DUMP_TYPE(X86Compiler);
-# endif
+    #ifndef ASMJIT_DISABLE_BUILDER
+    DUMP_TYPE(X86Builder);
+    #endif
+    #ifndef ASMJIT_DISABLE_COMPILER
+    DUMP_TYPE(X86Compiler);
+    #endif
     DUMP_TYPE(X86Inst);
     DUMP_TYPE(X86Inst::CommonData);
     DUMP_TYPE(X86Inst::OperationData);
@@ -257,9 +258,9 @@ static void dumpSizeOf(void) {
     DUMP_TYPE(X86Inst::ISignature);
     DUMP_TYPE(X86Inst::OSignature);
   INFO("");
-#endif
+  #endif
 
-#undef DUMP_TYPE
+  #undef DUMP_TYPE
 }
 
 // ============================================================================

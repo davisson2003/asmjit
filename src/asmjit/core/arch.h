@@ -56,17 +56,17 @@ public:
     kSubTypeA32_Thumb    = 8,            //!< THUMB|THUMB2 sub-type (only ARM in 32-bit mode).
 
     #if   (ASMJIT_ARCH_X86) && defined(__AVX512VL__)
-      kSubTypeHost = kSubTypeX86_AVX512VL
+    kSubTypeHost = kSubTypeX86_AVX512VL
     #elif (ASMJIT_ARCH_X86) && defined(__AVX512F__)
-      kSubTypeHost = kSubTypeX86_AVX512
+    kSubTypeHost = kSubTypeX86_AVX512
     #elif (ASMJIT_ARCH_X86) && defined(__AVX2__)
-      kSubTypeHost = kSubTypeX86_AVX2
+    kSubTypeHost = kSubTypeX86_AVX2
     #elif (ASMJIT_ARCH_X86) && defined(__AVX__)
-      kSubTypeHost = kSubTypeX86_AVX
+    kSubTypeHost = kSubTypeX86_AVX
     #elif (ASMJIT_ARCH_ARM == 32) && (defined(_M_ARMT) || defined(__thumb__) || defined(__thumb2__))
-      kSubTypeHost = kSubTypeA32_Thumb
+    kSubTypeHost = kSubTypeA32_Thumb
     #else
-      kSubTypeHost = 0
+    kSubTypeHost = 0
     #endif
   };
 

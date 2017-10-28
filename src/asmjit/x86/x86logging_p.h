@@ -9,7 +9,7 @@
 #define _ASMJIT_X86_X86LOGGING_P_H
 
 #include "../core/build.h"
-#if !defined(ASMJIT_DISABLE_LOGGING)
+#ifndef ASMJIT_DISABLE_LOGGING
 
 // [Dependencies]
 #include "../core/logging.h"

@@ -441,6 +441,10 @@ public:
 
 static_assert(sizeof(Operand) == 16, "asmjit::Operand must be exactly 16 bytes long");
 
+namespace Globals {
+  static constexpr const Operand none;
+}
+
 // ============================================================================
 // [asmjit::Label]
 // ============================================================================

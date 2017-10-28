@@ -145,7 +145,7 @@ int X86TestApp::run() {
   uint32_t count = _tests.getLength();
   std::FILE* file = stdout;
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+  #ifndef ASMJIT_DISABLE_LOGGING
   uint32_t logOptions = Logger::kOptionBinaryForm    |
                         Logger::kOptionExplainConsts |
                         Logger::kOptionRegCasts      |
@@ -158,7 +158,7 @@ int X86TestApp::run() {
 
   StringLogger stringLogger;
   stringLogger.addOptions(logOptions);
-#endif
+  #endif
 
   for (i = 0; i < count; i++) {
     JitRuntime runtime;
@@ -168,7 +168,7 @@ int X86TestApp::run() {
     code.init(runtime.getCodeInfo());
     code.setErrorHandler(&errorHandler);
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+    #ifndef ASMJIT_DISABLE_LOGGING
     if (_verbose) {
       code.setLogger(&fileLogger);
     }
@@ -176,14 +176,14 @@ int X86TestApp::run() {
       stringLogger.clearString();
       code.setLogger(&stringLogger);
     }
-#endif
+    #endif
 
     X86Test* test = _tests[i];
     fprintf(file, "[Test] %s", test->getName());
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+    #ifndef ASMJIT_DISABLE_LOGGING
     if (_verbose) fprintf(file, "\n");
-#endif
+    #endif
 
     X86Compiler cc(&code);
     test->compile(cc);
@@ -193,7 +193,7 @@ int X86TestApp::run() {
       err = cc.finalize();
     void* func;
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+    #ifndef ASMJIT_DISABLE_LOGGING
     if (_dumpAsm) {
       if (!_verbose) fprintf(file, "\n");
 
@@ -201,7 +201,7 @@ int X86TestApp::run() {
       cc.dump(sb, logOptions);
       fprintf(file, "%s", sb.getData());
     }
-#endif
+    #endif
 
     if (err == kErrorOk)
       err = runtime.add(&func, &code);
@@ -219,9 +219,9 @@ int X86TestApp::run() {
       else {
         if (!_verbose) fprintf(file, " [FAILED]\n");
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+        #ifndef ASMJIT_DISABLE_LOGGING
         if (!_verbose) fprintf(file, "%s", stringLogger.getString());
-#endif
+        #endif
 
         fprintf(file, "[Status]\n");
         fprintf(file, "  Returned: %s\n", result.getData());
@@ -235,9 +235,9 @@ int X86TestApp::run() {
     else {
       if (!_verbose) fprintf(file, " [FAILED]\n");
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+      #ifndef ASMJIT_DISABLE_LOGGING
       if (!_verbose) fprintf(file, "%s", stringLogger.getString());
-#endif
+      #endif
 
       fprintf(file, "[Status]\n");
       fprintf(file, "  ERROR 0x%08X: %s\n", unsigned(err), errorHandler._message.getData());

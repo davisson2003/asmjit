@@ -30,8 +30,9 @@ ASMJIT_BEGIN_NAMESPACE
 // [asmjit::OSUtils - GetTickCount]
 // ============================================================================
 
-#if ASMJIT_OS_WINDOWS
 uint32_t OSUtils::getTickCount() noexcept {
+  #if ASMJIT_OS_WINDOWS
+
   enum HiResStatus : uint32_t {
     kHiResUnknown      = 0,
     kHiResAvailable    = 1,
@@ -66,12 +67,11 @@ uint32_t OSUtils::getTickCount() noexcept {
 
   // Bail to `GetTickCount()` if we cannot use high resolution.
   return ::GetTickCount();
-}
-#elif ASMJIT_OS_DARWIN
-uint32_t OSUtils::getTickCount() noexcept {
-  static mach_timebase_info_data_t _machTime;
+
+  #elif ASMJIT_OS_DARWIN
 
   // See Apple's QA1398.
+  static mach_timebase_info_data_t _machTime;
   if (ASMJIT_UNLIKELY(_machTime.denom == 0) || mach_timebase_info(&_machTime) != KERN_SUCCESS)
     return 0;
 
@@ -80,9 +80,9 @@ uint32_t OSUtils::getTickCount() noexcept {
 
   t = t * _machTime.numer / _machTime.denom;
   return uint32_t(t & 0xFFFFFFFFU);
-}
-#elif defined(_POSIX_MONOTONIC_CLOCK) && _POSIX_MONOTONIC_CLOCK >= 0
-uint32_t OSUtils::getTickCount() noexcept {
+
+  #elif defined(_POSIX_MONOTONIC_CLOCK) && _POSIX_MONOTONIC_CLOCK >= 0
+
   struct timespec ts;
 
   if (ASMJIT_UNLIKELY(clock_gettime(CLOCK_MONOTONIC, &ts) != 0))
@@ -90,10 +90,13 @@ uint32_t OSUtils::getTickCount() noexcept {
 
   uint64_t t = (uint64_t(ts.tv_sec ) * 1000) + (uint64_t(ts.tv_nsec) / 1000000);
   return uint32_t(t & 0xFFFFFFFFU);
+
+  #else
+
+  #pragma message("asmjit::OSUtils::getTickCount() doesn't have implementation for your target OS.")
+  return 0;
+
+  #endif
 }
-#else
-#pragma message("asmjit::OSUtils::getTickCount() doesn't have implementation for your target OS.")
-uint32_t OSUtils::getTickCount() noexcept { return 0; }
-#endif
 
 ASMJIT_END_NAMESPACE

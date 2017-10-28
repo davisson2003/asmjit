@@ -32,13 +32,13 @@ ASMJIT_FAVOR_SIZE Error CallConv::init(uint32_t ccId) noexcept {
   reset();
 
   #if defined(ASMJIT_BUILD_X86)
-    if (CallConv::isX86Family(ccId))
-      return X86Internal::initCallConv(*this, ccId);
+  if (CallConv::isX86Family(ccId))
+    return X86Internal::initCallConv(*this, ccId);
   #endif
 
   #if defined(ASMJIT_BUILD_ARM)
-    if (CallConv::isArmFamily(ccId))
-      return ArmInternal::initCallConv(*this, ccId);
+  if (CallConv::isArmFamily(ccId))
+    return ArmInternal::initCallConv(*this, ccId);
   #endif
 
   return DebugUtils::errored(kErrorInvalidArgument);
@@ -75,13 +75,13 @@ ASMJIT_FAVOR_SIZE Error FuncDetail::init(const FuncSignature& sign) {
   }
 
   #if defined(ASMJIT_BUILD_X86)
-    if (CallConv::isX86Family(ccId))
-      return X86Internal::initFuncDetail(*this, sign, gpSize);
+  if (CallConv::isX86Family(ccId))
+    return X86Internal::initFuncDetail(*this, sign, gpSize);
   #endif
 
   #if defined(ASMJIT_BUILD_ARM)
-    if (CallConv::isArmFamily(ccId))
-      return ArmInternal::initFuncDetail(*this, sign, gpSize);
+  if (CallConv::isArmFamily(ccId))
+    return ArmInternal::initFuncDetail(*this, sign, gpSize);
   #endif
 
   // We should never bubble here as if `cc.init()` succeeded then there has to
@@ -97,13 +97,13 @@ ASMJIT_FAVOR_SIZE Error FuncFrame::init(const FuncDetail& func) noexcept {
   uint32_t ccId = func.getCallConv().getId();
 
   #if defined(ASMJIT_BUILD_X86)
-    if (CallConv::isX86Family(ccId))
-      return X86Internal::initFuncFrame(*this, func);
+  if (CallConv::isX86Family(ccId))
+    return X86Internal::initFuncFrame(*this, func);
   #endif
 
   #if defined(ASMJIT_BUILD_ARM)
-    if (CallConv::isArmFamily(ccId))
-      return ArmInternal::initFuncFrame(*this, func);
+  if (CallConv::isArmFamily(ccId))
+    return ArmInternal::initFuncFrame(*this, func);
   #endif
 
   return DebugUtils::errored(kErrorInvalidArgument);
@@ -111,13 +111,13 @@ ASMJIT_FAVOR_SIZE Error FuncFrame::init(const FuncDetail& func) noexcept {
 
 ASMJIT_FAVOR_SIZE Error FuncFrame::finalize() noexcept {
   #if defined(ASMJIT_BUILD_X86)
-    if (ArchInfo::isX86Family(getArchType()))
-      return X86Internal::finalizeFuncFrame(*this);
+  if (ArchInfo::isX86Family(getArchType()))
+    return X86Internal::finalizeFuncFrame(*this);
   #endif
 
   #if defined(ASMJIT_BUILD_ARM)
-    if (ArchInfo::isArmFamily(getArchType()))
-      return ArmInternal::finalizeFuncFrame(*this);
+  if (ArchInfo::isArmFamily(getArchType()))
+    return ArmInternal::finalizeFuncFrame(*this);
   #endif
 
   return DebugUtils::errored(kErrorInvalidArgument);
@@ -134,13 +134,13 @@ ASMJIT_FAVOR_SIZE Error FuncArgsAssignment::updateFuncFrame(FuncFrame& frame) co
   uint32_t ccId = func->getCallConv().getId();
 
   #if defined(ASMJIT_BUILD_X86)
-    if (CallConv::isX86Family(ccId))
-      return X86Internal::argsToFuncFrame(*this, frame);
+  if (CallConv::isX86Family(ccId))
+    return X86Internal::argsToFuncFrame(*this, frame);
   #endif
 
   #if defined(ASMJIT_BUILD_ARM)
-    if (CallConv::isArmFamily(ccId))
-      return ArmInternal::argsToFuncFrame(*this, frame);
+  if (CallConv::isArmFamily(ccId))
+    return ArmInternal::argsToFuncFrame(*this, frame);
   #endif
 
   return DebugUtils::errored(kErrorInvalidArch);

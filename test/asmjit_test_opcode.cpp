@@ -67,11 +67,11 @@ int main(int argc, char* argv[]) {
     code.init(CodeInfo(info.archType));
     code.setErrorHandler(&eh);
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+    #ifndef ASMJIT_DISABLE_LOGGING
     FileLogger logger(stdout);
     logger.addOptions(Logger::kOptionBinaryForm);
     code.setLogger(&logger);
-#endif
+    #endif
 
     X86Assembler a(&code);
     asmtest::generateOpcodes(a.as<X86Emitter>(), info.useRex1, info.useRex2);

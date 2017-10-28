@@ -9,7 +9,7 @@
 
 // [Guard]
 #include "../core/build.h"
-#if !defined(ASMJIT_DISABLE_BUILDER)
+#ifndef ASMJIT_DISABLE_BUILDER
 
 // [Dependencies]
 #include "../core/codebuilder.h"
@@ -532,22 +532,22 @@ Error CodeBuilder::_emit(uint32_t instId, const Operand_& o0, const Operand_& o1
       return DebugUtils::errored(kErrorNotInitialized);
 
     // Strict validation.
-    #if !defined(ASMJIT_DISABLE_INST_API)
-      if (hasEmitterOption(kOptionStrictValidation)) {
-        Operand_ opArray[4];
-        opArray[0].copyFrom(o0);
-        opArray[1].copyFrom(o1);
-        opArray[2].copyFrom(o2);
-        opArray[3].copyFrom(o3);
+    #ifndef ASMJIT_DISABLE_INST_API
+    if (hasEmitterOption(kOptionStrictValidation)) {
+      Operand_ opArray[4];
+      opArray[0].copyFrom(o0);
+      opArray[1].copyFrom(o1);
+      opArray[2].copyFrom(o2);
+      opArray[3].copyFrom(o3);
 
-        Error err = Inst::validate(getArchType(), Inst::Detail(instId, options, _extraReg), opArray, opCount);
-        if (ASMJIT_UNLIKELY(err)) {
-          resetInstOptions();
-          resetExtraReg();
-          resetInlineComment();
-          return reportError(err);
-        }
+      Error err = Inst::validate(getArchType(), Inst::Detail(instId, options, _extraReg), opArray, opCount);
+      if (ASMJIT_UNLIKELY(err)) {
+        resetInstOptions();
+        resetExtraReg();
+        resetInlineComment();
+        return reportError(err);
       }
+    }
     #endif
 
     // Clear options that should never be part of `CBInst`.
@@ -601,24 +601,24 @@ Error CodeBuilder::_emit(uint32_t instId, const Operand_& o0, const Operand_& o1
       return DebugUtils::errored(kErrorNotInitialized);
 
     // Strict validation.
-    #if !defined(ASMJIT_DISABLE_INST_API)
-      if (hasEmitterOption(kOptionStrictValidation)) {
-        Operand_ opArray[Globals::kMaxOpCount];
-        opArray[0].copyFrom(o0);
-        opArray[1].copyFrom(o1);
-        opArray[2].copyFrom(o2);
-        opArray[3].copyFrom(o3);
-        opArray[4].copyFrom(o4);
-        opArray[5].copyFrom(o5);
+    #ifndef ASMJIT_DISABLE_INST_API
+    if (hasEmitterOption(kOptionStrictValidation)) {
+      Operand_ opArray[Globals::kMaxOpCount];
+      opArray[0].copyFrom(o0);
+      opArray[1].copyFrom(o1);
+      opArray[2].copyFrom(o2);
+      opArray[3].copyFrom(o3);
+      opArray[4].copyFrom(o4);
+      opArray[5].copyFrom(o5);
 
-        Error err = Inst::validate(getArchType(), Inst::Detail(instId, options, _extraReg), opArray, opCount);
-        if (ASMJIT_UNLIKELY(err)) {
-          resetInstOptions();
-          resetExtraReg();
-          resetInlineComment();
-          return reportError(err);
-        }
+      Error err = Inst::validate(getArchType(), Inst::Detail(instId, options, _extraReg), opArray, opCount);
+      if (ASMJIT_UNLIKELY(err)) {
+        resetInstOptions();
+        resetExtraReg();
+        resetInlineComment();
+        return reportError(err);
       }
+    }
     #endif
 
     // Clear options that should never be part of `CBInst`.
@@ -816,7 +816,7 @@ OnLabel:
 // [asmjit::CodeBuilder - Logging]
 // ============================================================================
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+#ifndef ASMJIT_DISABLE_LOGGING
 Error CodeBuilder::dump(StringBuilder& sb, uint32_t logOptions) const noexcept {
   CBNode* node = getFirstNode();
   while (node) {

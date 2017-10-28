@@ -5,8 +5,11 @@
 // Zlib - See LICENSE.md file in the package.
 
 // [Guard]
-#ifndef _ASMJIT_CORE_VIRTMEM_H
-#define _ASMJIT_CORE_VIRTMEM_H
+#ifndef _ASMJIT_CORE_JITALLOCATOR_H
+#define _ASMJIT_CORE_JITALLOCATOR_H
+
+#include "../core/build.h"
+#ifndef ASMJIT_DISABLE_JIT
 
 // [Dependencies]
 #include "../core/globals.h"
@@ -18,52 +21,27 @@ ASMJIT_BEGIN_NAMESPACE
 //! \{
 
 // ============================================================================
-// [asmjit::VirtMem]
+// [asmjit::JitAllocator]
 // ============================================================================
 
-namespace VirtMem {
-
-//! Virtual memory flags.
-enum AccessFlags : uint32_t {
-  kAccessNone    = 0x00000000U,          //!< No access flags.
-  kAccessWrite   = 0x00000001U,          //!< Memory is writable.
-  kAccessExecute = 0x00000002U           //!< Memory is executable.
-};
-
-//! Information about OS virtual memory.
-struct Info {
-  uint32_t pageSize;                     //!< Virtual memory page size.
-  uint32_t pageGranularity;              //!< Virtual memory page granularity.
-};
-
-//! Get virtual memory information, see \ref VirtMem::Info for more details.
-ASMJIT_API Info getInfo() noexcept;
-
-//! Allocate virtual memory.
-ASMJIT_API void* alloc(size_t size, uint32_t accessFlags) noexcept;
-//! Release virtual memory previously allocated by `VirtMem::alloc()`.
-ASMJIT_API Error release(void* p, size_t size) noexcept;
-
-} // VirtMem namespace
-
-// ============================================================================
-// [asmjit::VirtMemManager]
-// ============================================================================
-
-//! Reference implementation of memory manager that uses `VirtMemUtils` to allocate
-//! chunks of virtual memory and uses bit arrays to manage it.
-class VirtMemManager {
+//! Reference implementation of memory manager that uses `JitUtils::virtualAlloc()`
+//! and `JitUtils::virtualRelease()` to manage executable memory.
+//!
+//! Internally the allocator doesn't store any information into the executable
+//! memory it allocates, it uses bit vectors to mark allocated memory and RB
+//! tree to be able to find block for any address.
+class JitAllocator {
 public:
-  ASMJIT_NONCOPYABLE(VirtMemManager)
+  ASMJIT_NONCOPYABLE(JitAllocator)
 
   // --------------------------------------------------------------------------
   // [Construction / Destruction]
   // --------------------------------------------------------------------------
 
-  //! Create a `VirtMemManager` instance.
-  ASMJIT_API VirtMemManager() noexcept;
-  //! Destroy the `VirtMemManager` instance and free all blocks.
-  ASMJIT_API ~VirtMemManager() noexcept;
+  //! Create a `JitAllocator` instance.
+  ASMJIT_API JitAllocator() noexcept;
+  //! Destroy the `JitAllocator` instance and free all blocks.
+  ASMJIT_API ~JitAllocator() noexcept;
 
   // --------------------------------------------------------------------------
   // [Reset]
@@ -126,5 +104,5 @@ public:
 
 ASMJIT_END_NAMESPACE
 
-// [Guard]
-#endif // _ASMJIT_CORE_VIRTMEM_H
+#endif
+#endif

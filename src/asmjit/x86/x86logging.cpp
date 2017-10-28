@@ -9,7 +9,7 @@
 
 // [Guard]
 #include "../core/build.h"
-#if !defined(ASMJIT_DISABLE_LOGGING)
+#ifndef ASMJIT_DISABLE_LOGGING
 
 // [Dependencies]
 #include "../core/misc_p.h"
@@ -19,7 +19,7 @@
 #include "../x86/x86logging_p.h"
 #include "../x86/x86operand.h"
 
-#if !defined(ASMJIT_DISABLE_COMPILER)
+#ifndef ASMJIT_DISABLE_COMPILER
   #include "../core/codecompiler.h"
 #endif
 
@@ -619,7 +619,7 @@ ASMJIT_FAVOR_SIZE Error X86Logging::formatRegister(
   ASMJIT_UNUSED(archType);
   const RegFormatInfo& info = x86RegFormatInfo;
 
-#if !defined(ASMJIT_DISABLE_COMPILER)
+#ifndef ASMJIT_DISABLE_COMPILER
   if (Operand::isPackedId(rId)) {
     if (emitter && emitter->getEmitterType() == CodeEmitter::kTypeCompiler) {
       const CodeCompiler* cc = static_cast<const CodeCompiler*>(emitter);

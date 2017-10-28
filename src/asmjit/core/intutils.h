@@ -121,7 +121,7 @@ constexpr X sar(const X& x, const Y& y) noexcept {
   return X(S(x) >> y);
 }
 
-//! Returns `x | (x << y)` - helper used by some bit manipulation helpers.
+//! Returns `x | (x >> y)` - helper used by some bit manipulation helpers.
 template<typename X, typename Y>
 constexpr X or_shr(const X& x, const Y& y) noexcept { return X(x | shr(x, y)); }
 
@@ -145,7 +145,7 @@ constexpr T lsbMask(COUNT n) noexcept {
   typedef typename std::make_unsigned<T>::type U;
   return (sizeof(U) < sizeof(uintptr_t))
     ? T(U((uintptr_t(1) << n) - uintptr_t(1)))
-    // Shifting more bits than the type provides is in UNDEFINED BEHAVIOR.
+    // Shifting more bits than the type provides is UNDEFINED BEHAVIOR.
     // In such case we trash the result by ORing it with a mask that has
     // all bits set and discards the UNDEFINED RESULT of the shift.
     : T(((U(1) << n) - U(1U)) | neg(U(n >= COUNT(sizeof(T) * 8))));
@@ -234,26 +234,26 @@ static ASMJIT_FORCEINLINE uint32_t _ctzGeneric(uint64_t x) noexcept {
 //! \internal
 static ASMJIT_FORCEINLINE uint32_t _ctzImpl(uint32_t x) noexcept {
   #if ASMJIT_CXX_MSC && (ASMJIT_ARCH_X86 || ASMJIT_ARCH_ARM)
-    unsigned long i;
-    _BitScanForward(&i, x);
-    return uint32_t(i);
+  unsigned long i;
+  _BitScanForward(&i, x);
+  return uint32_t(i);
   #elif ASMJIT_CXX_GNU
-    return uint32_t(__builtin_ctz(x));
+  return uint32_t(__builtin_ctz(x));
   #else
-    return _ctzGeneric(x);
+  return _ctzGeneric(x);
   #endif
 }
 
 //! \internal
 static ASMJIT_FORCEINLINE uint32_t _ctzImpl(uint64_t x) noexcept {
   #if ASMJIT_CXX_MSC && (ASMJIT_ARCH_X86 == 64 || ASMJIT_ARCH_ARM == 64)
-    unsigned long i;
-    _BitScanForward64(&i, x);
-    return uint32_t(i);
+  unsigned long i;
+  _BitScanForward64(&i, x);
+  return uint32_t(i);
   #elif ASMJIT_CXX_GNU
-    return uint32_t(__builtin_ctzll(x));
+  return uint32_t(__builtin_ctzll(x));
   #else
-    return _ctzGeneric(x);
+  return _ctzGeneric(x);
   #endif
 }
 
@@ -319,24 +319,37 @@ static inline uint32_t _popcntGeneric(uint64_t x) noexcept {
 //! \internal
 static inline uint32_t _popcntImpl(uint32_t x) noexcept {
   #if ASMJIT_CXX_GNU
-    return uint32_t(__builtin_popcount(x));
+  return uint32_t(__builtin_popcount(x));
   #else
-    return _popcntGeneric(asUInt(x));
+  return _popcntGeneric(asUInt(x));
   #endif
 }
 
 //! \internal
 static inline uint32_t _popcntImpl(uint64_t x) noexcept {
   #if ASMJIT_CXX_GNU
-    return uint32_t(__builtin_popcountll(x));
+  return uint32_t(__builtin_popcountll(x));
   #else
-    return _popcntGeneric(asUInt(x));
+  return _popcntGeneric(asUInt(x));
   #endif
 }
 
 //! Get count of bits in `x`.
 template<typename T>
 static inline uint32_t popcnt(T x) noexcept { return _popcntImpl(asUInt(x)); }
+
+// ============================================================================
+// [asmjit::IntUtils::SignExtend]
+// ============================================================================
+
+template<typename T>
+constexpr T signExtendI8(T imm) noexcept { return int64_t(int8_t(imm & T(0xFF))); }
+
+template<typename T>
+constexpr T signExtendI16(T imm) noexcept { return int64_t(int16_t(imm & T(0xFFFF))); }
+
+template<typename T>
+constexpr T signExtendI32(T imm) noexcept { return int64_t(int32_t(imm & T(0xFFFFFFFF))); }
 
 // ============================================================================
 // [asmjit::IntUtils::Alignment]

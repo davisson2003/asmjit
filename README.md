@@ -28,10 +28,10 @@ using namespace asmjit;
 typedef int (*Func)(void);
 
 int main(int argc, char* argv[]) {
-  JitRuntime rt;                          // Runtime specialized for JIT code execution.
+  JitRuntime jit;                         // Runtime specialized for JIT code execution.
 
   CodeHolder code;                        // Holds code and relocation information.
-  code.init(rt.getCodeInfo());            // Initialize to the same arch as JIT runtime.
+  code.init(jit.getCodeInfo());           // Initialize to the same arch as JIT runtime.
 
   X86Assembler a(&code);                  // Create and attach X86Assembler to `code`.
   a.mov(x86::eax, 1);                     // Move one to 'eax' register.
@@ -39,7 +39,7 @@ int main(int argc, char* argv[]) {
   // ----> X86Assembler is no longer needed from here and can be destroyed <----
 
   Func fn;
-  Error err = rt.add(&fn, &code);         // Add the generated code to the runtime.
+  Error err = jit.add(&fn, &code);        // Add the generated code to the runtime.
   if (err) return 1;                      // Handle a possible error returned by AsmJit.
   // ----> CodeHolder is no longer needed from here and can be destroyed <----
 
@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
   // All classes use RAII, all resources will be released before `main()` returns,
   // the generated function can be, however, released explicitly if you intend to
   // reuse or keep the runtime alive, which you should in a production-ready code.
-  rt.release(fn);
+  jit.release(fn);
 
   return 0;
 }
@@ -156,8 +156,8 @@ By default AsmJit build is configured to be built as a shared library, thus none
 
 ### Build Backends:
 
-  * `ASMJIT_BUILD_ARM` - Build ARM32 and ARM64 backends (work-in-progress).
-  * `ASMJIT_BUILD_X86` - Build X86 and X64 backends.
+  * `ASMJIT_BUILD_ARM` - Build ARM backends (not ready, work-in-progress).
+  * `ASMJIT_BUILD_X86` - Build X86 backends (X86 and X86_64).
   * `ASMJIT_BUILD_HOST` - Build only the host backend (default).
 
 If none of `ASMJIT_BUILD_...` is defined AsmJit bails to `ASMJIT_BUILD_HOST`, which will detect the target architecture at compile-time. Each backend automatically supports 32-bit and 64-bit targets, so for example AsmJit with X86 support can generate both 32-bit and 64-bit code.
@@ -166,6 +166,7 @@ If none of `ASMJIT_BUILD_...` is defined AsmJit bails to `ASMJIT_BUILD_HOST`, wh
 
   * `ASMJIT_DISABLE_BUILDER` - Disables both `CodeBuilder` and `CodeCompiler` emitters (only `Assembler` will be available). Ideal for users that don't use `CodeBuilder` concept and want to create smaller AsmJit.
   * `ASMJIT_DISABLE_COMPILER` - Disables `CodeCompiler` emitter. For users that use `CodeBuilder`, but not `CodeCompiler`.
+  * `ASMJIT_DISABLE_JIT` - Disables JIT execution engine, which includes `JitUtils`, `JitAllocator`, and `JitRuntime`.
   * `ASMJIT_DISABLE_LOGGING` - Disables logging (`Logger` and all classes that inherit it) and instruction formatting.
   * `ASMJIT_DISABLE_TEXT` - Disables everything that uses text-representation and that causes certain strings to be stored in the resulting binary. For example when this flag is enabled all instruction and error names (and related APIs) will not be available. This flag has to be disabled together with `ASMJIT_DISABLE_LOGGING`. This option is suitable for deployment builds or builds that don't want to reveal the use of AsmJit.
   * `ASMJIT_DISABLE_INST_API` - Disables strict validation, read/write information, and all additional data and APIs that can output information about instructions.
@@ -194,7 +195,7 @@ Code emitters:
 
 AsmJit's `Runtime` is designed for execution and/or linking. The `Runtime` itself is abstract and defines only how to `add()` and `release()` code held by `CodeHolder`. `CodeHolder` holds machine code and relocation entries, but should be seen as a temporary object only - after the code in `CodeHolder` is ready, it should be passed to `Runtime` or relocated manually. Users interested in inspecting the generated machine-code (instead of executing or linking) can keep it in `CodeHodler` and process it manually of course.
 
-The only `Runtime` implementation provided directly by AsmJit is called `JitRuntime`, which is suitable for storing and executing dynamically generated code. `JitRuntime` is used in most AsmJit examples as it makes the code management easy. It allows to add and release dynamically generated functions, so it's suitable for JIT code generators that want to keep many functions alive, and release functions which are no longer needed.
+The only `Runtime` implementation provided directly by AsmJit is called `JitRuntime`, which is suitable for storing and executing dynamically generated code. `JitRuntime` is used in most AsmJit examples as it makes the code management easy. It allows to add and release dynamically generated functions easily, so it's suitable for JIT code generators that want to keep many functions alive, and possibly release functions which are no longer needed.
 
 ### Instructions & Operands
 
@@ -278,10 +279,10 @@ int main(int argc, char* argv[]) {
   assert(sizeof(void*) == 8 &&
     "This example requires 64-bit environment.");
 
-  JitRuntime rt;                          // Create a runtime specialized for JIT.
+  JitRuntime jit;                         // Create a runtime specialized for JIT.
 
   CodeHolder code;                        // Create a CodeHolder.
-  code.init(rt.getCodeInfo());            // Initialize it to be compatible with `rt`.
+  code.init(jit.getCodeInfo());           // Initialize it to be compatible with `jit`.
 
   X86Assembler a(&code);                  // Create and attach X86Assembler to `code`.
 
@@ -322,7 +323,7 @@ int main(int argc, char* argv[]) {
   // ----> X86Assembler is no longer needed from here and can be destroyed <----
 
   SumFunc fn;
-  Error err = rt.add(&fn, &code);         // Add the generated code to the runtime.
+  Error err = jit.add(&fn, &code);        // Add the generated code to the runtime.
 
   if (err) return 1;                      // Handle a possible error returned by AsmJit.
   // ----> CodeHolder is no longer needed from here and can be destroyed <----
@@ -332,7 +333,7 @@ int main(int argc, char* argv[]) {
   int result = fn(array, 6);              // Execute the generated code.
   printf("%d\n", result);                 // Print sum of array (108).
 
-  rt.release(fn);                         // Remove the function from the runtime.
+  jit.release(fn);                        // Remove the function from the runtime.
   return 0;
 }
 ```
@@ -461,20 +462,6 @@ int main(int argc, char* argv[]) {
   a.movups(ptr(eax), xmm0);               // Store the result to [eax].
   a.ret();                                // Return from function.
 
-  // Now we have two options if we want to do something with the code held
-  // by CodeHolder. In order to use it we must first sync X86Assembler with
-  // CodeHolder as it doesn't do it for every instruction it generates (for
-  // performance reasons). The options are:
-  //
-  //   1. Detach X86Assembler from CodeHolder (it will sync automatically).
-  //   2. Sync explicitly, allows to use X86Assembler again if needed.
-  //
-  // NOTE: AsmJit always syncs internally when CodeHolder needs to access these
-  // buffers and knows that there is an Assembler attached, so you have to sync
-  // explicitly only if you bypass CodeHolder and intend to do something on your
-  // own.
-  code.sync();                            // So let's sync, it's easy.
-
   // We have no Runtime this time, it's on us what we do with the code.
   // CodeHolder stores code in SectionEntry, which embeds CodeSection
   // and CodeBuffer structures. We are interested in section's CodeBuffer only.
@@ -495,7 +482,7 @@ int main(int argc, char* argv[]) {
 
 CodeInfo contains much more information than just the target architecture. It can be configured to specify a base-address (or a virtual base-address in a linker terminology), which could be static (useful when you know the location of the target's machine code) or dynamic. AsmJit assumes dynamic base-address by default and relocates the code held by `CodeHolder` to a user-provided address on-demand. To be able to relocate to a user-provided address it needs to store some information about relocations, which is represented by `CodeHolder::RelocEntry`. Relocation entries are only required if you call external functions from the generated code that cannot be encoded by using a 32-bit displacement (X64 architecture doesn't provide 64-bit encodable displacement) and when a label referenced in one section is bound in another, but this is not really a JIT case and it's more related to AOT (ahead-of-time) compilation.
 
-Next example shows how to use a built-in virtual memory manager `VMemMgr` instead of using `JitRuntime` (just in case you want to use your own memory management) and how to relocate the generated code into your own memory block - you can use your own virtual memory allocator if you need that, but that's OS specific and it's already provided by AsmJit, so we will use what AsmJit offers instead of rolling our own here.
+Next example shows how to use a built-in virtual memory allocator `JitAllocator` instead of using `JitRuntime` (just in case you want to use your own memory management) and how to relocate the generated code into your own memory block - you can use your own virtual memory allocator if you prefer that, but that's OS specific and it's already provided by AsmJit, so we will use what AsmJit offers instead of going deep into OS APIs.
 
 The following code is similar to the previous one, but implements a function working in both 32-bit and 64-bit environments:
 
@@ -541,9 +528,6 @@ int main(int argc, char* argv[]) {
   a.movdqu(x86::ptr(dst), x86::xmm0);     // Store the result to [dst].
   a.ret();                                // Return from function.
 
-  // Sync X86Assembler and CodeHolder.
-  code.sync();
-
   // After the code was generated it can be relocated manually to any memory
   // location, however, we need to know it's size before we perform memory
   // allocation. CodeHolder's `getCodeSize()` returns the worst estimated
@@ -554,9 +538,9 @@ int main(int argc, char* argv[]) {
 
   // Instead of rolling our own virtual memory allocator we can use the one
   // AsmJit uses. It's decoupled so you don't need to use Runtime for that.
-  VMemMgr vm;
+  JitAllocator allocator;
 
-  void* p = vm.alloc(size);               // Allocate a virtual memory (executable).
+  void* p = allocator.alloc(size);        // Allocate a virtual memory (executable).
   if (!p) return 0;                       // Handle a possible out-of-memory case.
 
   size_t realSize = code.relocate(p);     // Relocate & store the output in 'p'.
@@ -575,7 +559,7 @@ int main(int argc, char* argv[]) {
   // Release 'p' is it's no longer needed. It will be destroyed with 'vm'
   // instance anyway, but it's a good practice to release it explicitly
   // when you know that the function will not be needed anymore.
-  vm.release(p);
+  allocator.release(p);
 
   return 0;
 }
@@ -608,10 +592,10 @@ using namespace asmjit;
 typedef int (*Func)(void);
 
 int main(int argc, char* argv[]) {
-  JitRuntime rt;                          // Create a runtime specialized for JIT.
+  JitRuntime jit;                         // Create a runtime specialized for JIT.
 
   CodeHolder code;                        // Create a CodeHolder.
-  code.init(rt.getCodeInfo());            // Initialize it to be compatible with `rt`.
+  code.init(jit.getCodeInfo());           // Initialize it to be compatible with `jit`.
 
   X86Assembler a(&code);                  // Create and attach X86Assembler to `code`.
 
@@ -636,13 +620,13 @@ int main(int argc, char* argv[]) {
 
   // To make the example complete let's call it.
   Func fn;
-  Error err = rt.add(&fn, &code);         // Add the generated code to the runtime.
+  Error err = jit.add(&fn, &code);        // Add the generated code to the runtime.
   if (err) return 1;                      // Handle a possible error returned by AsmJit.
 
   int result = fn();                      // Execute the generated code.
   printf("%d\n", result);                 // Print the resulting "0".
 
-  rt.release(fn);                         // Remove the function from the runtime.
+  jit.release(fn);                        // Remove the function from the runtime.
   return 0;
 }
 ```
@@ -687,10 +671,10 @@ using namespace asmjit;
 typedef int (*Func)(void);
 
 int main(int argc, char* argv[]) {
-  JitRuntime rt;                          // Create a runtime specialized for JIT.
+  JitRuntime jit;                         // Create a runtime specialized for JIT.
 
   CodeHolder code;                        // Create a CodeHolder.
-  code.init(rt.getCodeInfo());            // Initialize it to be compatible with `rt`.
+  code.init(jit.getCodeInfo());           // Initialize it to be compatible with `jit`.
 
   X86Assembler a(&code);                  // Create and attach X86Assembler to `code`.
 
@@ -725,13 +709,13 @@ int main(int argc, char* argv[]) {
 
   // Now the code is ready to be called
   Func fn;
-  Error err = rt.add(&fn, &code);         // Add the generated code to the runtime.
+  Error err = jit.add(&fn, &code);        // Add the generated code to the runtime.
   if (err) return 1;                      // Handle a possible error returned by AsmJit.
 
   int result = fn();                      // Execute the generated code.
   printf("%d\n", result);                 // Print the resulting "0".
 
-  rt.release(fn);                         // Remove the function from the runtime.
+  jit.release(fn);                        // Remove the function from the runtime.
   return 0;
 }
 ```
@@ -781,10 +765,10 @@ using namespace asmjit;
 typedef void (*SumIntsFunc)(int* dst, const int* a, const int* b);
 
 int main(int argc, char* argv[]) {
-  JitRuntime rt;                          // Create JIT Runtime.
+  JitRuntime jit;                         // Create JIT Runtime.
 
   CodeHolder code;                        // Create a CodeHolder.
-  code.init(rt.getCodeInfo());            // Initialize it to match `rt`.
+  code.init(jit.getCodeInfo());           // Initialize it to match `jit`.
   X86Assembler a(&code);                  // Create and attach X86Assembler to `code`.
 
   // Decide which registers will be mapped to function arguments. Try changing
@@ -821,7 +805,7 @@ int main(int argc, char* argv[]) {
   a.emitEpilog(frame);                    // Emit function epilog and return.
 
   SumIntsFunc fn;
-  Error err = rt.add(&fn, &code);         // Add the generated code to the runtime.
+  Error err = jit.add(&fn, &code);        // Add the generated code to the runtime.
   if (err) return 1;                      // Handle a possible error case.
 
   // Execute the generated function.
@@ -833,7 +817,7 @@ int main(int argc, char* argv[]) {
   // Prints {5 8 4 9}
   printf("{%d %d %d %d}\n", out[0], out[1], out[2], out[3]);
 
-  rt.release(fn);                         // Remove the function from the runtime.
+  jit.release(fn);                        // Remove the function from the runtime.
   return 0;
 }
 ```
@@ -897,10 +881,10 @@ static void dumpCode(CodeBuilder& cb, const char* phase) {
 }
 
 int main(int argc, char* argv[]) {
-  JitRuntime rt;                          // Create JIT Runtime.
+  JitRuntime jit;                         // Create JIT Runtime.
 
   CodeHolder code;                        // Create a CodeHolder.
-  code.init(rt.getCodeInfo());            // Initialize it to match `rt`.
+  code.init(jit.getCodeInfo());           // Initialize it to match `jit`.
   X86Builder cb(&code);                   // Create and attach X86Builder to `code`.
 
   // Decide which registers will be mapped to function arguments. Try changing
@@ -962,7 +946,7 @@ int main(int argc, char* argv[]) {
   cb.finalize();
 
   SumIntsFunc fn;
-  Error err = rt.add(&fn, &code);         // Add the generated code to the runtime.
+  Error err = jit.add(&fn, &code);        // Add the generated code to the runtime.
   if (err) return 1;                      // Handle a possible error case.
 
   // Execute the generated function.
@@ -974,7 +958,7 @@ int main(int argc, char* argv[]) {
   // Prints {5 8 4 9}
   printf("{%d %d %d %d}\n", out[0], out[1], out[2], out[3]);
 
-  rt.release(fn);                         // Remove the function from the runtime.
+  jit.release(fn);                        // Remove the function from the runtime.
   return 0;
 }
 ```
@@ -1116,10 +1100,10 @@ using namespace asmjit;
 typedef int (*Func)(void);
 
 int main(int argc, char* argv[]) {
-  JitRuntime rt;                          // Runtime specialized for JIT code execution.
+  JitRuntime jit;                         // Runtime specialized for JIT code execution.
 
   CodeHolder code;                        // Holds code and relocation information.
-  code.init(rt.getCodeInfo());            // Initialize to the same arch as JIT runtime.
+  code.init(jit.getCodeInfo());           // Initialize to the same arch as JIT runtime.
 
   X86Compiler cc(&code);                  // Create and attach X86Compiler to `code`.
   cc.addFunc(FuncSignature0<int>());      // Begin a function of `int fn(void)` signature.
@@ -1133,14 +1117,14 @@ int main(int argc, char* argv[]) {
   // ----> X86Compiler is no longer needed from here and can be destroyed <----
 
   Func fn;
-  Error err = rt.add(&fn, &code);         // Add the generated code to the runtime.
+  Error err = jit.add(&fn, &code);        // Add the generated code to the runtime.
   if (err) return 1;                      // Handle a possible error returned by AsmJit.
   // ----> CodeHolder is no longer needed from here and can be destroyed <----
 
   int result = fn();                      // Execute the generated code.
   printf("%d\n", result);                 // Print the resulting "1".
 
-  rt.release(fn);                         // RAII, but let's make it explicit.
+  jit.release(fn);                        // RAII, but let's make it explicit.
   return 0;
 }
 ```
@@ -1157,10 +1141,10 @@ using namespace asmjit;
 typedef void (*MemCpy32)(uint32_t* dst, const uint32_t* src, size_t count);
 
 int main(int argc, char* argv[]) {
-  JitRuntime rt;                          // Runtime specialized for JIT code execution.
+  JitRuntime jit;                         // Runtime specialized for JIT code execution.
 
   CodeHolder code;                        // Holds code and relocation information.
-  code.init(rt.getCodeInfo());            // Initialize to the same arch as JIT runtime.
+  code.init(jit.getCodeInfo());           // Initialize to the same arch as JIT runtime.
 
   X86Compiler cc(&code);                  // Create and attach X86Compiler to `code`.
   cc.addFunc(                             // Begin the function of the following signature:
@@ -1202,7 +1186,7 @@ int main(int argc, char* argv[]) {
   // ----> X86Compiler is no longer needed from here and can be destroyed <----
 
   MemCpy32 memcpy32;
-  Error err = rt.add(&memcpy32, &code);   // Add the generated code to the runtime.
+  Error err = jit.add(&memcpy32, &code);  // Add the generated code to the runtime.
   if (err) return 1;                      // Handle a possible error returned by AsmJit.
   // ----> CodeHolder is no longer needed from here and can be destroyed <----
 
@@ -1214,7 +1198,7 @@ int main(int argc, char* argv[]) {
   for (uint32_t i = 0; i < 6; i++)
     printf("%d\n", dst[i]);
 
-  rt.release(memcpy32);                   // RAII, but let's make it explicit.
+  jit.release(memcpy32);                  // RAII, but let's make it explicit.
   return 0;
 }
 ```
@@ -1233,10 +1217,10 @@ using namespace asmjit;
 typedef uint32_t (*Fibonacci)(uint32_t x);
 
 int main(int argc, char* argv[]) {
-  JitRuntime rt;                          // Runtime specialized for JIT code execution.
+  JitRuntime jit;                         // Runtime specialized for JIT code execution.
 
   CodeHolder code;                        // Holds code and relocation information.
-  code.init(rt.getCodeInfo());            // Initialize to the same arch as JIT runtime.
+  code.init(jit.getCodeInfo());           // Initialize to the same arch as JIT runtime.
 
   X86Compiler cc(&code);                  // Create and attach X86Compiler to `code`.
   CCFunc* func = cc.addFunc(              // Begin of the Fibonacci function, `addFunc()`
@@ -1271,13 +1255,13 @@ int main(int argc, char* argv[]) {
   // ----> X86Compiler is no longer needed from here and can be destroyed <----
 
   Fibonacci fib;
-  Error err = rt.add(&fib, &code);        // Add the generated code to the runtime.
+  Error err = jit.add(&fib, &code);       // Add the generated code to the runtime.
   if (err) return 1;                      // Handle a possible error returned by AsmJit.
   // ----> CodeHolder is no longer needed from here and can be destroyed <----
 
   printf("Fib(%u) -> %u\n, 8, fib(8));    // Test the generated code.
 
-  rt.release(fib);                        // RAII, but let's make it explicit.
+  jit.release(fib);                       // RAII, but let's make it explicit.
   return 0;
 }
 ```
@@ -1296,10 +1280,10 @@ using namespace asmjit;
 typedef int (*Func)(void);
 
 int main(int argc, char* argv[]) {
-  JitRuntime rt;                          // Runtime specialized for JIT code execution.
+  JitRuntime jit;                         // Runtime specialized for JIT code execution.
 
   CodeHolder code;                        // Holds code and relocation information.
-  code.init(rt.getCodeInfo());            // Initialize to the same arch as JIT runtime.
+  code.init(jit.getCodeInfo());           // Initialize to the same arch as JIT runtime.
 
   X86Compiler cc(&code);                  // Create and attach X86Compiler to `code`.
   cc.addFunc(FuncSignature0<int>());      // Create a function that returns 'int'.
@@ -1353,13 +1337,13 @@ int main(int argc, char* argv[]) {
   // ----> X86Compiler is no longer needed from here and can be destroyed <----
 
   Func func;
-  Error err = rt.add(&func, &code);       // Add the generated code to the runtime.
+  Error err = jit.add(&func, &code);      // Add the generated code to the runtime.
   if (err) return 1;                      // Handle a possible error returned by AsmJit.
   // ----> CodeHolder is no longer needed from here and can be destroyed <----
 
   printf("Func() -> %d\n", func());       // Test the generated code.
 
-  rt.release(func);                       // RAII, but let's make it explicit.
+  jit.release(func);                      // RAII, but let's make it explicit.
   return 0;
 }
 ```
@@ -1422,11 +1406,11 @@ AsmJit's **Logger** provides the following:
 using namespace asmjit;
 
 int main(int argc, char* argv[]) {
-  JitRuntime rt;                          // Runtime specialized for JIT code execution.
+  JitRuntime jit;                         // Runtime specialized for JIT code execution.
   FileLogger logger(stdout);              // Logger should always survive the CodeHolder.
 
   CodeHolder code;                        // Holds code and relocation information.
-  code.init(rt.getCodeInfo());            // Initialize to the same arch as JIT runtime.
+  code.init(jit.getCodeInfo());           // Initialize to the same arch as JIT runtime.
   code.setLogger(&logger);                // Attach the `logger` to `code` holder.
 
   // ... code as usual, everything you emit will be logged to `stdout` ...
@@ -1471,11 +1455,11 @@ public:
 int main(int argc, char* argv[]) {
   using namespace asmjit;
 
-  JitRuntime rt;
+  JitRuntime jit;
   SimpleErrorHandler eh;
 
   CodeHolder code;
-  code.init(rt.getCodeInfo());
+  code.init(jit.getCodeInfo());
   code.setErrorHandler(&eh);
 
   // Try to emit instruction that doesn't exist.
@@ -1524,11 +1508,11 @@ public:
 int main(int argc, char* argv[]) {
   using namespace asmjit;
 
-  JitRuntime rt;
+  JitRuntime jit;
   ThrowableErrorHandler eh;
 
   CodeHolder code;
-  code.init(rt.getCodeInfo());
+  code.init(jit.getCodeInfo());
   code.setErrorHandler(&eh);
 
   X86Assembler a(&code);
@@ -1570,11 +1554,11 @@ public:
 int main(int argc, char* argv[]) {
   using namespace asmjit;
 
-  JitRuntime rt;
+  JitRuntime jit;
   LongJmpErrorHandler eh;
 
   CodeHolder code;
-  code.init(rt.getCodeInfo());
+  code.init(jit.getCodeInfo());
   code.setErrorHandler(&eh);
 
   X86Assembler a(&code);
@@ -1612,9 +1596,9 @@ Please consider a donation if you use the project and would like to keep it acti
 
   * [Donate by PayPal](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=QDRM6SRNG7378&lc=EN;&item_name=asmjit&currency_code=EUR)
 
-Received From:
+Donors:
 
-  * [PELock - Software copy protection and license key system](https://www.pelock.com)
+  * [ZehMatt](https://github.com/ZehMatt)
 
 Authors & Maintainers
 ---------------------

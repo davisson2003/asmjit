@@ -9,7 +9,7 @@
 #define _ASMJIT_CORE_RADEFS_P_H
 
 #include "../core/build.h"
-#if !defined(ASMJIT_DISABLE_COMPILER)
+#ifndef ASMJIT_DISABLE_COMPILER
 
 // [Dependencies]
 #include "../core/codecompiler.h"
@@ -26,7 +26,7 @@ ASMJIT_BEGIN_NAMESPACE
 // [Logging]
 // ============================================================================
 
-#if !defined(ASMJIT_DISABLE_LOGGING)
+#ifndef ASMJIT_DISABLE_LOGGING
 # define ASMJIT_RA_LOG_INIT(...) __VA_ARGS__
 # define ASMJIT_RA_LOG_FORMAT(...)  \
   do {                              \

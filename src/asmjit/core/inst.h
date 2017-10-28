@@ -247,7 +247,7 @@ struct Inst {
   // [API]
   // --------------------------------------------------------------------------
 
-  #if !defined(ASMJIT_DISABLE_INST_API)
+  #ifndef ASMJIT_DISABLE_INST_API
   //! Validate the given instruction.
   ASMJIT_API static Error validate(uint32_t archType, const Detail& detail, const Operand_* operands, uint32_t count) noexcept;
 
