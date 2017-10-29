@@ -51,7 +51,7 @@
 // #define ASMJIT_DISABLE_TEXT       // Disable everything that contains text
 //                                   // representation (instructions, errors, ...).
 // #define ASMJIT_DISABLE_INST_API   // Disable API related to instruction database
-//                                      (validation, cpu features, rw-info, etc).
+//                                   // (validation, cpu features, rw-info, etc).
 
 // [Guard]
 #ifndef _ASMJIT_CORE_BUILD_H
@@ -62,6 +62,26 @@
 // ============================================================================
 
 #define ASMJIT_LIBRARY_VERSION 0x010200 /* 1.2.0 */
+
+// ============================================================================
+// [asmjit::Build - Globals - Deprecated]
+// ============================================================================
+
+// TODO: Remove starting v1.4
+#if defined(ASMJIT_EMBED)
+  #pragma message("'ASMJIT_EMBED' is deprecated, use 'ASMJIT_BUILD_EMBED'")
+  #define ASMJIT_BUILD_EMBED
+#endif
+
+#if defined(ASMJIT_STATIC)
+  #pragma message("'ASMJIT_STATIC' is deprecated, use 'ASMJIT_BUILD_STATIC'")
+  #define ASMJIT_BUILD_STATIC
+#endif
+
+#if defined(ASMJIT_DISABLE_LOGGER)
+  #pragma message("'ASMJIT_DISABLE_LOGGER' is deprecated, use 'ASMJIT_DISABLE_LOGGING'")
+  #define ASMJIT_DISABLE_LOGGING
+#endif
 
 // ============================================================================
 // [asmjit::Build - Globals - Build Mode]
@@ -118,12 +138,12 @@
 #endif
 
 #if defined(__EMSCRIPTEN__)
-  #define ASMJIT_OS_EMSCRIPTEN 1
+  #define ASMJIT_OS_BROWSER    1
 #else
-  #define ASMJIT_OS_EMSCRIPTEN 0
+  #define ASMJIT_OS_BROWSER    0
 #endif
 
-#define ASMJIT_OS_POSIX        (!ASMJIT_OS_WINDOWS && !ASMJIT_OS_EMSCRIPTEN)
+#define ASMJIT_OS_POSIX        (!ASMJIT_OS_WINDOWS)
 
 // ============================================================================
 // [asmjit::Build - Globals - Target Architecture]
@@ -154,7 +174,7 @@
   #define ASMJIT_ARCH_MIPS     0
 #endif
 
-#define ASMJIT_ARCH_BITS (ASMJIT_ARCH_X86 | ASMJIT_ARCH_ARM | ASMJIT_ARCH_MIPS)
+#define ASMJIT_ARCH_BITS       (ASMJIT_ARCH_X86 | ASMJIT_ARCH_ARM | ASMJIT_ARCH_MIPS)
 #if ASMJIT_ARCH_BITS == 0
   #undef ASMJIT_ARCH_BITS
   #if defined (__LP64__) || defined(_LP64)
@@ -164,7 +184,7 @@
   #endif
 #endif
 
-#if (defined(__ARMEB__)) || \
+#if (defined(__ARMEB__))  || \
     (defined(__MIPSEB__)) || \
     (defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__))
   #define ASMJIT_ARCH_LE       0
@@ -437,7 +457,7 @@
     }
 #endif
 
-#if !defined(ASMJIT_BEGIN_NAMESPACE) && !defined(ASMJIT_END_NAMESPACE)
+#ifndef ASMJIT_BEGIN_NAMESPACE
   #define ASMJIT_BEGIN_NAMESPACE namespace asmjit {
   #define ASMJIT_END_NAMESPACE }
 #endif
@@ -464,7 +484,7 @@
 // ============================================================================
 
 // Internal macros that are only used when building AsmJit itself.
-#if defined(ASMJIT_EXPORTS)
+#ifdef ASMJIT_EXPORTS
   #if !defined(ASMJIT_BUILD_DEBUG) && ASMJIT_CXX_HAS_ATTRIBUTE(optimize, ASMJIT_CXX_GNU >= ASMJIT_CXX_MAKE_VER(4, 4, 0))
     #define ASMJIT_FAVOR_SIZE  __attribute__((optimize("Os")))
     #define ASMJIT_FAVOR_SPEED __attribute__((optimize("O3")))
@@ -474,11 +494,11 @@
   #endif
 
   // Only turn-off these warnings when building asmjit itself.
-  #if defined(_MSC_VER)
-    #if !defined(_CRT_SECURE_NO_DEPRECATE)
+  #ifdef _MSC_VER
+    #ifndef _CRT_SECURE_NO_DEPRECATE
       #define _CRT_SECURE_NO_DEPRECATE
     #endif
-    #if !defined(_CRT_SECURE_NO_WARNINGS)
+    #ifndef _CRT_SECURE_NO_WARNINGS
       #define _CRT_SECURE_NO_WARNINGS
     #endif
   #endif
@@ -502,20 +522,20 @@
 #include <type_traits>
 
 #if ASMJIT_OS_WINDOWS
-  #if !defined(WIN32_LEAN_AND_MEAN)
+  #ifndef WIN32_LEAN_AND_MEAN
     #define WIN32_LEAN_AND_MEAN
     #define ASMJIT_UNDEF_WIN32_LEAN_AND_MEAN
   #endif
-  #if !defined(NOMINMAX)
+  #ifndef NOMINMAX
     #define NOMINMAX
     #define ASMJIT_UNDEF_NOMINMAX
   #endif
   #include <windows.h>
-  #if defined(ASMJIT_UNDEF_NOMINMAX)
+  #ifdef ASMJIT_UNDEF_NOMINMAX
     #undef NOMINMAX
     #undef ASMJIT_UNDEF_NOMINMAX
   #endif
-  #if defined(ASMJIT_UNDEF_WIN32_LEAN_AND_MEAN)
+  #ifdef ASMJIT_UNDEF_WIN32_LEAN_AND_MEAN
     #undef WIN32_LEAN_AND_MEAN
     #undef ASMJIT_UNDEF_WIN32_LEAN_AND_MEAN
  #endif

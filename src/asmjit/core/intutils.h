@@ -24,7 +24,7 @@ ASMJIT_BEGIN_NAMESPACE
 namespace IntUtils {
 
 // ============================================================================
-// [asmjit::IntUtils::FastUInt8]
+// [asmjit::IntUtils::Types]
 // ============================================================================
 
 #if ASMJIT_ARCH_X86
@@ -530,24 +530,29 @@ struct Sub    { template<typename T> static inline T op(T x, T y) noexcept { ret
 struct Min    { template<typename T> static inline T op(T x, T y) noexcept { return std::min<T>(x, y); } };
 struct Max    { template<typename T> static inline T op(T x, T y) noexcept { return std::max<T>(x, y); } };
 
+struct Set    { template<typename T> static inline T op(T x, T y) noexcept { ASMJIT_UNUSED(x); return  y; } };
+struct SetNot { template<typename T> static inline T op(T x, T y) noexcept { ASMJIT_UNUSED(x); return ~y; } };
+
 // ============================================================================
-// [asmjit::IntUtils::Iterators]
+// [asmjit::IntUtils::BitWordIterator]
 // ============================================================================
 
-template<typename BitWordT>
-inline uint32_t _ctzPlusOneAndShift(BitWordT& bitWord) {
-  uint32_t x = ctz(bitWord);
+namespace Internal {
+  template<typename T>
+  inline uint32_t ctzPlusOneAndShift(T& x) {
+    uint32_t n = ctz(x);
 
-  if (sizeof(BitWordT) < sizeof(Globals::BitWord)) {
-    // One instruction less on most architectures, no undefined behavior.
-    bitWord = BitWordT(Globals::BitWord(bitWord) >> ++x);
-  }
-  else {
-    bitWord >>= x++;
-    bitWord >>= 1U;
-  }
+    if (sizeof(T) < sizeof(Globals::BitWord)) {
+      // One instruction less on most architectures, no undefined behavior.
+      x = T(Globals::BitWord(x) >> ++n);
+    }
+    else {
+      x >>= n++;
+      x >>= 1U;
+    }
 
-  return x;
+    return n;
+  }
 }
 
 //! Iterates over each bit in a number which is set to 1.
@@ -563,14 +568,14 @@ inline uint32_t _ctzPlusOneAndShift(BitWordT& bitWord) {
 //!   std::printf("Bit at %u is set\n", unsigned(bitIndex));
 //! }
 //! ```
-template<typename BitWordT>
+template<typename T>
 class BitWordIterator {
 public:
-  explicit constexpr BitWordIterator(BitWordT bitWord) noexcept
+  explicit constexpr BitWordIterator(T bitWord) noexcept
     : _bitWord(bitWord),
       _index(~uint32_t(0)) {}
 
-  inline void init(BitWordT bitWord) noexcept {
+  inline void init(T bitWord) noexcept {
     _bitWord = bitWord;
     _index = ~uint32_t(0);
   }
@@ -578,35 +583,85 @@ public:
   inline bool hasNext() const noexcept { return _bitWord != 0; }
   inline uint32_t next() noexcept {
     ASMJIT_ASSERT(_bitWord != 0);
-    _index += _ctzPlusOneAndShift(_bitWord);
+    _index += Internal::ctzPlusOneAndShift(_bitWord);
     return _index;
   }
 
-  BitWordT _bitWord;
+  T _bitWord;
   uint32_t _index;
 };
 
-template<typename BitWordT>
-class BitArrayIterator {
-public:
-  static constexpr uint32_t kBitWordSizeInBits = uint32_t(sizeof(BitWordT)) * 8;
+// ============================================================================
+// [asmjit::IntUtils::BitVectorOps]
+// ============================================================================
 
-  ASMJIT_FORCEINLINE BitArrayIterator(const BitWordT* data, uint32_t count) noexcept {
+namespace Internal {
+  template<typename T, class OPERATOR, class FULL_WORD_OP>
+  static inline void bitVectorOp(T* buf, size_t index, size_t count) noexcept {
+    const size_t kTSizeInBits = sizeof(T) * 8U;
+    const T kFillMask = T(~T(0));
+
+    if (count == 0)
+      return;
+
+    size_t vecIndex = index / kTSizeInBits; // T[]
+    size_t bitIndex = index % kTSizeInBits; // T[][]
+
+    buf += vecIndex;
+
+    // The first BitWord requires special handling to preserve bits outside the fill region.
+    size_t firstNBits = std::min<size_t>(kTSizeInBits - bitIndex, count);
+
+    buf[0] = OPERATOR::op(buf[0], (kFillMask >> (kTSizeInBits - firstNBits)) << bitIndex);
+    buf++;
+    count -= firstNBits;
+
+    // All bits between the first and last affected BitWords can be just filled.
+    while (count >= kTSizeInBits) {
+      buf[0] = FULL_WORD_OP::op(buf[0], kFillMask);
+      buf++;
+      count -= kTSizeInBits;
+    }
+
+    // The last BitWord requires special handling as well
+    if (count)
+      buf[0] = OPERATOR::op(buf[0], kFillMask >> (kTSizeInBits - count));
+  }
+}
+
+//! Fill `count` bits in bit-vector `buf` starting at bit-index `index`.
+template<typename T>
+static inline void bitVectorFill(T* buf, size_t index, size_t count) noexcept { Internal::bitVectorOp<T, Or, Set>(buf, index, count); }
+
+//! Clear `count` bits in bit-vector `buf` starting at bit-index `index`.
+template<typename T>
+static inline void bitVectorClear(T* buf, size_t index, size_t count) noexcept { Internal::bitVectorOp<T, AndNot, SetNot>(buf, index, count); }
+
+// ============================================================================
+// [asmjit::IntUtils::BitVectorIterator]
+// ============================================================================
+
+template<typename T>
+class BitVectorIterator {
+public:
+  static constexpr uint32_t kTSizeInBits = uint32_t(sizeof(T)) * 8;
+
+  ASMJIT_FORCEINLINE BitVectorIterator(const T* data, uint32_t count) noexcept {
     init(data, count);
   }
 
-  ASMJIT_FORCEINLINE void init(const BitWordT* data, uint32_t count) noexcept {
-    const BitWordT* ptr = data;
-    const BitWordT* end = data + count;
+  ASMJIT_FORCEINLINE void init(const T* data, uint32_t count) noexcept {
+    const T* ptr = data;
+    const T* end = data + count;
 
-    BitWordT bitWord = BitWordT(0);
+    T bitWord = T(0);
     uint32_t bitIndex = ~uint32_t(0);
 
     while (ptr != end) {
       bitWord = *ptr++;
       if (bitWord)
         break;
-      bitIndex += kBitWordSizeInBits;
+      bitIndex += kTSizeInBits;
     }
 
     _ptr = ptr;
@@ -616,24 +671,24 @@ public:
   }
 
   ASMJIT_FORCEINLINE bool hasNext() noexcept {
-    return _current != BitWordT(0);
+    return _current != T(0);
   }
 
   ASMJIT_FORCEINLINE uint32_t next() noexcept {
-    BitWordT bitWord = _current;
+    T bitWord = _current;
     uint32_t bitIndex = _bitIndex;
-    ASMJIT_ASSERT(bitWord != BitWordT(0));
+    ASMJIT_ASSERT(bitWord != T(0));
 
-    bitIndex += _ctzPlusOneAndShift(bitWord);
+    bitIndex += Internal::ctzPlusOneAndShift(bitWord);
     uint32_t retIndex = bitIndex;
 
     if (!bitWord) {
-      bitIndex |= uint32_t(kBitWordSizeInBits - 1);
+      bitIndex |= uint32_t(kTSizeInBits - 1);
       while (_ptr != _end) {
         bitWord = *_ptr++;
         if (bitWord)
           break;
-        bitIndex += kBitWordSizeInBits;
+        bitIndex += kTSizeInBits;
       }
     }
 
@@ -642,34 +697,38 @@ public:
     return retIndex;
   }
 
-  const BitWordT* _ptr;
-  const BitWordT* _end;
-  BitWordT _current;
+  const T* _ptr;
+  const T* _end;
+  T _current;
   uint32_t _bitIndex;
 };
 
-template<typename BitWordT, class Operator>
-class BitArrayOpIterator {
-public:
-  static constexpr uint32_t kBitWordSizeInBits = uint32_t(sizeof(BitWordT)) * 8;
+// ============================================================================
+// [asmjit::IntUtils::BitVectorIterator]
+// ============================================================================
 
-  ASMJIT_FORCEINLINE BitArrayOpIterator(const BitWordT* aData, const BitWordT* bData, uint32_t count) noexcept {
+template<typename T, class OPERATOR>
+class BitVectorOpIterator {
+public:
+  static constexpr uint32_t kTSizeInBits = uint32_t(sizeof(T)) * 8;
+
+  ASMJIT_FORCEINLINE BitVectorOpIterator(const T* aData, const T* bData, uint32_t count) noexcept {
     init(aData, bData, count);
   }
 
-  ASMJIT_FORCEINLINE void init(const BitWordT* aData, const BitWordT* bData, uint32_t count) noexcept {
-    const BitWordT* aPtr = aData;
-    const BitWordT* bPtr = bData;
-    const BitWordT* aEnd = aData + count;
+  ASMJIT_FORCEINLINE void init(const T* aData, const T* bData, uint32_t count) noexcept {
+    const T* aPtr = aData;
+    const T* bPtr = bData;
+    const T* aEnd = aData + count;
 
-    BitWordT bitWord = BitWordT(0);
+    T bitWord = T(0);
     uint32_t bitIndex = ~uint32_t(0);
 
     while (aPtr != aEnd) {
-      bitWord = Operator::op(*aPtr++, *bPtr++);
+      bitWord = OPERATOR::op(*aPtr++, *bPtr++);
       if (bitWord)
         break;
-      bitIndex += kBitWordSizeInBits;
+      bitIndex += kTSizeInBits;
     }
 
     _aPtr = aPtr;
@@ -680,24 +739,24 @@ public:
   }
 
   ASMJIT_FORCEINLINE bool hasNext() noexcept {
-    return _current != BitWordT(0);
+    return _current != T(0);
   }
 
   ASMJIT_FORCEINLINE uint32_t next() noexcept {
-    BitWordT bitWord = _current;
+    T bitWord = _current;
     uint32_t bitIndex = _bitIndex;
-    ASMJIT_ASSERT(bitWord != BitWordT(0));
+    ASMJIT_ASSERT(bitWord != T(0));
 
-    bitIndex += _ctzPlusOneAndShift(bitWord);
+    bitIndex += Internal::ctzPlusOneAndShift(bitWord);
     uint32_t retIndex = bitIndex;
 
     if (!bitWord) {
-      bitIndex |= uint32_t(kBitWordSizeInBits - 1);
+      bitIndex |= uint32_t(kTSizeInBits - 1);
       while (_aPtr != _aEnd) {
-        bitWord = Operator::op(*_aPtr++, *_bPtr++);
+        bitWord = OPERATOR::op(*_aPtr++, *_bPtr++);
         if (bitWord)
           break;
-        bitIndex += kBitWordSizeInBits;
+        bitIndex += kTSizeInBits;
       }
     }
 
@@ -706,10 +765,10 @@ public:
     return retIndex;
   }
 
-  const BitWordT* _aPtr;
-  const BitWordT* _bPtr;
-  const BitWordT* _aEnd;
-  BitWordT _current;
+  const T* _aPtr;
+  const T* _bPtr;
+  const T* _aEnd;
+  T _current;
   uint32_t _bitIndex;
 };
 

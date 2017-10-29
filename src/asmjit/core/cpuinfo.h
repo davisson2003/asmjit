@@ -200,14 +200,17 @@ public:
     kX86FeatureSSE4_2,                   //!< CPU has SSE4.2.
     kX86FeatureMSSE,                     //!< CPU has Misaligned SSE (MSSE).
     kX86FeaturePCLMULQDQ,                //!< CPU has PCLMULQDQ.
-    kX86FeatureSHA,                      //!< CPU has SHA-1 and SHA-256.
     kX86FeatureAESNI,                    //!< CPU has AESNI.
+    kX86FeatureSHA,                      //!< CPU has SHA-1 and SHA-256.
+    kX86FeatureGFNI,                     //!< CPU has GFNI.
     kX86FeatureAVX,                      //!< CPU has AVX.
     kX86FeatureAVX2,                     //!< CPU has AVX2.
     kX86FeatureF16C,                     //!< CPU has F16C.
     kX86FeatureXOP,                      //!< CPU has XOP.
     kX86FeatureFMA,                      //!< CPU has FMA.
     kX86FeatureFMA4,                     //!< CPU has FMA4.
+    kX86FeatureVAES,                     //!< CPU has VAES.
+    kX86FeatureVPCLMULQDQ,               //!< CPU has VPCLMULQDQ.
     kX86FeatureAVX512_F,                 //!< CPU has AVX512-F (foundation).
     kX86FeatureAVX512_CDI,               //!< CPU has AVX512-CDI (conflict detection).
     kX86FeatureAVX512_PFI,               //!< CPU has AVX512-PFI (prefetch instructions).
@@ -217,9 +220,12 @@ public:
     kX86FeatureAVX512_VL,                //!< CPU has AVX512-VL (vector length extensions).
     kX86FeatureAVX512_IFMA,              //!< CPU has AVX512-IFMA (integer fused-multiply-add using 52-bit precision).
     kX86FeatureAVX512_VBMI,              //!< CPU has AVX512-VBMI (vector byte manipulation).
+    kX86FeatureAVX512_VBMI2,             //!< CPU has AVX512-VBMI2 (vector byte manipulation 2).
     kX86FeatureAVX512_VPOPCNTDQ,         //!< CPU has AVX512-VPOPCNTDQ (VPOPCNT[D|Q] instructions).
-    kX86FeatureAVX512_4VNNIW,            //!< CPU has AVX512-VNNIW (vector NN instructions word variable precision).
     kX86FeatureAVX512_4FMAPS,            //!< CPU has AVX512-FMAPS (FMA packed single).
+    kX86FeatureAVX512_4VNNIW,            //!< CPU has AVX512-VNNIW (vector NN instructions word variable precision).
+    kX86FeatureAVX512_VNNI,              //!< CPU has AVX512_VNNI.
+    kX86FeatureAVX512_BITALG,            //!< CPU has AVX512_BITALG.
 
     kX86FeaturesCount                    //!< Count of X86/X64 CPU features.
   };

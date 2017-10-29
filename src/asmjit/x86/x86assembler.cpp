@@ -2387,18 +2387,6 @@ CaseExtMovd:
           std::swap(opReg, rbReg);
           goto EmitX86R;
         }
-
-        // MMX <- XMM (MOVDQ2Q)
-        if (X86Reg::isMm(o0) && X86Reg::isXmm(o1)) {
-          opCode = X86Inst::kOpCode_PP_F2 | X86Inst::kOpCode_MM_0F | 0xD6;
-          goto EmitX86R;
-        }
-
-        // XMM <- MMX (MOVQ2DQ)
-        if (X86Reg::isXmm(o0) && X86Reg::isMm(o1)) {
-          opCode = X86Inst::kOpCode_PP_F3 | X86Inst::kOpCode_MM_0F | 0xD6;
-          goto EmitX86R;
-        }
       }
 
       if (isign3 == ENC_OPS2(Reg, Mem)) {

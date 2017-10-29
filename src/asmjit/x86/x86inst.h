@@ -764,17 +764,19 @@ struct X86Inst {
     kIdUnpcklpd,                         // [ANY] {SSE2}
     kIdUnpcklps,                         // [ANY] {SSE}
     kIdV4fmaddps,                        // [ANY] {AVX512_4FMAPS}
+    kIdV4fmaddss,                        // [ANY] {AVX512_4FMAPS}
     kIdV4fnmaddps,                       // [ANY] {AVX512_4FMAPS}
+    kIdV4fnmaddss,                       // [ANY] {AVX512_4FMAPS}
     kIdVaddpd,                           // [ANY] {AVX|AVX512_F+VL}
     kIdVaddps,                           // [ANY] {AVX|AVX512_F+VL}
     kIdVaddsd,                           // [ANY] {AVX|AVX512_F}
     kIdVaddss,                           // [ANY] {AVX|AVX512_F}
     kIdVaddsubpd,                        // [ANY] {AVX}
     kIdVaddsubps,                        // [ANY] {AVX}
-    kIdVaesdec,                          // [ANY] {AESNI|AVX}
-    kIdVaesdeclast,                      // [ANY] {AESNI|AVX}
-    kIdVaesenc,                          // [ANY] {AESNI|AVX}
-    kIdVaesenclast,                      // [ANY] {AESNI|AVX}
+    kIdVaesdec,                          // [ANY] {AESNI|AVX|AVX512_F|VAES+VL}
+    kIdVaesdeclast,                      // [ANY] {AESNI|AVX|AVX512_F|VAES+VL}
+    kIdVaesenc,                          // [ANY] {AESNI|AVX|AVX512_F|VAES+VL}
+    kIdVaesenclast,                      // [ANY] {AESNI|AVX|AVX512_F|VAES+VL}
     kIdVaesimc,                          // [ANY] {AESNI|AVX}
     kIdVaeskeygenassist,                 // [ANY] {AESNI|AVX}
     kIdValignd,                          // [ANY] {AVX512_F+VL}
@@ -1095,7 +1097,7 @@ struct X86Inst {
     kIdVpbroadcastmb2q,                  // [ANY] {AVX512_CDI+VL}
     kIdVpbroadcastq,                     // [ANY] {AVX2|AVX512_F+VL}
     kIdVpbroadcastw,                     // [ANY] {AVX2|AVX512_BW+VL}
-    kIdVpclmulqdq,                       // [ANY] {AVX|PCLMULQDQ}
+    kIdVpclmulqdq,                       // [ANY] {AVX|AVX512_F|PCLMULQDQ|VPCLMULQDQ+VL}
     kIdVpcmov,                           // [ANY] {XOP}
     kIdVpcmpb,                           // [ANY] {AVX512_BW+VL}
     kIdVpcmpd,                           // [ANY] {AVX512_F+VL}
@@ -1119,8 +1121,10 @@ struct X86Inst {
     kIdVpcmpw,                           // [ANY] {AVX512_BW+VL}
     kIdVpcomb,                           // [ANY] {XOP}
     kIdVpcomd,                           // [ANY] {XOP}
+    kIdVpcompressb,                      // [ANY] {AVX512_VBMI2+VL}
     kIdVpcompressd,                      // [ANY] {AVX512_F+VL}
     kIdVpcompressq,                      // [ANY] {AVX512_F+VL}
+    kIdVpcompressw,                      // [ANY] {AVX512_VBMI2+VL}
     kIdVpcomq,                           // [ANY] {XOP}
     kIdVpcomub,                          // [ANY] {XOP}
     kIdVpcomud,                          // [ANY] {XOP}
@@ -1153,8 +1157,10 @@ struct X86Inst {
     kIdVpermt2q,                         // [ANY] {AVX512_F+VL}
     kIdVpermt2w,                         // [ANY] {AVX512_BW+VL}
     kIdVpermw,                           // [ANY] {AVX512_BW+VL}
+    kIdVpexpandb,                        // [ANY] {AVX512_VBMI2+VL}
     kIdVpexpandd,                        // [ANY] {AVX512_F+VL}
     kIdVpexpandq,                        // [ANY] {AVX512_F+VL}
+    kIdVpexpandw,                        // [ANY] {AVX512_VBMI2+VL}
     kIdVpextrb,                          // [ANY] {AVX|AVX512_BW}
     kIdVpextrd,                          // [ANY] {AVX|AVX512_DQ}
     kIdVpextrq,                          // [X64] {AVX|AVX512_DQ}
@@ -1273,8 +1279,10 @@ struct X86Inst {
     kIdVpmullw,                          // [ANY] {AVX|AVX2|AVX512_BW+VL}
     kIdVpmultishiftqb,                   // [ANY] {AVX512_VBMI+VL}
     kIdVpmuludq,                         // [ANY] {AVX|AVX2|AVX512_F+VL}
-    kIdVpopcntd,                         // [ANY] {AVX512_VPOPCNTDQ}
-    kIdVpopcntq,                         // [ANY] {AVX512_VPOPCNTDQ}
+    kIdVpopcntb,                         // [ANY] {AVX512_BITALG+VL}
+    kIdVpopcntd,                         // [ANY] {AVX512_VPOPCNTDQ+VL}
+    kIdVpopcntq,                         // [ANY] {AVX512_VPOPCNTDQ+VL}
+    kIdVpopcntw,                         // [ANY] {AVX512_BITALG+VL}
     kIdVpor,                             // [ANY] {AVX|AVX2}
     kIdVpord,                            // [ANY] {AVX512_F+VL}
     kIdVporq,                            // [ANY] {AVX512_F+VL}
@@ -1302,9 +1310,22 @@ struct X86Inst {
     kIdVpshaw,                           // [ANY] {XOP}
     kIdVpshlb,                           // [ANY] {XOP}
     kIdVpshld,                           // [ANY] {XOP}
+    kIdVpshldd,                          // [ANY] {AVX512_VBMI2+VL}
+    kIdVpshldq,                          // [ANY] {AVX512_VBMI2+VL}
+    kIdVpshldvd,                         // [ANY] {AVX512_VBMI2+VL}
+    kIdVpshldvq,                         // [ANY] {AVX512_VBMI2+VL}
+    kIdVpshldvw,                         // [ANY] {AVX512_VBMI2+VL}
+    kIdVpshldw,                          // [ANY] {AVX512_VBMI2+VL}
     kIdVpshlq,                           // [ANY] {XOP}
     kIdVpshlw,                           // [ANY] {XOP}
+    kIdVpshrdd,                          // [ANY] {AVX512_VBMI2+VL}
+    kIdVpshrdq,                          // [ANY] {AVX512_VBMI2+VL}
+    kIdVpshrdvd,                         // [ANY] {AVX512_VBMI2+VL}
+    kIdVpshrdvq,                         // [ANY] {AVX512_VBMI2+VL}
+    kIdVpshrdvw,                         // [ANY] {AVX512_VBMI2+VL}
+    kIdVpshrdw,                          // [ANY] {AVX512_VBMI2+VL}
     kIdVpshufb,                          // [ANY] {AVX|AVX2|AVX512_BW+VL}
+    kIdVpshufbitqmb,                     // [ANY] {AVX512_BITALG+VL}
     kIdVpshufd,                          // [ANY] {AVX|AVX2|AVX512_F+VL}
     kIdVpshufhw,                         // [ANY] {AVX|AVX2|AVX512_BW+VL}
     kIdVpshuflw,                         // [ANY] {AVX|AVX2|AVX512_BW+VL}
@@ -1957,11 +1978,8 @@ struct X86Inst {
   enum OperationFlags : uint32_t {
     kOperationMovCrDr      = 0x00000001U, //!< `MOV REG <-> CREG|DREG` - OS|SF|ZF|AF|PF|CF flags are undefined.
     kOperationMovSsSd      = 0x00000002U, //!< `MOVSS|MOVSD XMM, [MEM]` - Destination operand is completely overwritten.
-
-    kOperationPrefetch     = 0x10000000U, //!< Instruction does hardware prefetch.
-    kOperationBarrier      = 0x20000000U, //!< Instruction acts as a barrier / fence.
-    kOperationVolatile     = 0x40000000U, //!< Hint for instruction schedulers to never reorder this instruction (side effects, memory barrier, etc).
-    kOperationPrivileged   = 0x80000000U  //!< This is a privileged operation that cannot run in user mode (system instruction).
+    kOperationVolatile     = 0x00000004U, //!< Hint for instruction schedulers to never reorder this instruction (side effects, memory barrier, etc).
+    kOperationPrivileged   = 0x00000008U  //!< This is a privileged operation that cannot run in user mode (system instruction).
   };
 
   //! SSE to AVX conversion mode.
@@ -2241,9 +2259,6 @@ struct X86Inst {
 
     inline bool isMovCrDr() const noexcept { return hasOperationFlag(kOperationMovCrDr); }
     inline bool isMovSsSd() const noexcept { return hasOperationFlag(kOperationMovSsSd); }
-
-    inline bool isPrefetch() const noexcept { return hasOperationFlag(kOperationPrefetch); }
-    inline bool isBarrier() const noexcept { return hasOperationFlag(kOperationBarrier); }
     inline bool isVolatile() const noexcept { return hasOperationFlag(kOperationVolatile); }
     inline bool isPrivileged() const noexcept { return hasOperationFlag(kOperationPrivileged); }
 
@@ -2260,8 +2275,8 @@ struct X86Inst {
     inline const uint8_t* getFeaturesData() const noexcept { return _features; }
     inline const uint8_t* getFeaturesEnd() const noexcept { return _features + ASMJIT_ARRAY_SIZE(_features); }
 
-    uint32_t _flags;                     //!< Operation flags.
-    uint8_t _features[4];                //!< Features vector (max 4 features).
+    uint16_t _flags;                     //!< Operation flags.
+    uint8_t _features[6];                //!< Features vector.
     uint32_t _specialRegsR;              //!< Special registers read.
     uint32_t _specialRegsW;              //!< Special registers written.
   };

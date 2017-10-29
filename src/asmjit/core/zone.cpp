@@ -602,73 +602,6 @@ Error ZoneBitVector::_append(ZoneAllocator* allocator, bool value) noexcept {
   return _resize(allocator, newLength, idealCapacity, value);
 }
 
-Error ZoneBitVector::fill(uint32_t from, uint32_t to, bool value) noexcept {
-  if (ASMJIT_UNLIKELY(from >= to)) {
-    if (from > to)
-      return DebugUtils::errored(kErrorInvalidArgument);
-    else
-      return kErrorOk;
-  }
-
-  ASMJIT_ASSERT(from <= _length);
-  ASMJIT_ASSERT(to <= _length);
-
-  // This is very similar to `ZoneBitVector::_fill()`, however, since we
-  // actually set bits that are already part of the container we need to
-  // special case filiing to zeros and ones.
-  uint32_t idx = from / kBitWordSize;
-  uint32_t startBit = from % kBitWordSize;
-
-  uint32_t endIdx = to / kBitWordSize;
-  uint32_t endBit = to % kBitWordSize;
-
-  BitWord* data = _data;
-  ASMJIT_ASSERT(data != nullptr);
-
-  // Special case for non-zero `startBit`.
-  if (startBit) {
-    if (idx == endIdx) {
-      ASMJIT_ASSERT(startBit < endBit);
-
-      uint32_t nBits = endBit - startBit;
-      BitWord mask = ((BitWord(1) << nBits) - 1) << startBit;
-
-      if (value)
-        data[idx] |= mask;
-      else
-        data[idx] &= ~mask;
-      return kErrorOk;
-    }
-    else {
-      BitWord mask = (BitWord(0) - 1) << startBit;
-
-      if (value)
-        data[idx++] |= mask;
-      else
-        data[idx++] &= ~mask;
-    }
-  }
-
-  // Fill all bits in case there is a gap between the current `idx` and `endIdx`.
-  if (idx < endIdx) {
-    BitWord pattern = IntUtils::maskFromBool<BitWord>(value);
-    do {
-      data[idx++] = pattern;
-    } while (idx < endIdx);
-  }
-
-  // Special case for non-zero `endBit`.
-  if (endBit) {
-    BitWord mask = ((BitWord(1) << endBit) - 1);
-    if (value)
-      data[endIdx] |= mask;
-    else
-      data[endIdx] &= ~mask;
-  }
-
-  return kErrorOk;
-}
-
 // ============================================================================
 // [asmjit::ZoneStackBase - Init / Reset]
 // ============================================================================
@@ -677,7 +610,7 @@ Error ZoneStackBase::_init(ZoneAllocator* allocator, size_t middleIndex) noexcep
   ZoneAllocator* oldAllocator = _allocator;
 
   if (oldAllocator) {
-    Block* block = _block[kSideLeft];
+    Block* block = _block[Globals::kLinkFirst];
     while (block) {
       Block* next = block->getNext();
       oldAllocator->release(block, kBlockSize);
@@ -685,8 +618,8 @@ Error ZoneStackBase::_init(ZoneAllocator* allocator, size_t middleIndex) noexcep
     }
 
     _allocator = nullptr;
-    _block[kSideLeft] = nullptr;
-    _block[kSideRight] = nullptr;
+    _block[Globals::kLinkLeft] = nullptr;
+    _block[Globals::kLinkRight] = nullptr;
   }
 
   if (allocator) {
@@ -694,14 +627,14 @@ Error ZoneStackBase::_init(ZoneAllocator* allocator, size_t middleIndex) noexcep
     if (ASMJIT_UNLIKELY(!block))
       return DebugUtils::errored(kErrorNoHeapMemory);
 
-    block->_link[kSideLeft] = nullptr;
-    block->_link[kSideRight] = nullptr;
+    block->_link[Globals::kLinkLeft] = nullptr;
+    block->_link[Globals::kLinkRight] = nullptr;
     block->_start = (uint8_t*)block + middleIndex;
     block->_end = (uint8_t*)block + middleIndex;
 
     _allocator = allocator;
-    _block[kSideLeft] = block;
-    _block[kSideRight] = block;
+    _block[Globals::kLinkLeft] = block;
+    _block[Globals::kLinkRight] = block;
   }
 
   return kErrorOk;
@@ -882,7 +815,7 @@ UNIT(core_zone_bit_vector) {
       EXPECT(vec.getAt(i) == true);
   }
 
-  INFO("ZoneBitVector::fill()");
+  INFO("ZoneBitVector::fillBits() / clearBits()");
   for (count = 1; count < kMaxCount; count += 2) {
     vec.clear();
     EXPECT(vec.resize(&allocator, count) == kErrorOk);
@@ -890,7 +823,10 @@ UNIT(core_zone_bit_vector) {
 
     for (i = 0; i < (count + 1) / 2; i++) {
       bool value = bool(i & 1);
-      EXPECT(vec.fill(i, count - i, value) == kErrorOk);
+      if (value)
+        vec.fillBits(i, count - i * 2);
+      else
+        vec.clearBits(i, count - i * 2);
     }
 
     for (i = 0; i < count; i++) {

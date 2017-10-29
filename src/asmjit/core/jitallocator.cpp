@@ -64,36 +64,9 @@ using Globals::kBitWordSize;
 typedef JitAllocator::RBNode RBNode;
 typedef JitAllocator::MemNode MemNode;
 
-// ============================================================================
-// [asmjit::JitAllocator - BitOps]
-// ============================================================================
-
+// TODO: Remove.
 #define M_DIV(x, y) ((x) / (y))
 #define M_MOD(x, y) ((x) % (y))
-
-//! \internal
-//!
-//! Set `len` bits in `buf` starting at `index` bit index.
-static void JitAllocator_setBits(BitWord* buf, size_t index, size_t len) noexcept {
-  if (len == 0)
-    return;
-
-  size_t i = index / kBitWordSize;                      // BitWord[]
-  size_t j = index % kBitWordSize;                      // BitWord[][] bit index
-  size_t n = std::min<size_t>(kBitWordSize - j, len);   // How many bytes process in the first group.
-
-  buf += i;
-  *buf++ |= (~BitWord(0) >> (kBitWordSize - n)) << j;
-  len -= n;
-
-  while (len >= kBitWordSize) {
-    *buf++ = ~BitWord(0);
-    len -= kBitWordSize;
-  }
-
-  if (len)
-    *buf |= ~BitWord(0) >> (kBitWordSize - len);
-}
 
 // ============================================================================
 // [asmjit::JitAllocator::RBNode]
@@ -218,7 +191,7 @@ static bool JitAllocator_checkTree(JitAllocator* self) noexcept {
 static MemNode* JitAllocator_newNode(JitAllocator* self, size_t size, size_t density) noexcept {
   ASMJIT_UNUSED(self);
 
-  uint8_t* vmem = static_cast<uint8_t*>(JitUtils::virtualAlloc(size, JitUtils::kAccessWriteExecute));
+  uint8_t* vmem = static_cast<uint8_t*>(JitUtils::virtualAlloc(size, JitUtils::kVirtMemWriteExecute));
   if (ASMJIT_UNLIKELY(!vmem))
     return nullptr;
 
@@ -628,8 +601,8 @@ void* JitAllocator::alloc(size_t size) noexcept {
 
 Found:
   // Update bits.
-  JitAllocator_setBits(node->baUsed, i, need);
-  JitAllocator_setBits(node->baCont, i, need - 1);
+  IntUtils::bitVectorFill(node->baUsed, i, need);
+  IntUtils::bitVectorFill(node->baCont, i, need - 1);
 
   // Update statistics.
   {

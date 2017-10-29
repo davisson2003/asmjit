@@ -2377,6 +2377,62 @@ public:
 };
 
 // ============================================================================
+// [X86Test_FuncCallStd]
+// ============================================================================
+
+class X86Test_FuncCallStd : public X86Test {
+public:
+  X86Test_FuncCallStd() : X86Test("FuncCallStd") {}
+
+  static void add(X86TestApp& app) {
+    app.add(new X86Test_FuncCallStd());
+  }
+
+  virtual void compile(X86Compiler& cc) {
+    X86Gp x = cc.newInt32("x");
+    X86Gp y = cc.newInt32("y");
+    X86Gp z = cc.newInt32("z");
+
+    cc.addFunc(FuncSignatureT<int, int, int, int>(CallConv::kIdHost));
+    cc.setArg(0, x);
+    cc.setArg(1, y);
+    cc.setArg(2, z);
+
+    X86Gp fn = cc.newIntPtr("fn");
+    cc.mov(fn, imm_ptr(calledFunc));
+
+    CCFuncCall* call = cc.call(fn, FuncSignatureT<int, int, int, int>(CallConv::kIdHostStdCall));
+    call->setArg(0, x);
+    call->setArg(1, y);
+    call->setArg(2, z);
+    call->setRet(0, x);
+
+    cc.ret(x);
+    cc.endFunc();
+  }
+
+  virtual bool run(void* _func, StringBuilder& result, StringBuilder& expect) {
+    typedef int (*Func)(int, int, int);
+    Func func = ptr_as_func<Func>(_func);
+
+    int resultRet = func(1, 42, 3);
+    int expectRet = calledFunc(1, 42, 3);
+
+    result.setFormat("ret=%d", resultRet);
+    expect.setFormat("ret=%d", expectRet);
+
+    return resultRet == expectRet;
+  }
+
+  // Function that is called inside the generated one. Because this test is
+  // mainly about register arguments, we need to use the fastcall calling
+  // convention when running 32-bit.
+  static int ASMJIT_STDCALL calledFunc(int a, int b, int c) noexcept {
+    return (a + b) * c;
+  }
+};
+
+// ============================================================================
 // [X86Test_FuncCallFast]
 // ============================================================================
 
@@ -2426,7 +2482,9 @@ public:
   // Function that is called inside the generated one. Because this test is
   // mainly about register arguments, we need to use the fastcall calling
   // convention when running 32-bit.
-  static int ASMJIT_FASTCALL calledFunc(int a) { return a * a; }
+  static int ASMJIT_FASTCALL calledFunc(int a) noexcept {
+    return a * a;
+  }
 };
 
 // ============================================================================
@@ -3659,13 +3717,13 @@ int main(int argc, char* argv[]) {
   app.addT<X86Test_AllocRetDouble2>();
   app.addT<X86Test_AllocStack>();
   app.addT<X86Test_AllocMemcpy>();
-
   app.addT<X86Test_AllocExtraBlock>();
   app.addT<X86Test_AllocAlphaBlend>();
 
   // Function call tests.
   app.addT<X86Test_FuncCallBase1>();
   app.addT<X86Test_FuncCallBase2>();
+  app.addT<X86Test_FuncCallStd>();
   app.addT<X86Test_FuncCallFast>();
   app.addT<X86Test_FuncCallLight>();
   app.addT<X86Test_FuncCallManyArgs>();

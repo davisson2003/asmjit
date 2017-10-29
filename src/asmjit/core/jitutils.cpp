@@ -28,6 +28,15 @@ ASMJIT_BEGIN_NAMESPACE
 
 // Windows specific implementation using `VirtualAlloc` and `VirtualFree`.
 #if ASMJIT_OS_WINDOWS
+static inline DWORD JitUtils_vmFlagsToProtectFlags(uint32_t vmFlags) noexcept {
+  DWORD protectFlags = 0;
+  if (vmFlags & JitUtils::kVirtMemExecute)
+    protectFlags |= (vmFlags & JitUtils::kVirtMemWrite) ? PAGE_EXECUTE_READWRITE : PAGE_EXECUTE_READ;
+  else
+    protectFlags |= (vmFlags & JitUtils::kVirtMemWrite) ? PAGE_READWRITE : PAGE_READONLY;
+  return protectFlags;
+}
+
 JitUtils::MemInfo JitUtils::getMemInfo() noexcept {
   MemInfo memInfo;
   SYSTEM_INFO systemInfo;
@@ -39,16 +48,11 @@ JitUtils::MemInfo JitUtils::getMemInfo() noexcept {
   return memInfo;
 }
 
-void* JitUtils::virtualAlloc(size_t size, uint32_t flags) noexcept {
+void* JitUtils::virtualAlloc(size_t size, uint32_t vmFlags) noexcept {
   if (size == 0)
     return nullptr;
 
-  // Windows XP-SP2, Vista and newer support data-execution-prevention (DEP).
-  DWORD protectFlags = 0;
-  if (flags & kAccessExecute)
-    protectFlags |= (flags & kAccessWrite) ? PAGE_EXECUTE_READWRITE : PAGE_EXECUTE_READ;
-  else
-    protectFlags |= (flags & kAccessWrite) ? PAGE_READWRITE : PAGE_READONLY;
+  DWORD protectFlags = JitUtils_vmFlagsToProtectFlags(vmFlags);
   return ::VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, protectFlags);
 }
 
@@ -72,6 +76,13 @@ Error JitUtils::virtualRelease(void* p, size_t size) noexcept {
   #define MAP_ANONYMOUS MAP_ANON
 #endif
 
+static inline int JitUtils_vmFlagsToProtection(uint32_t vmFlags) noexcept {
+  int protection = PROT_READ;
+  if (vmFlags & JitUtils::kVirtMemWrite  ) protection |= PROT_WRITE;
+  if (vmFlags & JitUtils::kVirtMemExecute) protection |= PROT_EXEC;
+  return protection;
+}
+
 JitUtils::MemInfo JitUtils::getMemInfo() noexcept {
   MemInfo memInfo;
 
@@ -82,15 +93,14 @@ JitUtils::MemInfo JitUtils::getMemInfo() noexcept {
   return memInfo;
 }
 
-void* JitUtils::virtualAlloc(size_t size, uint32_t flags) noexcept {
-  int protection = PROT_READ;
-  if (flags & kAccessWrite  ) protection |= PROT_WRITE;
-  if (flags & kAccessExecute) protection |= PROT_EXEC;
-
+void* JitUtils::virtualAlloc(size_t size, uint32_t vmFlags) noexcept {
+  int protection = JitUtils_vmFlagsToProtection(vmFlags);
   void* mbase = ::mmap(nullptr, size, protection, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (ASMJIT_UNLIKELY(mbase == MAP_FAILED)) return nullptr;
 
-  return mbase;
+  if (mbase == MAP_FAILED)
+    return nullptr;
+  else
+    return mbase;
 }
 
 Error JitUtils::virtualRelease(void* p, size_t size) noexcept {

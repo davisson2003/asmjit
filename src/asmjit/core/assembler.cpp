@@ -52,18 +52,20 @@ Error Assembler::setOffset(size_t offset) {
 
 Label Assembler::newLabel() {
   uint32_t id = 0;
-  if (_code) {
+  if (ASMJIT_LIKELY(_code)) {
     Error err = _code->newLabelId(id);
-    if (ASMJIT_UNLIKELY(err)) reportError(err);
+    if (ASMJIT_UNLIKELY(err))
+      reportError(err);
   }
   return Label(id);
 }
 
 Label Assembler::newNamedLabel(const char* name, size_t nameLength, uint32_t type, uint32_t parentId) {
   uint32_t id = 0;
-  if (_code) {
+  if (ASMJIT_LIKELY(_code)) {
     Error err = _code->newNamedLabelId(id, name, nameLength, type, parentId);
-    if (ASMJIT_UNLIKELY(err)) reportError(err);
+    if (ASMJIT_UNLIKELY(err))
+      reportError(err);
   }
   return Label(id);
 }

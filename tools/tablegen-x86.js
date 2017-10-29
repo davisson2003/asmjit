@@ -327,18 +327,13 @@ class GenUtils {
     for (var i = 0; i < dbInsts.length; i++) {
       const dbInst = dbInsts[i];
       const name = dbInst.name;
-
       const operands = dbInst.operands;
-      const operations = dbInst.operations;
 
       // Special case: MOV undefines flags if moving between GP and CR|DR registers.
       if (name === "mov") f.MovCrDr = true;
 
       // Special case: MOVSS|MOVSD zeroes the remaining part of destination if source operand is memory.
       if ((name === "movss" || name === "movsd") && !dbInst.attributes.REP) f.MovSsSd = true;
-
-      if (operations.Barrier) f.Barrier = true;
-      if (operations.Prefetch) f.Prefetch = true;
 
       if (dbInst.attributes.Volatile) f.Volatile = true;
       if (dbInst.privilege !== "L3") f.Privileged = true;
@@ -423,10 +418,10 @@ class GenUtils {
   }
 
   static controlType(dbInsts) {
-    if (dbInsts.checkOperation("Jump")) return "Jump";
-    if (dbInsts.checkOperation("Call")) return "Call";
-    if (dbInsts.checkOperation("Branch")) return "Branch";
-    if (dbInsts.checkOperation("Return")) return "Return";
+    if (dbInsts.checkAttribute("Control", "Jump")) return "Jump";
+    if (dbInsts.checkAttribute("Control", "Call")) return "Call";
+    if (dbInsts.checkAttribute("Control", "Branch")) return "Branch";
+    if (dbInsts.checkAttribute("Control", "Return")) return "Return";
     return "Regular";
   }
 }

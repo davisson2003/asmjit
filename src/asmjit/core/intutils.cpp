@@ -163,6 +163,15 @@ UNIT(core_intutils) {
   EXPECT(IntUtils::isUInt32(ASMJIT_UINT64_C(0xFFFFFFFF) + 1) == false);
   EXPECT(IntUtils::isUInt32(-1) == false);
 
+  INFO("IntUtils::bitVectorFill");
+  {
+    uint32_t vec[3] = { 0 };
+    IntUtils::bitVectorFill(vec, 1, 64);
+    EXPECT(vec[0] == 0xFFFFFFFE);
+    EXPECT(vec[1] == 0xFFFFFFFF);
+    EXPECT(vec[2] == 0x00000001);
+  }
+
   INFO("IntUtils::BitWordIterator<uint32_t>");
   {
     IntUtils::BitWordIterator<uint32_t> it(0x80000F01U);
@@ -205,10 +214,10 @@ UNIT(core_intutils) {
     ASMJIT_ASSERT(!it.hasNext());
   }
 
-  INFO("IntUtils::BitArrayIterator<uint32_t>");
+  INFO("IntUtils::BitVectorIterator<uint32_t>");
   {
     static const uint32_t bits1[] = { 0x80000008U, 0x80000001U, 0x00000000U, 0x80000000U, 0x00000000U, 0x00000000U, 0x00003000U };
-    IntUtils::BitArrayIterator<uint32_t> it(bits1, uint32_t(ASMJIT_ARRAY_SIZE(bits1)));
+    IntUtils::BitVectorIterator<uint32_t> it(bits1, uint32_t(ASMJIT_ARRAY_SIZE(bits1)));
 
     EXPECT(it.hasNext());
     EXPECT(it.next() == 3);
@@ -238,10 +247,10 @@ UNIT(core_intutils) {
     EXPECT(!it.hasNext());
   }
 
-  INFO("IntUtils::BitArrayIterator<uint64_t>");
+  INFO("IntUtils::BitVectorIterator<uint64_t>");
   {
     static const uint64_t bits[] = { 0x80000000U, 0x80000000U, 0x00000000U, 0x80000000U };
-    IntUtils::BitArrayIterator<uint64_t> it(bits, uint32_t(ASMJIT_ARRAY_SIZE(bits)));
+    IntUtils::BitVectorIterator<uint64_t> it(bits, uint32_t(ASMJIT_ARRAY_SIZE(bits)));
 
     EXPECT(it.hasNext());
     EXPECT(it.next() == 31);

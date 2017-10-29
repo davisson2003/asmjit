@@ -475,6 +475,12 @@ ASMJIT_FAVOR_SIZE static void x86DetectCpuInfo(CpuInfo* cpuInfo) noexcept {
         if (regs.ebx & 0x40000000U) cpuInfo->addFeature(CpuInfo::kX86FeatureAVX512_BW);
         if (regs.ebx & 0x80000000U) cpuInfo->addFeature(CpuInfo::kX86FeatureAVX512_VL);
         if (regs.ecx & 0x00000002U) cpuInfo->addFeature(CpuInfo::kX86FeatureAVX512_VBMI);
+        if (regs.ecx & 0x00000040U) cpuInfo->addFeature(CpuInfo::kX86FeatureAVX512_VBMI2);
+        if (regs.ecx & 0x00000100U) cpuInfo->addFeature(CpuInfo::kX86FeatureGFNI);
+        if (regs.ecx & 0x00000200U) cpuInfo->addFeature(CpuInfo::kX86FeatureVAES);
+        if (regs.ecx & 0x00000400U) cpuInfo->addFeature(CpuInfo::kX86FeatureVPCLMULQDQ);
+        if (regs.ecx & 0x00000800U) cpuInfo->addFeature(CpuInfo::kX86FeatureAVX512_VNNI);
+        if (regs.ecx & 0x00001000U) cpuInfo->addFeature(CpuInfo::kX86FeatureAVX512_BITALG);
         if (regs.ecx & 0x00004000U) cpuInfo->addFeature(CpuInfo::kX86FeatureAVX512_VPOPCNTDQ);
         if (regs.edx & 0x00000004U) cpuInfo->addFeature(CpuInfo::kX86FeatureAVX512_4VNNIW);
         if (regs.edx & 0x00000008U) cpuInfo->addFeature(CpuInfo::kX86FeatureAVX512_4FMAPS);

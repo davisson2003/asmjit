@@ -64,6 +64,15 @@ enum Limits : uint32_t {
   kMaxLabelLength = 2048
 };
 
+enum Link : uint32_t {
+  kLinkLeft  = 0,
+  kLinkRight = 1,
+  kLinkCount = 2,
+
+  kLinkFirst = kLinkLeft,
+  kLinkLast  = kLinkRight
+};
+
 } // Globals namespace
 
 // ============================================================================

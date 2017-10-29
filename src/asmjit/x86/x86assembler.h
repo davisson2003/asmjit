@@ -36,17 +36,8 @@ public:
   // [Construction / Destruction]
   // --------------------------------------------------------------------------
 
-  ASMJIT_API X86Assembler(CodeHolder* code = nullptr) noexcept;
+  ASMJIT_API explicit X86Assembler(CodeHolder* code = nullptr) noexcept;
   ASMJIT_API virtual ~X86Assembler() noexcept;
-
-  // --------------------------------------------------------------------------
-  // [Cast]
-  // --------------------------------------------------------------------------
-
-  //! Implicit cast to `X86Emitter&`.
-  inline operator X86Emitter&() noexcept { return *as<X86Emitter>(); }
-  //! Implicit cast to `X86Emitter&` (const).
-  inline operator const X86Emitter&() const noexcept { return *as<X86Emitter>(); }
 
   // --------------------------------------------------------------------------
   // [Internal]

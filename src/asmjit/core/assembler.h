@@ -167,11 +167,11 @@ public:
     return kErrorOk;
   }
 
-  ASMJIT_FORCEINLINE uint8_t* getCursor() noexcept {
+  ASMJIT_FORCEINLINE uint8_t* getCursor() const noexcept {
     return _cursor;
   }
 
-  ASMJIT_FORCEINLINE size_t getOffset(uint8_t* from) noexcept {
+  ASMJIT_FORCEINLINE size_t getOffset(uint8_t* from) const noexcept {
     ASMJIT_ASSERT(_cursor >= from);
     return (size_t)(_cursor - from);
   }

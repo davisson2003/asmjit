@@ -658,6 +658,8 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::queryCpuFeatures(uint32_t archType, const I
 
   // Get the instruction data.
   uint32_t instId = detail.instId;
+  uint32_t options = detail.options;
+
   if (ASMJIT_UNLIKELY(instId >= X86Inst::_kIdCount))
     return DebugUtils::errored(kErrorInvalidInstruction);
 
@@ -681,12 +683,12 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::queryCpuFeatures(uint32_t archType, const I
   if (fData != od.getFeaturesData()) {
     uint32_t mask = x86GetRegTypesMask(operands, count);
 
-    // Check for MMX vs SSE overlap.
+    // Handle MMX vs SSE overlap.
     if (out.has(CpuInfo::kX86FeatureMMX) || out.has(CpuInfo::kX86FeatureMMX2)) {
       // Only instructions defined by SSE and SSE2 overlap. Instructions introduced
       // by newer instruction sets like SSE3+ don't state MMX as they require SSE3+.
       if (out.has(CpuInfo::kX86FeatureSSE) || out.has(CpuInfo::kX86FeatureSSE2)) {
-        if (!(mask & IntUtils::mask(X86Reg::kRegXmm))) {
+        if (!IntUtils::bitTest(mask, X86Reg::kRegXmm)) {
           // The instruction doesn't use XMM register(s), thus it's MMX/MMX2 only.
           out.remove(CpuInfo::kX86FeatureSSE);
           out.remove(CpuInfo::kX86FeatureSSE2);
@@ -713,7 +715,26 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::queryCpuFeatures(uint32_t archType, const I
       }
     }
 
-    // Check for AVX vs AVX2 overlap.
+    // Handle PCLMULQDQ vs VPCLMULQDQ.
+    if (out.has(CpuInfo::kX86FeatureVPCLMULQDQ)) {
+      if (IntUtils::bitTest(mask, X86Reg::kRegZmm) || IntUtils::bitTest(options, X86Inst::kOptionEvex)) {
+        // AVX512_F & VPCLMULQDQ.
+        out.remove(CpuInfo::kX86FeatureAVX)
+           .remove(CpuInfo::kX86FeaturePCLMULQDQ);
+      }
+      else if (IntUtils::bitTest(mask, X86Reg::kRegYmm)) {
+        out.remove(CpuInfo::kX86FeatureAVX512_F)
+           .remove(CpuInfo::kX86FeatureAVX512_VL);
+      }
+      else {
+        // AVX & PCLMULQDQ.
+        out.remove(CpuInfo::kX86FeatureAVX512_F)
+           .remove(CpuInfo::kX86FeatureAVX512_VL)
+           .remove(CpuInfo::kX86FeatureVPCLMULQDQ);
+      }
+    }
+
+    // Handle AVX vs AVX2 overlap.
     if (out.has(CpuInfo::kX86FeatureAVX) && out.has(CpuInfo::kX86FeatureAVX2)) {
       bool isAVX2 = true;
       // Special case: VBROADCASTSS and VBROADCASTSD were introduced in AVX, but
@@ -737,13 +758,11 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::queryCpuFeatures(uint32_t archType, const I
         out.remove(CpuInfo::kX86FeatureAVX2);
     }
 
-    // Check for AVX|AVX2|FMA|F16C vs AVX512 overlap.
+    // Handle AVX|AVX2|FMA|F16C vs AVX512 overlap.
     if (out.has(CpuInfo::kX86FeatureAVX) || out.has(CpuInfo::kX86FeatureAVX2) || out.has(CpuInfo::kX86FeatureFMA) || out.has(CpuInfo::kX86FeatureF16C)) {
       // Only AVX512-F|BW|DQ allow to encode AVX/AVX2 instructions
       if (out.has(CpuInfo::kX86FeatureAVX512_F) || out.has(CpuInfo::kX86FeatureAVX512_BW) || out.has(CpuInfo::kX86FeatureAVX512_DQ)) {
-        uint32_t options = detail.options;
         uint32_t kAvx512Options = X86Inst::kOptionEvex | X86Inst::_kOptionAvx512Mask;
-
         if (!(mask & IntUtils::mask(X86Reg::kRegZmm, X86Reg::kRegK)) && !(options & (kAvx512Options)) && detail.extraReg.getType() != X86Reg::kRegK) {
           out.remove(CpuInfo::kX86FeatureAVX512_F)
              .remove(CpuInfo::kX86FeatureAVX512_BW)
@@ -754,7 +773,7 @@ ASMJIT_FAVOR_SIZE Error X86InstImpl::queryCpuFeatures(uint32_t archType, const I
     }
 
     // Clear AVX512_VL if ZMM register is used.
-    if (mask & IntUtils::mask(X86Reg::kRegZmm))
+    if (IntUtils::bitTest(mask, X86Reg::kRegZmm))
       out.remove(CpuInfo::kX86FeatureAVX512_VL);
   }
 

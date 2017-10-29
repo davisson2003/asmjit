@@ -41,65 +41,48 @@ namespace OSUtils {
 //! \internal
 //!
 //! Lock.
-struct Lock {
+class Lock {
+public:
   ASMJIT_NONCOPYABLE(Lock)
 
-  // --------------------------------------------------------------------------
-  // [Windows]
-  // --------------------------------------------------------------------------
-
   #if ASMJIT_OS_WINDOWS
+
   typedef CRITICAL_SECTION Handle;
 
-  //! Create a new `Lock` instance.
   inline Lock() noexcept { InitializeCriticalSection(&_handle); }
-  //! Destroy the `Lock` instance.
   inline ~Lock() noexcept { DeleteCriticalSection(&_handle); }
 
-  //! Lock.
   inline void lock() noexcept { EnterCriticalSection(&_handle); }
-  //! Unlock.
   inline void unlock() noexcept { LeaveCriticalSection(&_handle); }
-  #endif
 
-  // --------------------------------------------------------------------------
-  // [Posix]
-  // --------------------------------------------------------------------------
+  Handle _handle;
 
-  #if ASMJIT_OS_POSIX
+  #elif ASMJIT_OS_POSIX && !ASMJIT_OS_BROWSER
+
   typedef pthread_mutex_t Handle;
 
-  //! Create a new `Lock` instance.
   inline Lock() noexcept { pthread_mutex_init(&_handle, nullptr); }
-  //! Destroy the `Lock` instance.
   inline ~Lock() noexcept { pthread_mutex_destroy(&_handle); }
 
-  //! Lock.
   inline void lock() noexcept { pthread_mutex_lock(&_handle); }
-  //! Unlock.
   inline void unlock() noexcept { pthread_mutex_unlock(&_handle); }
-  #endif
 
-  #if ASMJIT_OS_EMSCRIPTEN
-  typedef uint32_t Handle;
-
-  //! Create a new `Lock` instance.
-  inline Lock() noexcept { _handle = 0; }
-  //! Destroy the `Lock` instance.
-  inline ~Lock() noexcept { ASMJIT_ASSERT(_handle == 0); }
-
-  //! Lock.
-  inline void lock() noexcept { _handle++; }
-  //! Unlock.
-  inline void unlock() noexcept { _handle--; }
-  #endif
-
-  // --------------------------------------------------------------------------
-  // [Members]
-  // --------------------------------------------------------------------------
-
-  //! Native handle.
   Handle _handle;
+
+  #else
+
+  #ifndef ASMJIT_OS_BROWSER
+  #pragma message("asmjit::Lock doesn't have implementation for your target OS.")
+  #endif
+
+  // Browser or other unsupported OS.
+  inline Lock() noexcept {}
+  inline ~Lock() noexcept {}
+
+  inline void lock() noexcept {}
+  inline void unlock() noexcept {}
+
+  #endif
 };
 
 // ============================================================================

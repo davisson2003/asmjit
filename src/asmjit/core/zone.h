@@ -33,6 +33,8 @@ ASMJIT_BEGIN_NAMESPACE
 //! also supports `release()`, consider using \ref Zone with \ref ZoneAllocator.
 class Zone {
 public:
+  ASMJIT_NONCOPYABLE(Zone)
+
   //! \internal
   //!
   //! A single block of memory.
@@ -63,6 +65,17 @@ public:
   //! reasonable value that depends on the usage of `Zone`. Greater block sizes
   //! are generally safer and perform better than unreasonably low values.
   ASMJIT_API Zone(uint32_t blockSize, uint32_t blockAlignment = 32) noexcept;
+
+  inline Zone(Zone&& other) noexcept
+    : _ptr(other._ptr),
+      _end(other._end),
+      _block(other._block),
+      _blockSize(other._blockSize),
+      _blockAlignmentShift(other._blockAlignmentShift) {
+    other._ptr = nullptr;
+    other._end = nullptr;
+    other._block = nullptr;
+  }
 
   //! Destroy the `Zone` instance.
   //!
@@ -243,6 +256,17 @@ public:
   ASMJIT_API char* sformat(const char* str, ...) noexcept;
 
   // --------------------------------------------------------------------------
+  // [Swap]
+  // --------------------------------------------------------------------------
+
+  inline void swapWith(Zone& other) noexcept {
+    std::swap(_ptr, other._ptr);
+    std::swap(_end, other._end);
+    std::swap(_block, other._block);
+    std::swap(_blockSizeAndAlignmentShift, other._blockSizeAndAlignmentShift);
+  }
+
+  // --------------------------------------------------------------------------
   // [Members]
   // --------------------------------------------------------------------------
 
@@ -250,13 +274,23 @@ public:
   uint8_t* _end;                         //!< End of the current block's buffer.
   Block* _block;                         //!< Current block.
 
-#if ASMJIT_ARCH_BITS == 64
-  uint32_t _blockSize;                   //!< Default size of a newly allocated block.
-  uint32_t _blockAlignmentShift;         //!< Minimum alignment of each block.
-#else
-  uint32_t _blockSize : 29;              //!< Default size of a newly allocated block.
-  uint32_t _blockAlignmentShift : 3;     //!< Minimum alignment of each block.
-#endif
+  #if ASMJIT_ARCH_BITS == 64
+  union {
+    struct {
+      uint32_t _blockSize;               //!< Default size of a newly allocated block.
+      uint32_t _blockAlignmentShift;     //!< Minimum alignment of each block.
+    };
+    uint64_t _blockSizeAndAlignmentShift;
+  };
+  #else
+  union {
+    struct {
+      uint32_t _blockSize : 29;          //!< Default size of a newly allocated block.
+      uint32_t _blockAlignmentShift : 3; //!< Minimum alignment of each block.
+    };
+    uint32_t _blockSizeAndAlignmentShift;
+  };
+  #endif
 };
 
 // ============================================================================
@@ -568,6 +602,15 @@ public:
   }
 
   // --------------------------------------------------------------------------
+  // [Swap]
+  // --------------------------------------------------------------------------
+
+  inline void swapWith(ZoneList<T>& other) noexcept {
+    std::swap(_first, other._first);
+    std::swap(_last, other._last);
+  }
+
+  // --------------------------------------------------------------------------
   // [Members]
   // --------------------------------------------------------------------------
 
@@ -584,7 +627,7 @@ public:
   ASMJIT_NONCOPYABLE(ZoneBitVector)
 
   typedef Globals::BitWord BitWord;
-  enum { kBitWordSize = Globals::kBitWordSize };
+  static constexpr uint32_t kBitWordSize = Globals::kBitWordSize;
 
   static inline uint32_t _wordsPerBits(uint32_t nBits) noexcept {
     return ((nBits + kBitWordSize - 1) / kBitWordSize);
@@ -593,6 +636,11 @@ public:
   static inline void _zeroBits(BitWord* dst, uint32_t nBitWords) noexcept {
     for (uint32_t i = 0; i < nBitWords; i++)
       dst[i] = 0;
+  }
+
+  static inline void _fillBits(BitWord* dst, uint32_t nBitWords) noexcept {
+    for (uint32_t i = 0; i < nBitWords; i++)
+      dst[i] = ~BitWord(0);
   }
 
   static inline void _copyBits(BitWord* dst, const BitWord* src, uint32_t nBitWords) noexcept {
@@ -626,9 +674,9 @@ public:
   inline uint32_t getCapacity() const noexcept { return _capacity; }
 
   //! Get a count of `BitWord[]` array need to store all bits.
-  inline uint32_t getBitWordLength() const noexcept { return _wordsPerBits(_length); }
+  inline uint32_t getLengthInBitWords() const noexcept { return _wordsPerBits(_length); }
   //! Get a count of `BitWord[]` array need to store all bits.
-  inline uint32_t getBitWordCapacity() const noexcept { return _wordsPerBits(_capacity); }
+  inline uint32_t getCapacityInBitWords() const noexcept { return _wordsPerBits(_capacity); }
 
   //! Get data.
   inline BitWord* getData() noexcept { return _data; }
@@ -699,35 +747,80 @@ public:
   }
 
   ASMJIT_API Error copyFrom(ZoneAllocator* allocator, const ZoneBitVector& other) noexcept;
-  ASMJIT_API Error fill(uint32_t fromIndex, uint32_t toIndex, bool value) noexcept;
-  inline void zero() noexcept { _zeroBits(_data, _wordsPerBits(_length)); }
 
+  inline void clearAll() noexcept {
+    _zeroBits(_data, _wordsPerBits(_length));
+  }
+
+  inline void fillAll() noexcept {
+    _fillBits(_data, _wordsPerBits(_length));
+    _clearUnusedBits();
+  }
+
+  inline void clearBits(uint32_t start, uint32_t count) noexcept {
+    ASMJIT_ASSERT(start <= _length);
+    ASMJIT_ASSERT(_length - start >= count);
+
+    IntUtils::bitVectorClear(_data, start, count);
+  }
+
+  inline void fillBits(uint32_t start, uint32_t count) noexcept {
+    ASMJIT_ASSERT(start <= _length);
+    ASMJIT_ASSERT(_length - start >= count);
+
+    IntUtils::bitVectorFill(_data, start, count);
+  }
+
+  //! Perform a logical bitwise AND between bits specified in this array and bits
+  //! in `other`. If `other` has less bits than `this` then all remaining bits are
+  //! set to zero.
+  //!
+  //! NOTE: The length of the BitVector is unaffected by this operation.
   inline void and_(const ZoneBitVector& other) noexcept {
     BitWord* dst = _data;
     const BitWord* src = other._data;
 
-    uint32_t numWords = (std::min(_length, other._length) + kBitWordSize - 1) / kBitWordSize;
-    for (uint32_t i = 0; i < numWords; i++)
+    uint32_t thisBitWordCount = getLengthInBitWords();
+    uint32_t otherBitWordCount = other.getLengthInBitWords();
+    uint32_t commonBitWordCount = std::min(thisBitWordCount, otherBitWordCount);
+
+    uint32_t i = 0;
+    while (i < commonBitWordCount) {
       dst[i] = dst[i] & src[i];
-    _clearUnusedBits();
+      i++;
+    }
+
+    while (i < thisBitWordCount) {
+      dst[i] = 0;
+      i++;
+    }
   }
 
+  //! Perform a logical bitwise AND between bits specified in this array and
+  //! negated bits in `other`. If `other` has less bits than `this` then all
+  //! remaining bits are kept intact.
+  //!
+  //! NOTE: The length of the BitVector is unaffected by this operation.
   inline void andNot(const ZoneBitVector& other) noexcept {
     BitWord* dst = _data;
     const BitWord* src = other._data;
 
-    uint32_t numWords = _wordsPerBits(std::min(_length, other._length));
-    for (uint32_t i = 0; i < numWords; i++)
+    uint32_t commonBitWordCount = _wordsPerBits(std::min(_length, other._length));
+    for (uint32_t i = 0; i < commonBitWordCount; i++)
       dst[i] = dst[i] & ~src[i];
-    _clearUnusedBits();
   }
 
+  //! Perform a logical bitwise OP between bits specified in this array and bits
+  //! in `other`. If `other` has less bits than `this` then all remaining bits
+  //! are kept intact.
+  //!
+  //! NOTE: The length of the BitVector is unaffected by this operation.
   inline void or_(const ZoneBitVector& other) noexcept {
     BitWord* dst = _data;
     const BitWord* src = other._data;
 
-    uint32_t numWords = _wordsPerBits(std::min(_length, other._length));
-    for (uint32_t i = 0; i < numWords; i++)
+    uint32_t commonBitWordCount = _wordsPerBits(std::min(_length, other._length));
+    for (uint32_t i = 0; i < commonBitWordCount; i++)
       dst[i] = dst[i] | src[i];
     _clearUnusedBits();
   }
@@ -778,20 +871,30 @@ public:
   ASMJIT_API Error _append(ZoneAllocator* allocator, bool value) noexcept;
 
   // --------------------------------------------------------------------------
+  // [Swap]
+  // --------------------------------------------------------------------------
+
+  inline void swapWith(ZoneBitVector& other) noexcept {
+    std::swap(_data, other._data);
+    std::swap(_length, other._length);
+    std::swap(_capacity, other._capacity);
+  }
+
+  // --------------------------------------------------------------------------
   // [Iterators]
   // --------------------------------------------------------------------------
 
-  class ForEachBitSet : public IntUtils::BitArrayIterator<BitWord> {
+  class ForEachBitSet : public IntUtils::BitVectorIterator<BitWord> {
   public:
     explicit ASMJIT_FORCEINLINE ForEachBitSet(const ZoneBitVector& bitVector) noexcept
-      : IntUtils::BitArrayIterator<BitWord>(bitVector.getData(), bitVector.getBitWordLength()) {}
+      : IntUtils::BitVectorIterator<BitWord>(bitVector.getData(), bitVector.getLengthInBitWords()) {}
   };
 
   template<class Operator>
-  class ForEachBitOp : public IntUtils::BitArrayOpIterator<BitWord, Operator> {
+  class ForEachBitOp : public IntUtils::BitVectorOpIterator<BitWord, Operator> {
   public:
     ASMJIT_FORCEINLINE ForEachBitOp(const ZoneBitVector& a, const ZoneBitVector& b) noexcept
-      : IntUtils::BitArrayOpIterator<BitWord, Operator>(a.getData(), b.getData(), a.getBitWordLength()) {
+      : IntUtils::BitVectorOpIterator<BitWord, Operator>(a.getData(), b.getData(), a.getLengthInBitWords()) {
       ASMJIT_ASSERT(a.getLength() == b.getLength());
     }
   };
@@ -881,6 +984,16 @@ protected:
   ASMJIT_API Error _grow(ZoneAllocator* allocator, uint32_t sizeOfT, uint32_t n) noexcept;
   ASMJIT_API Error _resize(ZoneAllocator* allocator, uint32_t sizeOfT, uint32_t n) noexcept;
   ASMJIT_API Error _reserve(ZoneAllocator* allocator, uint32_t sizeOfT, uint32_t n) noexcept;
+
+  // --------------------------------------------------------------------------
+  // [Swap]
+  // --------------------------------------------------------------------------
+
+  inline void swapWith(ZoneVectorBase& other) noexcept {
+    std::swap(_data, other._data);
+    std::swap(_length, other._length);
+    std::swap(_capacity, other._capacity);
+  }
 
   // --------------------------------------------------------------------------
   // [Members]
@@ -1125,6 +1238,14 @@ public:
   inline Error willGrow(ZoneAllocator* allocator, uint32_t n = 1) noexcept {
     return _capacity - _length < n ? grow(allocator, n) : Error(kErrorOk);
   }
+
+  // --------------------------------------------------------------------------
+  // [Swap]
+  // --------------------------------------------------------------------------
+
+  inline void swapWith(ZoneVector<T>& other) noexcept {
+    ZoneVectorBase::swapWith(other);
+  }
 };
 
 // ============================================================================
@@ -1133,21 +1254,18 @@ public:
 
 class ZoneStackBase {
 public:
-  enum Side : uint32_t {
-    kSideLeft  = 0,
-    kSideRight = 1
-  };
+  ASMJIT_NONCOPYABLE(ZoneStackBase)
 
   static constexpr uint32_t kBlockSize = ZoneAllocator::kHiMaxSize;
 
   struct Block {
     inline bool isEmpty() const noexcept { return _start == _end; }
 
-    inline Block* getPrev() const noexcept { return _link[kSideLeft]; }
-    inline Block* getNext() const noexcept { return _link[kSideRight]; }
+    inline Block* getPrev() const noexcept { return _link[Globals::kLinkLeft]; }
+    inline Block* getNext() const noexcept { return _link[Globals::kLinkRight]; }
 
-    inline void setPrev(Block* block) noexcept { _link[kSideLeft] = block; }
-    inline void setNext(Block* block) noexcept { _link[kSideRight] = block; }
+    inline void setPrev(Block* block) noexcept { _link[Globals::kLinkLeft] = block; }
+    inline void setNext(Block* block) noexcept { _link[Globals::kLinkRight] = block; }
 
     template<typename T>
     inline T* getStart() const noexcept { return static_cast<T*>(_start); }
@@ -1174,7 +1292,7 @@ public:
       return (uintptr_t)_end <= ((uintptr_t)this + kEndBlockIndex - sizeof(T));
     }
 
-    Block* _link[2];                     //!< Next and previous blocks.
+    Block* _link[Globals::kLinkCount];   //!< Next and previous blocks.
     void* _start;                        //!< Pointer to the start of the array.
     void* _end;                          //!< Pointer to the end of the array.
   };
@@ -1222,7 +1340,7 @@ public:
   // --------------------------------------------------------------------------
 
   ZoneAllocator* _allocator;             //!< Allocator used to allocate data.
-  Block* _block[2];                      //!< First and last blocks.
+  Block* _block[Globals::kLinkCount];    //!< First and last blocks.
 };
 
 // ============================================================================
@@ -1232,6 +1350,8 @@ public:
 template<typename T>
 class ZoneStack : public ZoneStackBase {
 public:
+  ASMJIT_NONCOPYABLE(ZoneStack<T>)
+
   enum : uint32_t {
     kNumBlockItems   = uint32_t((kBlockSize - sizeof(Block)) / sizeof(T)),
     kStartBlockIndex = uint32_t(sizeof(Block)),
@@ -1258,11 +1378,11 @@ public:
 
   ASMJIT_FORCEINLINE Error prepend(T item) noexcept {
     ASMJIT_ASSERT(isInitialized());
-    Block* block = _block[kSideLeft];
+    Block* block = _block[Globals::kLinkFirst];
 
     if (!block->canPrepend<T>()) {
-      ASMJIT_PROPAGATE(_prepareBlock(kSideLeft, kEndBlockIndex));
-      block = _block[kSideLeft];
+      ASMJIT_PROPAGATE(_prepareBlock(Globals::kLinkFirst, kEndBlockIndex));
+      block = _block[Globals::kLinkFirst];
     }
 
     T* ptr = block->getStart<T>() - 1;
@@ -1274,11 +1394,11 @@ public:
 
   ASMJIT_FORCEINLINE Error append(T item) noexcept {
     ASMJIT_ASSERT(isInitialized());
-    Block* block = _block[kSideRight];
+    Block* block = _block[Globals::kLinkLast];
 
     if (!block->canAppend<T>()) {
-      ASMJIT_PROPAGATE(_prepareBlock(kSideRight, kStartBlockIndex));
-      block = _block[kSideRight];
+      ASMJIT_PROPAGATE(_prepareBlock(Globals::kLinkLast, kStartBlockIndex));
+      block = _block[Globals::kLinkLast];
     }
 
     T* ptr = block->getEnd<T>();
@@ -1293,7 +1413,7 @@ public:
     ASMJIT_ASSERT(isInitialized());
     ASMJIT_ASSERT(!isEmpty());
 
-    Block* block = _block[kSideLeft];
+    Block* block = _block[Globals::kLinkFirst];
     ASMJIT_ASSERT(!block->isEmpty());
 
     T* ptr = block->getStart<T>();
@@ -1301,7 +1421,7 @@ public:
 
     block->setStart(ptr);
     if (block->isEmpty())
-      _cleanupBlock(kSideLeft, kMidBlockIndex);
+      _cleanupBlock(Globals::kLinkFirst, kMidBlockIndex);
 
     return item;
   }
@@ -1310,7 +1430,7 @@ public:
     ASMJIT_ASSERT(isInitialized());
     ASMJIT_ASSERT(!isEmpty());
 
-    Block* block = _block[kSideRight];
+    Block* block = _block[Globals::kLinkLast];
     ASMJIT_ASSERT(!block->isEmpty());
 
     T* ptr = block->getEnd<T>();
@@ -1320,7 +1440,7 @@ public:
 
     block->setEnd(ptr);
     if (block->isEmpty())
-      _cleanupBlock(kSideRight, kMidBlockIndex);
+      _cleanupBlock(Globals::kLinkLast, kMidBlockIndex);
 
     return item;
   }
@@ -1423,6 +1543,8 @@ public:
 template<typename Node>
 class ZoneHash : public ZoneHashBase {
 public:
+  ASMJIT_NONCOPYABLE(ZoneHash<Node>)
+
   inline ZoneHash() noexcept : ZoneHashBase() {}
 
   template<typename Key>

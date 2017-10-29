@@ -39,18 +39,9 @@ public:
   // --------------------------------------------------------------------------
 
   //! Create a `X86Compiler` instance.
-  ASMJIT_API X86Compiler(CodeHolder* code = nullptr) noexcept;
+  ASMJIT_API explicit X86Compiler(CodeHolder* code = nullptr) noexcept;
   //! Destroy the `X86Compiler` instance.
-  ASMJIT_API ~X86Compiler() noexcept;
-
-  // --------------------------------------------------------------------------
-  // [X86Emitter]
-  // --------------------------------------------------------------------------
-
-  //! Implicit cast to `X86Emitter&`.
-  inline operator X86Emitter&() noexcept { return *as<X86Emitter>(); }
-  //! Implicit cast to `X86Emitter&` (const).
-  inline operator const X86Emitter&() const noexcept { return *as<X86Emitter>(); }
+  ASMJIT_API virtual ~X86Compiler() noexcept;
 
   // --------------------------------------------------------------------------
   // [Finalize]
