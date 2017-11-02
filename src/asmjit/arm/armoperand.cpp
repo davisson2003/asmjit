@@ -9,7 +9,7 @@
 
 // [Guard]
 #include "../core/build.h"
-#if defined(ASMJIT_BUILD_ARM)
+#ifdef ASMJIT_BUILD_ARM
 
 // [Dependencies]
 #include "../core/misc_p.h"
@@ -37,7 +37,7 @@ const ArmOpData armOpData = {
   }
 };
 // ============================================================================
-// [asmjit::ArmOperand - Test]
+// [asmjit::ArmOperand - Unit]
 // ============================================================================
 
 #if defined(ASMJIT_BUILD_TEST)

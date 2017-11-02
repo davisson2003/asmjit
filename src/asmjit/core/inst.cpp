@@ -9,17 +9,17 @@
 
 // [Guard]
 #include "../core/build.h"
-#if defined(ASMJIT_BUILD_X86)
+#ifdef ASMJIT_BUILD_X86
 
 // [Dependencies]
 #include "../core/arch.h"
 #include "../core/inst.h"
 
-#if defined(ASMJIT_BUILD_X86)
+#ifdef ASMJIT_BUILD_X86
   #include "../x86/x86instimpl_p.h"
 #endif
 
-#if defined(ASMJIT_BUILD_ARM)
+#ifdef ASMJIT_BUILD_ARM
   #include "../arm/arminstimpl_p.h"
 #endif
 
@@ -31,12 +31,12 @@ ASMJIT_BEGIN_NAMESPACE
 
 #ifndef ASMJIT_DISABLE_INST_API
 Error Inst::validate(uint32_t archType, const Detail& detail, const Operand_* operands, uint32_t count) noexcept {
-  #if defined(ASMJIT_BUILD_X86)
+  #ifdef ASMJIT_BUILD_X86
   if (ArchInfo::isX86Family(archType))
     return X86InstImpl::validate(archType, detail, operands, count);
   #endif
 
-  #if defined(ASMJIT_BUILD_ARM)
+  #ifdef ASMJIT_BUILD_ARM
   if (ArchInfo::isArmFamily(archType))
     return ArmInstImpl::validate(archType, detail, operands, count);
   #endif
@@ -51,12 +51,12 @@ Error Inst::validate(uint32_t archType, const Detail& detail, const Operand_* op
 
 #ifndef ASMJIT_DISABLE_INST_API
 Error Inst::queryRWInfo(uint32_t archType, const Inst::Detail& detail, const Operand_* operands, uint32_t count, Inst::IRWInfo& out) noexcept {
-  #if defined(ASMJIT_BUILD_X86)
+  #ifdef ASMJIT_BUILD_X86
   if (ArchInfo::isX86Family(archType))
     return X86InstImpl::queryRWInfo(archType, detail, operands, count, out);
   #endif
 
-  #if defined(ASMJIT_BUILD_ARM)
+  #ifdef ASMJIT_BUILD_ARM
   if (ArchInfo::isArmFamily(archType))
     return ArmInstImpl::queryRWInfo(archType, detail, operands, count, out);
   #endif
@@ -71,12 +71,12 @@ Error Inst::queryRWInfo(uint32_t archType, const Inst::Detail& detail, const Ope
 
 #ifndef ASMJIT_DISABLE_INST_API
 Error Inst::queryCpuFeatures(uint32_t archType, const Detail& detail, const Operand_* operands, uint32_t count, CpuFeatures& out) noexcept {
-  #if defined(ASMJIT_BUILD_X86)
+  #ifdef ASMJIT_BUILD_X86
   if (ArchInfo::isX86Family(archType))
     return X86InstImpl::queryCpuFeatures(archType, detail, operands, count, out);
   #endif
 
-  #if defined(ASMJIT_BUILD_ARM)
+  #ifdef ASMJIT_BUILD_ARM
   if (ArchInfo::isArmFamily(archType))
     return ArmInstImpl::queryCpuFeatures(archType, detail, operands, count, out);
   #endif

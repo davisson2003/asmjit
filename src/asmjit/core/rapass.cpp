@@ -17,6 +17,7 @@
 #include "../core/ralocal_p.h"
 #include "../core/rapass_p.h"
 #include "../core/type.h"
+#include "../core/zonestack.h"
 
 ASMJIT_BEGIN_NAMESPACE
 
@@ -224,10 +225,10 @@ Error RAPass::onPerformAllSteps() noexcept {
 // ============================================================================
 
 RABlock* RAPass::newBlock(CBNode* initialNode) noexcept {
-  RABlock* block = getZone()->allocT<RABlock>();
-  if (ASMJIT_UNLIKELY(!block)) return nullptr;
+  RABlock* block = getZone()->newT<RABlock>(this);
+  if (ASMJIT_UNLIKELY(!block))
+    return nullptr;
 
-  block = new(block) RABlock(this);
   block->setFirst(initialNode);
   block->setLast(initialNode);
 
@@ -378,11 +379,11 @@ Error RAPass::buildViews() noexcept {
 
       // Skip if already visited.
       RABlock* child = current->getSuccessors().getAt(i++);
-      if (visited.getAt(child->getBlockId()))
+      if (visited.getBit(child->getBlockId()))
         continue;
 
       // Mark as visited to prevent visiting the same block multiple times.
-      visited.setAt(child->getBlockId(), true);
+      visited.setBit(child->getBlockId(), true);
 
       // Add the current block on the stack, we will get back to it later.
       ASMJIT_PROPAGATE(stack.append(RABlockVisitItem(current, i)));
@@ -621,13 +622,11 @@ Error RAPass::_asWorkReg(VirtReg* vReg, RAWorkReg** out) noexcept {
   ASMJIT_PROPAGATE(workRegs.willGrow(getAllocator()));
   ASMJIT_PROPAGATE(workRegsByGroup.willGrow(getAllocator()));
 
-  RAWorkReg* wReg = getZone()->allocT<RAWorkReg>();
+  RAWorkReg* wReg = getZone()->newT<RAWorkReg>(vReg, workRegs.getLength());
   if (ASMJIT_UNLIKELY(!wReg))
     return DebugUtils::errored(kErrorNoHeapMemory);
 
-  wReg = new(wReg) RAWorkReg(vReg, workRegs.getLength());
   vReg->setWorkReg(wReg);
-
   workRegs.appendUnsafe(wReg);
   workRegsByGroup.appendUnsafe(wReg);
 
@@ -808,19 +807,19 @@ ASMJIT_FAVOR_SPEED Error RAPass::buildLiveness() noexcept {
           // Mark as:
           //   KILL - if this VirtReg is killed afterwards.
           //   LAST - if this VirtReg is last in this basic block.
-          if (block->getKill().getAt(workId))
+          if (block->getKill().getBit(workId))
             tiedReg->addFlags(RATiedReg::kKill);
-          else if (!block->getGen().getAt(workId))
+          else if (!block->getGen().getBit(workId))
             tiedReg->addFlags(RATiedReg::kLast);
 
           if (tiedReg->isWriteOnly()) {
             // KILL.
-            block->getKill().setAt(workId, true);
+            block->getKill().setBit(workId, true);
           }
           else {
             // GEN.
-            block->getKill().setAt(workId, false);
-            block->getGen().setAt(workId, true);
+            block->getKill().setBit(workId, false);
+            block->getGen().setBit(workId, true);
           }
         }
 
@@ -858,15 +857,15 @@ ASMJIT_FAVOR_SPEED Error RAPass::buildLiveness() noexcept {
       RABlock* block = workList.popFirst();
       uint32_t blockId = block->getBlockId();
 
-      workBits.setAt(blockId, false);
+      workBits.setBit(blockId, false);
       if (LiveOps::recalcInOut(block, numBitWords)) {
         const RABlocks& predecessors = block->getPredecessors();
         uint32_t numPredecessors = predecessors.getLength();
 
         for (uint32_t j = 0; j < numPredecessors; j++) {
           RABlock* pred = predecessors[j];
-          if (!workBits.getAt(pred->getBlockId())) {
-            workBits.setAt(pred->getBlockId(), true);
+          if (!workBits.getBit(pred->getBlockId())) {
+            workBits.setBit(pred->getBlockId(), true);
             ASMJIT_PROPAGATE(workList.append(pred));
           }
         }
@@ -954,7 +953,7 @@ ASMJIT_FAVOR_SPEED Error RAPass::buildLiveness() noexcept {
           // We couldn't calculate this in previous steps, but since we know all LIVE-OUT
           // at this point it becomes trivial. If this is the last instruction that uses
           // this `workReg` and it's not LIVE-OUT then it is KILLed here.
-          if (tiedReg->isLast() && !block->getLiveOut().getAt(workId))
+          if (tiedReg->isLast() && !block->getLiveOut().getBit(workId))
             tiedReg->addFlags(RATiedReg::kKill);
 
           LiveRegSpans& liveSpans = workReg->getLiveSpans();
@@ -1640,7 +1639,7 @@ ASMJIT_FAVOR_SIZE Error RAPass::_dumpBlockLiveness(StringBuilder& sb, const RABl
 
     uint32_t n = 0;
     for (uint32_t workId = 0; workId < len; workId++) {
-      if (bits.getAt(workId)) {
+      if (bits.getBit(workId)) {
         RAWorkReg* wReg = getWorkReg(workId);
 
         if (!n)

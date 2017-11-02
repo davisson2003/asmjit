@@ -297,7 +297,7 @@ public:
   // [Operator Overload]
   // --------------------------------------------------------------------------
 
-  inline ArmMem& operator=(const ArmMem& other) noexcept { copyFrom(other); return *this; }
+  inline ArmMem& operator=(const ArmMem& other) noexcept = default;
 };
 
 // ============================================================================

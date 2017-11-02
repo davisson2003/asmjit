@@ -17,6 +17,8 @@
 #include "../core/smallstring.h"
 #include "../core/target.h"
 #include "../core/zone.h"
+#include "../core/zonehash.h"
+#include "../core/zonevector.h"
 
 ASMJIT_BEGIN_NAMESPACE
 

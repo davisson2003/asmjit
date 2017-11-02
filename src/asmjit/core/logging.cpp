@@ -21,11 +21,11 @@
 #include "../core/stringutils.h"
 #include "../core/type.h"
 
-#if defined(ASMJIT_BUILD_X86)
+#ifdef ASMJIT_BUILD_X86
   #include "../x86/x86logging_p.h"
 #endif
 
-#if defined(ASMJIT_BUILD_ARM)
+#ifdef ASMJIT_BUILD_ARM
   #include "../arm/armlogging_p.h"
 #endif
 
@@ -184,12 +184,12 @@ Error Logging::formatRegister(
   uint32_t regType,
   uint32_t regId) noexcept {
 
-  #if defined(ASMJIT_BUILD_X86)
+  #ifdef ASMJIT_BUILD_X86
   if (ArchInfo::isX86Family(archType))
     return X86Logging::formatRegister(sb, logOptions, emitter, archType, regType, regId);
   #endif
 
-  #if defined(ASMJIT_BUILD_ARM)
+  #ifdef ASMJIT_BUILD_ARM
   if (ArchInfo::isArmFamily(archType))
     return ArmLogging::formatRegister(sb, logOptions, emitter, archType, regType, regId);
   #endif
@@ -204,12 +204,12 @@ Error Logging::formatOperand(
   uint32_t archType,
   const Operand_& op) noexcept {
 
-  #if defined(ASMJIT_BUILD_X86)
+  #ifdef ASMJIT_BUILD_X86
   if (ArchInfo::isX86Family(archType))
     return X86Logging::formatOperand(sb, logOptions, emitter, archType, op);
   #endif
 
-  #if defined(ASMJIT_BUILD_ARM)
+  #ifdef ASMJIT_BUILD_ARM
   if (ArchInfo::isArmFamily(archType))
     return ArmLogging::formatOperand(sb, logOptions, emitter, archType, op);
   #endif
@@ -224,12 +224,12 @@ Error Logging::formatInstruction(
   uint32_t archType,
   const Inst::Detail& detail, const Operand_* operands, uint32_t count) noexcept {
 
-  #if defined(ASMJIT_BUILD_X86)
+  #ifdef ASMJIT_BUILD_X86
   if (ArchInfo::isX86Family(archType))
     return X86Logging::formatInstruction(sb, logOptions, emitter, archType, detail, operands, count);
   #endif
 
-  #if defined(ASMJIT_BUILD_ARM)
+  #ifdef ASMJIT_BUILD_ARM
   if (ArchInfo::isArmFamily(archType))
     return ArmLogging::formatInstruction(sb, logOptions, emitter, archType, detail, operands, count);
   #endif

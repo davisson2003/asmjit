@@ -30,7 +30,7 @@ ASMJIT_BEGIN_NAMESPACE
 //! be used by the user to define an array of operands without having them
 //! default initialized.
 //!
-//! The difference between `Operand` and `Operand_`:
+//! The key difference between `Operand` and `Operand_`:
 //!
 //! ```
 //! Operand_ xArray[10]; // Not initialized, contains garbage.
@@ -49,7 +49,7 @@ struct Operand_ {
     kOpImm   = 3,                        //!< Operand is an immediate value.
     kOpLabel = 4                         //!< Operand is a label.
   };
-  static_assert(kOpMem - kOpReg == 1, "asmjit::Operand requires `kOpMem` to be `kOpReg+1`.");
+  static_assert(kOpMem == kOpReg + 1, "asmjit::Operand requires `kOpMem` to be `kOpReg+1`.");
 
   // --------------------------------------------------------------------------
   // [Operand Signature (Bits)]
@@ -183,16 +183,6 @@ struct Operand_ {
       uint32_t u32[2];                   //!< 32-bit unsigned integer (2x).
       int32_t  i32[2];                   //!< 32-bit signed integer (2x).
       float    f32[2];                   //!< 32-bit floating point (2x).
-
-      #if ASMJIT_ARCH_LE
-      struct { float    f32Lo, f32Hi; };
-      struct { int32_t  i32Lo, i32Hi; };
-      struct { uint32_t u32Lo, u32Hi; };
-      #else
-      struct { float    f32Hi, f32Lo; };
-      struct { int32_t  i32Hi, i32Lo; };
-      struct { uint32_t u32Hi, u32Lo; };
-      #endif
     } value;
   };
 
@@ -531,7 +521,7 @@ public:
   // [Operator Overload]
   // --------------------------------------------------------------------------
 
-  inline Label& operator=(const Label& other) noexcept { copyFrom(other); return *this; }
+  inline Label& operator=(const Label& other) noexcept = default;
 };
 
 // ============================================================================
@@ -588,9 +578,7 @@ public:                                                                       \
   /*! Clone the register operand. */                                          \
   constexpr REG_T clone() const noexcept { return REG_T(*this); }             \
                                                                               \
-  inline REG_T& operator=(const REG_T& other) noexcept {                      \
-    copyFrom(other); return *this;                                            \
-  }
+  inline REG_T& operator=(const REG_T& other) noexcept = default;
 
 #define ASMJIT_DEFINE_FINAL_REG(REG_T, BASE_T, TRAITS_T)                      \
   ASMJIT_DEFINE_ABSTRACT_REG(REG_T, BASE_T)                                   \
@@ -1137,27 +1125,27 @@ public:
   constexpr bool isUInt32() const noexcept { return IntUtils::isUInt32(_imm.value.i64); }
 
   //! Get immediate value as 8-bit signed integer.
-  constexpr int8_t getInt8() const noexcept { return int8_t(_imm.value.i32Lo & 0xFF); }
+  constexpr int8_t getInt8() const noexcept { return int8_t(_imm.value.i32[Globals::kHalfLo] & 0xFF); }
   //! Get immediate value as 8-bit unsigned integer.
-  constexpr uint8_t getUInt8() const noexcept { return uint8_t(_imm.value.u32Lo & 0xFFU); }
+  constexpr uint8_t getUInt8() const noexcept { return uint8_t(_imm.value.u32[Globals::kHalfLo] & 0xFFU); }
   //! Get immediate value as 16-bit signed integer.
-  constexpr int16_t getInt16() const noexcept { return int16_t(_imm.value.i32Lo & 0xFFFF);}
+  constexpr int16_t getInt16() const noexcept { return int16_t(_imm.value.i32[Globals::kHalfLo] & 0xFFFF);}
   //! Get immediate value as 16-bit unsigned integer.
-  constexpr uint16_t getUInt16() const noexcept { return uint16_t(_imm.value.u32Lo & 0xFFFFU);}
+  constexpr uint16_t getUInt16() const noexcept { return uint16_t(_imm.value.u32[Globals::kHalfLo] & 0xFFFFU);}
 
   //! Get immediate value as 32-bit signed integer.
-  constexpr int32_t getInt32() const noexcept { return _imm.value.i32Lo; }
+  constexpr int32_t getInt32() const noexcept { return _imm.value.i32[Globals::kHalfLo]; }
   //! Get low 32-bit signed integer.
-  constexpr int32_t getInt32Lo() const noexcept { return _imm.value.i32Lo; }
+  constexpr int32_t getInt32Lo() const noexcept { return _imm.value.i32[Globals::kHalfLo]; }
   //! Get high 32-bit signed integer.
-  constexpr int32_t getInt32Hi() const noexcept { return _imm.value.i32Hi; }
+  constexpr int32_t getInt32Hi() const noexcept { return _imm.value.i32[Globals::kHalfHi]; }
 
   //! Get immediate value as 32-bit unsigned integer.
-  constexpr uint32_t getUInt32() const noexcept { return _imm.value.u32Lo; }
+  constexpr uint32_t getUInt32() const noexcept { return _imm.value.u32[Globals::kHalfLo]; }
   //! Get low 32-bit signed integer.
-  constexpr uint32_t getUInt32Lo() const noexcept { return _imm.value.u32Lo; }
+  constexpr uint32_t getUInt32Lo() const noexcept { return _imm.value.u32[Globals::kHalfLo]; }
   //! Get high 32-bit signed integer.
-  constexpr uint32_t getUInt32Hi() const noexcept { return _imm.value.u32Hi; }
+  constexpr uint32_t getUInt32Hi() const noexcept { return _imm.value.u32[Globals::kHalfHi]; }
 
   //! Get immediate value as 64-bit signed integer.
   constexpr int64_t getInt64() const noexcept { return _imm.value.i64; }
@@ -1204,8 +1192,8 @@ public:
   // --------------------------------------------------------------------------
 
   inline void setFloat(float f) noexcept {
-    _imm.value.f32Lo = f;
-    _imm.value.u32Hi = 0;
+    _imm.value.f32[Globals::kHalfLo] = f;
+    _imm.value.u32[Globals::kHalfHi] = 0;
   }
 
   inline void setDouble(double d) noexcept {

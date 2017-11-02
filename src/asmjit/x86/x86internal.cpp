@@ -9,7 +9,7 @@
 
 // [Guard]
 #include "../core/build.h"
-#if defined(ASMJIT_BUILD_X86)
+#ifdef ASMJIT_BUILD_X86
 
 // [Dependencies]
 #include "../core/intutils.h"
@@ -19,128 +19,6 @@
 #include "../x86/x86internal_p.h"
 
 ASMJIT_BEGIN_NAMESPACE
-
-// ============================================================================
-// [asmjit::X86Internal - CallConv]
-// ============================================================================
-
-ASMJIT_FAVOR_SIZE Error X86Internal::initCallConv(CallConv& cc, uint32_t ccId) noexcept {
-  const uint32_t kGroupGp  = X86Reg::kGroupGp;
-  const uint32_t kGroupVec = X86Reg::kGroupVec;
-  const uint32_t kGroupMm  = X86Reg::kGroupMm;
-  const uint32_t kGroupK   = X86Reg::kGroupK;
-
-  const uint32_t kZax = X86Gp::kIdAx;
-  const uint32_t kZbx = X86Gp::kIdBx;
-  const uint32_t kZcx = X86Gp::kIdCx;
-  const uint32_t kZdx = X86Gp::kIdDx;
-  const uint32_t kZsp = X86Gp::kIdSp;
-  const uint32_t kZbp = X86Gp::kIdBp;
-  const uint32_t kZsi = X86Gp::kIdSi;
-  const uint32_t kZdi = X86Gp::kIdDi;
-
-  switch (ccId) {
-    case CallConv::kIdX86StdCall:
-      cc.setFlags(CallConv::kFlagCalleePopsStack);
-      goto X86CallConv;
-
-    case CallConv::kIdX86MsThisCall:
-      cc.setFlags(CallConv::kFlagCalleePopsStack);
-      cc.setPassedOrder(kGroupGp, kZcx);
-      goto X86CallConv;
-
-    case CallConv::kIdX86MsFastCall:
-    case CallConv::kIdX86GccFastCall:
-      cc.setFlags(CallConv::kFlagCalleePopsStack);
-      cc.setPassedOrder(kGroupGp, kZcx, kZdx);
-      goto X86CallConv;
-
-    case CallConv::kIdX86GccRegParm1:
-      cc.setPassedOrder(kGroupGp, kZax);
-      goto X86CallConv;
-
-    case CallConv::kIdX86GccRegParm2:
-      cc.setPassedOrder(kGroupGp, kZax, kZdx);
-      goto X86CallConv;
-
-    case CallConv::kIdX86GccRegParm3:
-      cc.setPassedOrder(kGroupGp, kZax, kZdx, kZcx);
-      goto X86CallConv;
-
-    case CallConv::kIdX86CDecl:
-X86CallConv:
-      cc.setNaturalStackAlignment(4);
-      cc.setArchType(ArchInfo::kTypeX86);
-      cc.setPreservedRegs(kGroupGp, IntUtils::mask(kZbx, kZsp, kZbp, kZsi, kZdi));
-      break;
-
-    case CallConv::kIdX86Win64:
-      cc.setArchType(ArchInfo::kTypeX64);
-      cc.setStrategy(CallConv::kStrategyWin64);
-      cc.setFlags(CallConv::kFlagPassFloatsByVec | CallConv::kFlagIndirectVecArgs);
-      cc.setNaturalStackAlignment(16);
-      cc.setSpillZoneSize(32);
-      cc.setPassedOrder(kGroupGp, kZcx, kZdx, 8, 9);
-      cc.setPassedOrder(kGroupVec, 0, 1, 2, 3);
-      cc.setPreservedRegs(kGroupGp, IntUtils::mask(kZbx, kZsp, kZbp, kZsi, kZdi, 12, 13, 14, 15));
-      cc.setPreservedRegs(kGroupVec, IntUtils::mask(6, 7, 8, 9, 10, 11, 12, 13, 14, 15));
-      break;
-
-    case CallConv::kIdX86SysV64:
-      cc.setArchType(ArchInfo::kTypeX64);
-      cc.setFlags(CallConv::kFlagPassFloatsByVec);
-      cc.setNaturalStackAlignment(16);
-      cc.setRedZoneSize(128);
-      cc.setPassedOrder(kGroupGp, kZdi, kZsi, kZdx, kZcx, 8, 9);
-      cc.setPassedOrder(kGroupVec, 0, 1, 2, 3, 4, 5, 6, 7);
-      cc.setPreservedRegs(kGroupGp, IntUtils::mask(kZbx, kZsp, kZbp, 12, 13, 14, 15));
-      break;
-
-    case CallConv::kIdX86LightCall2:
-    case CallConv::kIdX86LightCall3:
-    case CallConv::kIdX86LightCall4: {
-      uint32_t n = (ccId - CallConv::kIdX86LightCall2) + 2;
-
-      cc.setArchType(ArchInfo::kTypeX86);
-      cc.setFlags(CallConv::kFlagPassFloatsByVec);
-      cc.setNaturalStackAlignment(16);
-      cc.setPassedOrder(kGroupGp, kZax, kZdx, kZcx, kZsi, kZdi);
-      cc.setPassedOrder(kGroupMm, 0, 1, 2, 3, 4, 5, 6, 7);
-      cc.setPassedOrder(kGroupVec, 0, 1, 2, 3, 4, 5, 6, 7);
-
-      cc.setPreservedRegs(kGroupGp , IntUtils::lsbMask<uint32_t>(8));
-      cc.setPreservedRegs(kGroupVec, IntUtils::lsbMask<uint32_t>(8) & ~IntUtils::lsbMask<uint32_t>(n));
-      cc.setPreservedRegs(kGroupMm , IntUtils::lsbMask<uint32_t>(8));
-      cc.setPreservedRegs(kGroupK  , IntUtils::lsbMask<uint32_t>(8));
-      break;
-    }
-
-    case CallConv::kIdX64LightCall2:
-    case CallConv::kIdX64LightCall3:
-    case CallConv::kIdX64LightCall4: {
-      uint32_t n = (ccId - CallConv::kIdX64LightCall2) + 2;
-
-      cc.setArchType(ArchInfo::kTypeX64);
-      cc.setFlags(CallConv::kFlagPassFloatsByVec);
-      cc.setNaturalStackAlignment(16);
-      cc.setPassedOrder(kGroupGp, kZax, kZdx, kZcx, kZsi, kZdi);
-      cc.setPassedOrder(kGroupMm, 0, 1, 2, 3, 4, 5, 6, 7);
-      cc.setPassedOrder(kGroupVec, 0, 1, 2, 3, 4, 5, 6, 7);
-
-      cc.setPreservedRegs(kGroupGp , IntUtils::lsbMask<uint32_t>(16));
-      cc.setPreservedRegs(kGroupVec,~IntUtils::lsbMask<uint32_t>(n));
-      cc.setPreservedRegs(kGroupMm , IntUtils::lsbMask<uint32_t>(8));
-      cc.setPreservedRegs(kGroupK  , IntUtils::lsbMask<uint32_t>(8));
-      break;
-    }
-
-    default:
-      return DebugUtils::errored(kErrorInvalidArgument);
-  }
-
-  cc.setId(ccId);
-  return kErrorOk;
-}
 
 // ============================================================================
 // [asmjit::X86Internal - Helpers]

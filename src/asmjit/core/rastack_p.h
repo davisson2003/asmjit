@@ -13,7 +13,6 @@
 
 // [Dependencies]
 #include "../core/radefs_p.h"
-#include "../core/rastack_p.h"
 
 ASMJIT_BEGIN_NAMESPACE
 

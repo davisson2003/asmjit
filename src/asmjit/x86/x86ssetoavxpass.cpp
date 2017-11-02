@@ -12,6 +12,8 @@
 #if defined(ASMJIT_BUILD_X86) && !defined(ASMJIT_DISABLE_BUILDER)
 
 // [Dependencies]
+#include "../core/zonestack.h"
+
 #include "../x86/x86inst.h"
 #include "../x86/x86operand.h"
 #include "../x86/x86ssetoavxpass_p.h"

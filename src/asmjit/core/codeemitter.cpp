@@ -12,12 +12,12 @@
 #include "../core/intutils.h"
 #include "../core/logging.h"
 
-#if defined(ASMJIT_BUILD_X86)
+#ifdef ASMJIT_BUILD_X86
   #include "../x86/x86internal_p.h"
   #include "../x86/x86inst.h"
 #endif // ASMJIT_BUILD_X86
 
-#if defined(ASMJIT_BUILD_ARM)
+#ifdef ASMJIT_BUILD_ARM
   #include "../arm/arminternal_p.h"
   #include "../arm/arminst.h"
 #endif // ASMJIT_BUILD_ARM
@@ -125,12 +125,12 @@ ASMJIT_FAVOR_SIZE Error CodeEmitter::emitProlog(const FuncFrame& frame) {
   if (ASMJIT_UNLIKELY(!_code))
     return DebugUtils::errored(kErrorNotInitialized);
 
-  #if defined(ASMJIT_BUILD_X86)
+  #ifdef ASMJIT_BUILD_X86
   if (getArchInfo().isX86Family())
     return X86Internal::emitProlog(as<X86Emitter>(), frame);
   #endif
 
-  #if defined(ASMJIT_BUILD_ARM)
+  #ifdef ASMJIT_BUILD_ARM
   if (getArchInfo().isArmFamily())
     return ArmInternal::emitProlog(as<ArmEmitter>(), frame);
   #endif
@@ -142,12 +142,12 @@ ASMJIT_FAVOR_SIZE Error CodeEmitter::emitEpilog(const FuncFrame& frame) {
   if (ASMJIT_UNLIKELY(!_code))
     return DebugUtils::errored(kErrorNotInitialized);
 
-  #if defined(ASMJIT_BUILD_X86)
+  #ifdef ASMJIT_BUILD_X86
   if (getArchInfo().isX86Family())
     return X86Internal::emitEpilog(as<X86Emitter>(), frame);
   #endif
 
-  #if defined(ASMJIT_BUILD_ARM)
+  #ifdef ASMJIT_BUILD_ARM
   if (getArchInfo().isArmFamily())
     return ArmInternal::emitEpilog(as<ArmEmitter>(), frame);
   #endif
@@ -159,12 +159,12 @@ ASMJIT_FAVOR_SIZE Error CodeEmitter::emitArgsAssignment(const FuncFrame& frame, 
   if (ASMJIT_UNLIKELY(!_code))
     return DebugUtils::errored(kErrorNotInitialized);
 
-  #if defined(ASMJIT_BUILD_X86)
+  #ifdef ASMJIT_BUILD_X86
   if (getArchInfo().isX86Family())
     return X86Internal::emitArgsAssignment(as<X86Emitter>(), frame, args);
   #endif
 
-  #if defined(ASMJIT_BUILD_ARM)
+  #ifdef ASMJIT_BUILD_ARM
   if (getArchInfo().isArmFamily())
     return ArmInternal::emitArgsAssignment(as<ArmEmitter>(), frame, args);
   #endif

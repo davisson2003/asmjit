@@ -35,7 +35,7 @@ public:
   // --------------------------------------------------------------------------
 
   inline CpuFeatures() noexcept { reset(); }
-  inline CpuFeatures(const CpuFeatures& other) noexcept { init(other); }
+  inline CpuFeatures(const CpuFeatures& other) noexcept = default;
 
   // --------------------------------------------------------------------------
   // [Init / Reset]

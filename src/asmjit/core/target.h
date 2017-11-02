@@ -123,7 +123,8 @@ public:
   // [Operator Overload]
   // --------------------------------------------------------------------------
 
-  inline CodeInfo& operator=(const CodeInfo& other) noexcept { init(other); return *this; }
+  inline CodeInfo& operator=(const CodeInfo& other) noexcept = default;
+
   inline bool operator==(const CodeInfo& other) const noexcept { return std::memcmp(this, &other, sizeof(*this)) == 0; }
   inline bool operator!=(const CodeInfo& other) const noexcept { return std::memcmp(this, &other, sizeof(*this)) != 0; }
 

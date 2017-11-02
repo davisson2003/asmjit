@@ -34,7 +34,7 @@ ASMJIT_FAVOR_SIZE char* StringBuilder::prepare(uint32_t op, size_t len) noexcept
         return nullptr;
 
       size_t newCapacity = IntUtils::alignUp<size_t>(len + 1, kMinAllocLen);
-      char* newData = static_cast<char*>(AsmJitInternal::allocMemory(newCapacity));
+      char* newData = static_cast<char*>(MemUtils::alloc(newCapacity));
 
       if (ASMJIT_UNLIKELY(!newData))
         return nullptr;
@@ -44,7 +44,7 @@ ASMJIT_FAVOR_SIZE char* StringBuilder::prepare(uint32_t op, size_t len) noexcept
       _capacity = newCapacity - 1;
 
       if (oldData != _embedded)
-        AsmJitInternal::releaseMemory(oldData);
+        MemUtils::release(oldData);
     }
 
     _data[len] = 0;
@@ -71,7 +71,7 @@ ASMJIT_FAVOR_SIZE char* StringBuilder::prepare(uint32_t op, size_t len) noexcept
       if (ASMJIT_UNLIKELY(newCapacity < afterPlusOne))
         return nullptr;
 
-      char* newData = static_cast<char*>(AsmJitInternal::allocMemory(newCapacity));
+      char* newData = static_cast<char*>(MemUtils::alloc(newCapacity));
       if (!newData) return nullptr;
 
       char* oldData = _data;
@@ -81,7 +81,7 @@ ASMJIT_FAVOR_SIZE char* StringBuilder::prepare(uint32_t op, size_t len) noexcept
       _capacity = newCapacity - 1;
 
       if (oldData != _embedded)
-        AsmJitInternal::releaseMemory(oldData);
+        MemUtils::release(oldData);
     }
 
     char* p = _data + _length;
@@ -101,7 +101,7 @@ ASMJIT_FAVOR_SIZE Error StringBuilder::reserve(size_t to) noexcept {
     return DebugUtils::errored(kErrorNoHeapMemory);
 
   to = IntUtils::alignUp<size_t>(to, sizeof(intptr_t));
-  char* newData = static_cast<char*>(AsmJitInternal::allocMemory(to + sizeof(intptr_t)));
+  char* newData = static_cast<char*>(MemUtils::alloc(to + sizeof(intptr_t)));
 
   if (!newData)
     return DebugUtils::errored(kErrorNoHeapMemory);
@@ -113,7 +113,7 @@ ASMJIT_FAVOR_SIZE Error StringBuilder::reserve(size_t to) noexcept {
   _capacity = to + sizeof(intptr_t) - 1;
 
   if (oldData != _embedded)
-    AsmJitInternal::releaseMemory(oldData);
+    MemUtils::release(oldData);
   return kErrorOk;
 }
 

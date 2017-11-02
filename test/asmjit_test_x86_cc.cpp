@@ -280,7 +280,7 @@ public:
     uint32_t i;
     uint32_t argCount = _argCount;
 
-    FuncSignatureX signature(CallConv::kIdHost);
+    FuncSignatureBuilder signature(CallConv::kIdHost);
     signature.setRetT<int>();
     for (i = 0; i < argCount; i++)
       signature.addArgT<int>();
@@ -3320,12 +3320,12 @@ public:
   }
 
   virtual void compile(X86Compiler& cc) {
-    FuncSignatureX funcPrototype;
+    FuncSignatureBuilder funcPrototype;
     funcPrototype.setCallConv(CallConv::kIdHost);
     funcPrototype.setRet(Type::kIdF64);
     cc.addFunc(funcPrototype);
 
-    FuncSignatureX callPrototype;
+    FuncSignatureBuilder callPrototype;
     callPrototype.setCallConv(CallConv::kIdHost);
     callPrototype.setRet(Type::kIdF64);
     CCFuncCall* call = cc.call(imm_ptr(calledFunc), callPrototype);

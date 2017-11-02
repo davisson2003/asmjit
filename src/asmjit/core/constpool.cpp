@@ -337,7 +337,7 @@ void ConstPool::fill(void* dst) const noexcept {
 }
 
 // ============================================================================
-// [asmjit::ConstPool - Test]
+// [asmjit::ConstPool - Unit]
 // ============================================================================
 
 #if defined(ASMJIT_BUILD_TEST)

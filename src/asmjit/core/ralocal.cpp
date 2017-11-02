@@ -67,7 +67,7 @@ Error RALocalAllocator::makeInitialAssignment() noexcept {
       if (!workReg) continue;
 
       uint32_t workId = workReg->getWorkId();
-      if (liveIn.getAt(workId)) {
+      if (liveIn.getBit(workId)) {
         uint32_t group = workReg->getGroup();
         if (_curAssignment.workToPhysId(group, workId) != RAAssignment::kPhysNone)
           continue;
@@ -155,7 +155,7 @@ Error RALocalAllocator::switchToAssignment(
         ASMJIT_ASSERT(workId != RAAssignment::kWorkNone);
 
         // KILL if it's not live on entry.
-        if (!liveIn.getAt(workId)) {
+        if (!liveIn.getBit(workId)) {
           onKillReg(group, workId, physId);
           continue;
         }
@@ -250,7 +250,7 @@ Cleared:
           // DST assigned, CUR unassigned.
           uint32_t altPhysId = cur.workToPhysId(group, dstWorkId);
           if (altPhysId == RAAssignment::kPhysNone) {
-            if (liveIn.getAt(dstWorkId))
+            if (liveIn.getBit(dstWorkId))
               willLoadRegs |= physMask; // Scheduled for `onLoadReg()`.
             affectedRegs &= ~physMask;  // Unaffected from now.
             continue;
@@ -303,7 +303,7 @@ Cleared:
           uint32_t workId = dst.physToWorkId(group, physId);
 
           // The algorithm is broken if it tries to load a register that is not in LIVE-IN.
-          ASMJIT_ASSERT(liveIn.getAt(workId) == true);
+          ASMJIT_ASSERT(liveIn.getBit(workId) == true);
 
           ASMJIT_PROPAGATE(onLoadReg(group, workId, physId));
           if (dst.isPhysDirty(group, physId))

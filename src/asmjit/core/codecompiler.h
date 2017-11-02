@@ -20,6 +20,7 @@
 #include "../core/intutils.h"
 #include "../core/operand.h"
 #include "../core/zone.h"
+#include "../core/zonevector.h"
 
 ASMJIT_BEGIN_NAMESPACE
 

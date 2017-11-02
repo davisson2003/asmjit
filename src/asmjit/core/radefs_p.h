@@ -16,6 +16,7 @@
 #include "../core/intutils.h"
 #include "../core/logging.h"
 #include "../core/zone.h"
+#include "../core/zonevector.h"
 
 ASMJIT_BEGIN_NAMESPACE
 
@@ -182,10 +183,7 @@ struct RARegCount {
     return _regs[index];
   }
 
-  inline RARegCount& operator=(const RARegCount& other) noexcept {
-    _packed = other._packed;
-    return *this;
-  }
+  inline RARegCount& operator=(const RARegCount& other) noexcept = default;
 
   inline bool operator==(const RARegCount& other) const noexcept { return _packed == other._packed; }
   inline bool operator!=(const RARegCount& other) const noexcept { return _packed != other._packed; }
@@ -280,10 +278,7 @@ struct RARegMask {
     return _masks[index];
   }
 
-  inline RARegMask& operator=(const RARegMask& other) noexcept {
-    init(other);
-    return *this;
-  }
+  inline RARegMask& operator=(const RARegMask& other) noexcept = default;
 
   inline bool operator==(const RARegMask& other) const noexcept {
     return _masks[0] == other._masks[0] &&
@@ -377,7 +372,8 @@ public:
       n[group] = Operator::op(n[group], other.n[group]);
   }
 
-  inline RALiveCount& operator=(const RALiveCount& other) noexcept { init(other); return *this; }
+  inline RALiveCount& operator=(const RALiveCount& other) noexcept = default;
+
   inline uint32_t& operator[](uint32_t group) noexcept { return n[group]; }
   inline const uint32_t& operator[](uint32_t group) const noexcept { return n[group]; }
 
@@ -853,10 +849,7 @@ struct RATiedReg {
   // [Operator Overload]
   // --------------------------------------------------------------------------
 
-  inline RATiedReg& operator=(const RATiedReg& other) noexcept {
-    std::memcpy(this, &other, sizeof(RATiedReg));
-    return *this;
-  }
+  inline RATiedReg& operator=(const RATiedReg& other) noexcept = default;
 
   // --------------------------------------------------------------------------
   // [Members]

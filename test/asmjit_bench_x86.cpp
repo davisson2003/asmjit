@@ -60,7 +60,7 @@ static double mbps(uint32_t time, size_t outputSize) {
 // [Main]
 // ============================================================================
 
-#if defined(ASMJIT_BUILD_X86)
+#ifdef ASMJIT_BUILD_X86
 static void benchX86(uint32_t archType) {
   CodeHolder code;
   Performance perf;
@@ -177,7 +177,7 @@ static void benchX86(uint32_t archType) {
 #endif
 
 int main(int argc, char* argv[]) {
-#if defined(ASMJIT_BUILD_X86)
+#ifdef ASMJIT_BUILD_X86
   benchX86(ArchInfo::kTypeX86);
   benchX86(ArchInfo::kTypeX64);
 #endif

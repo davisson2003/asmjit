@@ -554,7 +554,7 @@ ASMJIT_FAVOR_SIZE static Error X86Logging_explainConst(
     case X86Inst::kIdVpcmpud:
     case X86Inst::kIdVpcmpuq:
     case X86Inst::kIdVpcmpuw:
-      return X86Logging_formatImmText(sb, u8, 2, 4, vpcmpx, 4);
+      return X86Logging_formatImmText(sb, u8, 3, 0, vpcmpx);
 
     case X86Inst::kIdVpcomb:
     case X86Inst::kIdVpcomd:
@@ -564,7 +564,7 @@ ASMJIT_FAVOR_SIZE static Error X86Logging_explainConst(
     case X86Inst::kIdVpcomud:
     case X86Inst::kIdVpcomuq:
     case X86Inst::kIdVpcomuw:
-      return X86Logging_formatImmText(sb, u8, 2, 4, vpcomx, 4);
+      return X86Logging_formatImmText(sb, u8, 3, 0, vpcomx);
 
     case X86Inst::kIdVpermq:
     case X86Inst::kIdVpermpd:

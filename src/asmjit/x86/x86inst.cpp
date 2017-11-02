@@ -28,7 +28,7 @@
 
 // [Guard]
 #include "../core/build.h"
-#if defined(ASMJIT_BUILD_X86)
+#ifdef ASMJIT_BUILD_X86
 
 // [Dependencies]
 #include "../core/cpuinfo.h"
@@ -3695,7 +3695,7 @@ const X86Inst::MiscData X86InstDB::miscData = {
 #undef CC_TO_INST
 
 // ============================================================================
-// [asmjit::X86Inst - Test]
+// [asmjit::X86Inst - Unit]
 // ============================================================================
 
 #if defined(ASMJIT_BUILD_TEST)

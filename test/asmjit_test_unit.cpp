@@ -197,9 +197,11 @@ static void dumpSizeOf(void) {
     DUMP_TYPE(Target);
     DUMP_TYPE(Zone);
     DUMP_TYPE(ZoneAllocator);
+    DUMP_TYPE(ZoneHashNode);
     DUMP_TYPE(ZoneHash<ZoneHashNode>);
     DUMP_TYPE(ZoneList<void*>);
     DUMP_TYPE(ZoneVector<void*>);
+    DUMP_TYPE(ZoneBitVector);
   INFO("");
 
   INFO("Size of Operand:");
@@ -242,7 +244,7 @@ static void dumpSizeOf(void) {
   INFO("");
   #endif
 
-  #if defined(ASMJIT_BUILD_X86)
+  #ifdef ASMJIT_BUILD_X86
   INFO("Size of X86-Backend:");
     DUMP_TYPE(X86Assembler);
     #ifndef ASMJIT_DISABLE_BUILDER

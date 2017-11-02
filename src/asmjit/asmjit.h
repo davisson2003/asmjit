@@ -32,11 +32,11 @@
 
 #include "./core.h"
 
-#if defined(ASMJIT_BUILD_X86)
+#ifdef ASMJIT_BUILD_X86
   #include "./x86.h"
 #endif
 
-#if defined(ASMJIT_BUILD_ARM)
+#ifdef ASMJIT_BUILD_ARM
   #include "./arm.h"
 #endif
 

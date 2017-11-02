@@ -38,8 +38,8 @@ typedef unsigned int FastUInt8;
 // ============================================================================
 
 namespace Internal {
-  // IntBySize  - Make an int-type by size (signed or unsigned) that is the
-  //              same as types defined by <stdint.h>.
+  // IntBySize - Make an int-type by size (signed or unsigned) that is the
+  //             same as types defined by <stdint.h>.
   // Int32Or64 - Make an int-type that has at least 32 bits: [u]int[32|64]_t.
 
   template<size_t SIZE, int IS_SIGNED>
@@ -279,7 +279,7 @@ template<>
 struct StaticCtz<0> {}; // Undefined.
 
 template<uint64_t N>
-static inline uint32_t staticCtz() noexcept { return StaticCtz<N>::kValue; }
+constexpr uint32_t staticCtz() noexcept { return StaticCtz<N>::kValue; }
 
 // ============================================================================
 // [asmjit::IntUtils::Popcnt]
@@ -598,18 +598,17 @@ public:
 namespace Internal {
   template<typename T, class OPERATOR, class FULL_WORD_OP>
   static inline void bitVectorOp(T* buf, size_t index, size_t count) noexcept {
-    const size_t kTSizeInBits = sizeof(T) * 8U;
-    const T kFillMask = T(~T(0));
-
     if (count == 0)
       return;
 
+    const size_t kTSizeInBits = sizeof(T) * 8U;
     size_t vecIndex = index / kTSizeInBits; // T[]
     size_t bitIndex = index % kTSizeInBits; // T[][]
 
     buf += vecIndex;
 
     // The first BitWord requires special handling to preserve bits outside the fill region.
+    const T kFillMask = T(~T(0));
     size_t firstNBits = std::min<size_t>(kTSizeInBits - bitIndex, count);
 
     buf[0] = OPERATOR::op(buf[0], (kFillMask >> (kTSizeInBits - firstNBits)) << bitIndex);
@@ -629,6 +628,44 @@ namespace Internal {
   }
 }
 
+//! Set bit in a bit-vector `buf` at `index`.
+template<typename T>
+static inline bool bitVectorGetBit(T* buf, size_t index) noexcept {
+  const size_t kTSizeInBits = sizeof(T) * 8U;
+
+  size_t vecIndex = index / kTSizeInBits;
+  size_t bitIndex = index % kTSizeInBits;
+
+  return bool((buf[vecIndex] >> bitIndex) & 0x1U);
+}
+
+//! Set bit in a bit-vector `buf` at `index` to `value`.
+template<typename T>
+static inline void bitVectorSetBit(T* buf, size_t index, bool value) noexcept {
+  const size_t kTSizeInBits = sizeof(T) * 8U;
+
+  size_t vecIndex = index / kTSizeInBits;
+  size_t bitIndex = index % kTSizeInBits;
+
+  T bitMask = T(1U) << bitIndex;
+  if (value)
+    buf[vecIndex] |= bitMask;
+  else
+    buf[vecIndex] &= ~bitMask;
+}
+
+//! Set bit in a bit-vector `buf` at `index` to `value`.
+template<typename T>
+static inline void bitVectorFlipBit(T* buf, size_t index) noexcept {
+  const size_t kTSizeInBits = sizeof(T) * 8U;
+
+  size_t vecIndex = index / kTSizeInBits;
+  size_t bitIndex = index % kTSizeInBits;
+
+  T bitMask = T(1U) << bitIndex;
+  buf[vecIndex] ^= bitMask;
+}
+
 //! Fill `count` bits in bit-vector `buf` starting at bit-index `index`.
 template<typename T>
 static inline void bitVectorFill(T* buf, size_t index, size_t count) noexcept { Internal::bitVectorOp<T, Or, Set>(buf, index, count); }
@@ -636,6 +673,27 @@ static inline void bitVectorFill(T* buf, size_t index, size_t count) noexcept { 
 //! Clear `count` bits in bit-vector `buf` starting at bit-index `index`.
 template<typename T>
 static inline void bitVectorClear(T* buf, size_t index, size_t count) noexcept { Internal::bitVectorOp<T, AndNot, SetNot>(buf, index, count); }
+
+template<typename T>
+static inline size_t bitVectorIndexOf(T* buf, size_t start, bool value) noexcept {
+  const size_t kTSizeInBits = sizeof(T) * 8U;
+  size_t vecIndex = start / kTSizeInBits; // T[]
+  size_t bitIndex = start % kTSizeInBits; // T[][]
+
+  T* p = buf + vecIndex;
+
+  // We always look for zeros, if value is `true` we have to flip all bits before the search.
+  const T kFillMask = T(~T(0));
+  const T kFlipMask = value ? T(0) : kFillMask;
+
+  // The first BitWord requires special handling as there are some bits we want to ignore.
+  T bits = (*p ^ kFlipMask) & (kFillMask << bitIndex);
+  for (;;) {
+    if (bits)
+      return (size_t)(p - buf) * kTSizeInBits + ctz(bits);
+    bits = *++p ^ kFlipMask;
+  }
+}
 
 // ============================================================================
 // [asmjit::IntUtils::BitVectorIterator]

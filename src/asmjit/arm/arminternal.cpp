@@ -9,7 +9,7 @@
 
 // [Guard]
 #include "../core/build.h"
-#if defined(ASMJIT_BUILD_ARM)
+#ifdef ASMJIT_BUILD_ARM
 
 // [Dependencies]
 #include "../arm/arminternal_p.h"

@@ -86,17 +86,17 @@ public:
 };
 
 // ============================================================================
-// [asmjit::AutoLock]
+// [asmjit::ScopedLock]
 // ============================================================================
 
 //! \internal
 //!
 //! Scoped lock.
-struct AutoLock {
-  ASMJIT_NONCOPYABLE(AutoLock)
+struct ScopedLock {
+  ASMJIT_NONCOPYABLE(ScopedLock)
 
-  inline AutoLock(Lock& target) noexcept : _target(target) { _target.lock(); }
-  inline ~AutoLock() noexcept { _target.unlock(); }
+  inline ScopedLock(Lock& target) noexcept : _target(target) { _target.lock(); }
+  inline ~ScopedLock() noexcept { _target.unlock(); }
 
   Lock& _target;
 };

@@ -138,7 +138,8 @@ public:
   // [Operator Overload]
   // --------------------------------------------------------------------------
 
-  inline const ArchInfo& operator=(const ArchInfo& other) noexcept { _signature = other._signature; return *this; }
+  inline ArchInfo& operator=(const ArchInfo& other) noexcept = default;
+
   inline bool operator==(const ArchInfo& other) const noexcept { return _signature == other._signature; }
   inline bool operator!=(const ArchInfo& other) const noexcept { return _signature != other._signature; }
 

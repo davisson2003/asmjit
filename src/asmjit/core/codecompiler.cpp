@@ -195,13 +195,12 @@ CCFuncRet* CodeCompiler::addRet(const Operand_& o0, const Operand_& o1) noexcept
 // ============================================================================
 
 CCFuncCall* CodeCompiler::newCall(uint32_t instId, const Operand_& o0, const FuncSignature& sign) noexcept {
-  CCFuncCall* node = _allocator.allocT<CCFuncCall>(sizeof(CCFuncCall));
+  CCFuncCall* node = newNodeT<CCFuncCall>(instId, 0);
   if (ASMJIT_UNLIKELY(!node)) {
     reportError(DebugUtils::errored(kErrorNoHeapMemory));
     return nullptr;
   }
 
-  node = new(node) CCFuncCall(this, instId, 0);
   node->setOpCount(1);
   node->setOp(0, o0);
   node->resetOp(1);

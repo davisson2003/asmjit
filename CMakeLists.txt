@@ -132,6 +132,8 @@ cxx_add_source(asmjit ASMJIT_SRC asmjit/core
   assembler.cpp
   assembler.h
   build.h
+  callconv.cpp
+  callconv.h
   codebuilder.cpp
   codebuilder.h
   codecompiler.cpp
@@ -187,6 +189,16 @@ cxx_add_source(asmjit ASMJIT_SRC asmjit/core
   type.h
   zone.cpp
   zone.h
+  zonehash.cpp
+  zonehash.h
+  zonelist.cpp
+  zonelist.h
+  zonerbtree.cpp
+  zonerbtree.h
+  zonestack.cpp
+  zonestack.h
+  zonevector.cpp
+  zonevector.h
 )
 
 cxx_add_source(asmjit ASMJIT_SRC asmjit/arm
@@ -194,6 +206,8 @@ cxx_add_source(asmjit ASMJIT_SRC asmjit/arm
   armassembler.h
   armbuilder.cpp
   armbuilder.h
+  armcallconv.cpp
+  armcallconv_p.h
   armcompiler.cpp
   armcompiler.h
   armemitter.h
@@ -215,6 +229,8 @@ cxx_add_source(asmjit ASMJIT_SRC asmjit/x86
   x86assembler.h
   x86builder.cpp
   x86builder.h
+  x86callconv.cpp
+  x86callconv_p.h
   x86compiler.cpp
   x86compiler.h
   x86emitter.h

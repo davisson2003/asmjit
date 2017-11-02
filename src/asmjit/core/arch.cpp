@@ -12,11 +12,11 @@
 #include "../core/intutils.h"
 #include "../core/type.h"
 
-#if defined(ASMJIT_BUILD_X86)
+#ifdef ASMJIT_BUILD_X86
   #include "../x86/x86operand.h"
 #endif
 
-#if defined(ASMJIT_BUILD_ARM)
+#ifdef ASMJIT_BUILD_ARM
   #include "../arm/armoperand.h"
 #endif
 
@@ -61,7 +61,7 @@ ASMJIT_FAVOR_SIZE Error ArchUtils::typeIdToRegInfo(uint32_t archType, uint32_t& 
   regInfo._signature = 0;
 
   // TODO: Move to X86 backend.
-  #if defined(ASMJIT_BUILD_X86)
+  #ifdef ASMJIT_BUILD_X86
   if (ArchInfo::isX86Family(archType)) {
     // Passed RegType instead of TypeId?
     if (typeId <= Reg::kRegMax)

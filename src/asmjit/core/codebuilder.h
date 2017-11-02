@@ -20,6 +20,7 @@
 #include "../core/operand.h"
 #include "../core/stringbuilder.h"
 #include "../core/zone.h"
+#include "../core/zonevector.h"
 
 ASMJIT_BEGIN_NAMESPACE
 
@@ -71,26 +72,13 @@ public:
   //! \internal
   template<typename T>
   inline T* newNodeT() noexcept {
-    void* p = _allocator.alloc(sizeof(T));
-    return p ? new(p) T(this) : static_cast<T*>(nullptr);
+    return _allocator.newT<T>(this);
   }
+
   //! \internal
-  template<typename T, typename P0>
-  inline T* newNodeT(P0 p0) noexcept {
-    void* p = _allocator.alloc(sizeof(T));
-    return p ? new(p) T(this, p0) : static_cast<T*>(nullptr);
-  }
-  //! \internal
-  template<typename T, typename P0, typename P1>
-  inline T* newNodeT(P0 p0, P1 p1) noexcept {
-    void* p = _allocator.alloc(sizeof(T));
-    return p ? new(p) T(this, p0, p1) : static_cast<T*>(nullptr);
-  }
-  //! \internal
-  template<typename T, typename P0, typename P1, typename P2>
-  inline T* newNodeT(P0 p0, P1 p1, P2 p2) noexcept {
-    void* p = _allocator.alloc(sizeof(T));
-    return p ? new(p) T(this, p0, p1, p2) : static_cast<T*>(nullptr);
+  template<typename T, typename... Args>
+  inline T* newNodeT(Args... args) noexcept {
+    return _allocator.newT<T>(this, args...);
   }
 
   //! Create a new \ref CBLabel node.

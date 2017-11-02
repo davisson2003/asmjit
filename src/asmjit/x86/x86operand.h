@@ -483,7 +483,7 @@ public:
   // [Operator Overload]
   // --------------------------------------------------------------------------
 
-  inline X86Mem& operator=(const X86Mem& other) noexcept { copyFrom(other); return *this; }
+  inline X86Mem& operator=(const X86Mem& other) noexcept = default;
 };
 
 // ============================================================================

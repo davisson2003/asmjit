@@ -64,6 +64,11 @@ enum Limits : uint32_t {
   kMaxLabelLength = 2048
 };
 
+enum Half : size_t {
+  kHalfLo = ASMJIT_ARCH_LE ? 0 : 1,
+  kHalfHi = ASMJIT_ARCH_LE ? 1 : 0
+};
+
 enum Link : uint32_t {
   kLinkLeft  = 0,
   kLinkRight = 1,
@@ -236,23 +241,23 @@ enum ErrorCode : uint32_t {
 // [asmjit::Alloc|Release]
 // ============================================================================
 
-namespace AsmJitInternal {
+namespace MemUtils {
   #if defined(ASMJIT_CUSTOM_ALLOC) && defined(ASMJIT_CUSTOM_REALLOC) && defined(ASMJIT_CUSTOM_FREE)
 
-  static inline void* allocMemory(size_t size) noexcept { return ASMJIT_CUSTOM_ALLOC(size); }
-  static inline void* reallocMemory(void* p, size_t size) noexcept { return ASMJIT_CUSTOM_REALLOC(p, size); }
-  static inline void releaseMemory(void* p) noexcept { ASMJIT_CUSTOM_FREE(p); }
+  static inline void* alloc(size_t size) noexcept { return ASMJIT_CUSTOM_ALLOC(size); }
+  static inline void* realloc(void* p, size_t size) noexcept { return ASMJIT_CUSTOM_REALLOC(p, size); }
+  static inline void release(void* p) noexcept { ASMJIT_CUSTOM_FREE(p); }
 
   #elif !defined(ASMJIT_CUSTOM_ALLOC) && !defined(ASMJIT_CUSTOM_REALLOC) && !defined(ASMJIT_CUSTOM_FREE)
 
-  static inline void* allocMemory(size_t size) noexcept { return std::malloc(size); }
-  static inline void* reallocMemory(void* p, size_t size) noexcept { return std::realloc(p, size); }
-  static inline void releaseMemory(void* p) noexcept { std::free(p); }
+  static inline void* alloc(size_t size) noexcept { return std::malloc(size); }
+  static inline void* realloc(void* p, size_t size) noexcept { return std::realloc(p, size); }
+  static inline void release(void* p) noexcept { std::free(p); }
 
   #else
   #error "[asmjit] You must provide either none or all of ASMJIT_CUSTOM_[ALLOC|REALLOC|FREE]"
   #endif
-} // AsmJitInternal namespace
+} // MemUtils namespace
 
 // ============================================================================
 // [asmjit::PointerCast]

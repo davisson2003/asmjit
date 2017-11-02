@@ -68,7 +68,7 @@ public:
 
   inline ~StringBuilder() noexcept {
     if (!isEmbedded())
-      AsmJitInternal::releaseMemory(_data);
+      MemUtils::release(_data);
   }
 
   // --------------------------------------------------------------------------

@@ -28,9 +28,6 @@ ASMJIT_BEGIN_NAMESPACE
 //!
 //! X86 utilities used at multiple places, not part of public API, not exported.
 struct X86Internal {
-  //! Initialize `CallConv` (X86 specific).
-  static Error initCallConv(CallConv& cc, uint32_t ccId) noexcept;
-
   //! Initialize `FuncDetail` (X86 specific).
   static Error initFuncDetail(FuncDetail& func, const FuncSignature& sign, uint32_t gpSize) noexcept;
 

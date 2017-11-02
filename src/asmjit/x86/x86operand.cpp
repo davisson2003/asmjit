@@ -9,7 +9,7 @@
 
 // [Guard]
 #include "../core/build.h"
-#if defined(ASMJIT_BUILD_X86)
+#ifdef ASMJIT_BUILD_X86
 
 // [Dependencies]
 #include "../core/misc_p.h"
@@ -39,7 +39,7 @@ const X86OpData x86OpData = {
 };
 
 // ============================================================================
-// [asmjit::X86Operand - Test]
+// [asmjit::X86Operand - Unit]
 // ============================================================================
 
 #if defined(ASMJIT_BUILD_TEST)

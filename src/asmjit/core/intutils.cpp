@@ -172,6 +172,17 @@ UNIT(core_intutils) {
     EXPECT(vec[2] == 0x00000001);
   }
 
+  INFO("IntUtils::bitVectorIndexOf");
+  {
+    uint32_t vec1[3] = { 0x00000001, 0x00000000, 0x80000000 };
+    EXPECT(IntUtils::bitVectorIndexOf(vec1, 0, true) == 0);
+    EXPECT(IntUtils::bitVectorIndexOf(vec1, 1, true) == 95);
+
+    uint32_t vec2[3] = { ~vec1[0], ~vec1[1], ~vec1[2] };
+    EXPECT(IntUtils::bitVectorIndexOf(vec2, 0, false) == 0);
+    EXPECT(IntUtils::bitVectorIndexOf(vec2, 1, false) == 95);
+  }
+
   INFO("IntUtils::BitWordIterator<uint32_t>");
   {
     IntUtils::BitWordIterator<uint32_t> it(0x80000F01U);
