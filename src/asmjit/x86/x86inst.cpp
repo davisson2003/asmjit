@@ -973,14 +973,14 @@ const X86Inst X86InstDB::instData[] = {
   INST(Vcvtps2uqq      , VexRm_Lx           , V(660F00,79,_,x,_,0,3,HV ), 0                         , 0 , 0 , 3512, 289, 119, 0 ), // #800
   INST(Vcvtqq2pd       , VexRm_Lx           , V(F30F00,E6,_,x,_,1,4,FV ), 0                         , 0 , 0 , 3523, 284, 119, 0 ), // #801
   INST(Vcvtqq2ps       , VexRm_Lx           , V(000F00,5B,_,x,_,1,4,FV ), 0                         , 0 , 0 , 3533, 285, 119, 0 ), // #802
-  INST(Vcvtsd2si       , VexRm              , V(F20F00,2D,_,I,x,x,3,T1F), 0                         , 0 , 0 , 3543, 291, 112, 11), // #803
+  INST(Vcvtsd2si       , VexRm_Wx           , V(F20F00,2D,_,I,x,x,3,T1F), 0                         , 0 , 0 , 3543, 291, 112, 11), // #803
   INST(Vcvtsd2ss       , VexRvm             , V(F20F00,5A,_,I,I,1,3,T1S), 0                         , 0 , 0 , 3553, 250, 112, 12), // #804
-  INST(Vcvtsd2usi      , VexRm              , V(F20F00,79,_,I,_,x,3,T1F), 0                         , 0 , 0 , 3563, 292, 66 , 0 ), // #805
-  INST(Vcvtsi2sd       , VexRvm             , V(F20F00,2A,_,I,x,x,2,T1W), 0                         , 0 , 0 , 3574, 293, 112, 13), // #806
-  INST(Vcvtsi2ss       , VexRvm             , V(F30F00,2A,_,I,x,x,2,T1W), 0                         , 0 , 0 , 3584, 293, 112, 13), // #807
+  INST(Vcvtsd2usi      , VexRm_Wx           , V(F20F00,79,_,I,_,x,3,T1F), 0                         , 0 , 0 , 3563, 292, 66 , 0 ), // #805
+  INST(Vcvtsi2sd       , VexRvm_Wx          , V(F20F00,2A,_,I,x,x,2,T1W), 0                         , 0 , 0 , 3574, 293, 112, 13), // #806
+  INST(Vcvtsi2ss       , VexRvm_Wx          , V(F30F00,2A,_,I,x,x,2,T1W), 0                         , 0 , 0 , 3584, 293, 112, 13), // #807
   INST(Vcvtss2sd       , VexRvm             , V(F30F00,5A,_,I,I,0,2,T1S), 0                         , 0 , 0 , 3594, 294, 112, 13), // #808
-  INST(Vcvtss2si       , VexRm              , V(F20F00,2D,_,I,x,x,2,T1F), 0                         , 0 , 0 , 3604, 295, 112, 14), // #809
-  INST(Vcvtss2usi      , VexRm              , V(F30F00,79,_,I,_,x,2,T1F), 0                         , 0 , 0 , 3614, 296, 66 , 0 ), // #810
+  INST(Vcvtss2si       , VexRm_Wx           , V(F30F00,2D,_,I,x,x,2,T1F), 0                         , 0 , 0 , 3604, 295, 112, 14), // #809
+  INST(Vcvtss2usi      , VexRm_Wx           , V(F30F00,79,_,I,_,x,2,T1F), 0                         , 0 , 0 , 3614, 296, 66 , 0 ), // #810
   INST(Vcvttpd2dq      , VexRm_Lx           , V(660F00,E6,_,x,I,1,4,FV ), 0                         , 0 , 0 , 3625, 297, 111, 15), // #811
   INST(Vcvttpd2qq      , VexRm_Lx           , V(660F00,7A,_,x,_,1,4,FV ), 0                         , 0 , 0 , 3636, 298, 116, 0 ), // #812
   INST(Vcvttpd2udq     , VexRm_Lx           , V(000F00,78,_,x,_,1,4,FV ), 0                         , 0 , 0 , 3647, 299, 116, 0 ), // #813
@@ -989,16 +989,16 @@ const X86Inst X86InstDB::instData[] = {
   INST(Vcvttps2qq      , VexRm_Lx           , V(660F00,7A,_,x,_,0,3,HV ), 0                         , 0 , 0 , 3682, 301, 119, 0 ), // #816
   INST(Vcvttps2udq     , VexRm_Lx           , V(000F00,78,_,x,_,0,4,FV ), 0                         , 0 , 0 , 3693, 302, 116, 0 ), // #817
   INST(Vcvttps2uqq     , VexRm_Lx           , V(660F00,78,_,x,_,0,3,HV ), 0                         , 0 , 0 , 3705, 301, 119, 0 ), // #818
-  INST(Vcvttsd2si      , VexRm              , V(F20F00,2C,_,I,x,x,3,T1F), 0                         , 0 , 0 , 3717, 303, 112, 17), // #819
-  INST(Vcvttsd2usi     , VexRm              , V(F20F00,78,_,I,_,x,3,T1F), 0                         , 0 , 0 , 3728, 304, 66 , 0 ), // #820
-  INST(Vcvttss2si      , VexRm              , V(F30F00,2C,_,I,x,x,2,T1F), 0                         , 0 , 0 , 3740, 305, 112, 18), // #821
-  INST(Vcvttss2usi     , VexRm              , V(F30F00,78,_,I,_,x,2,T1F), 0                         , 0 , 0 , 3751, 306, 66 , 0 ), // #822
+  INST(Vcvttsd2si      , VexRm_Wx           , V(F20F00,2C,_,I,x,x,3,T1F), 0                         , 0 , 0 , 3717, 303, 112, 17), // #819
+  INST(Vcvttsd2usi     , VexRm_Wx           , V(F20F00,78,_,I,_,x,3,T1F), 0                         , 0 , 0 , 3728, 304, 66 , 0 ), // #820
+  INST(Vcvttss2si      , VexRm_Wx           , V(F30F00,2C,_,I,x,x,2,T1F), 0                         , 0 , 0 , 3740, 305, 112, 18), // #821
+  INST(Vcvttss2usi     , VexRm_Wx           , V(F30F00,78,_,I,_,x,2,T1F), 0                         , 0 , 0 , 3751, 306, 66 , 0 ), // #822
   INST(Vcvtudq2pd      , VexRm_Lx           , V(F30F00,7A,_,x,_,0,3,HV ), 0                         , 0 , 0 , 3763, 307, 116, 0 ), // #823
   INST(Vcvtudq2ps      , VexRm_Lx           , V(F20F00,7A,_,x,_,0,4,FV ), 0                         , 0 , 0 , 3774, 290, 116, 0 ), // #824
   INST(Vcvtuqq2pd      , VexRm_Lx           , V(F30F00,7A,_,x,_,1,4,FV ), 0                         , 0 , 0 , 3785, 284, 119, 0 ), // #825
   INST(Vcvtuqq2ps      , VexRm_Lx           , V(F20F00,7A,_,x,_,1,4,FV ), 0                         , 0 , 0 , 3796, 285, 119, 0 ), // #826
-  INST(Vcvtusi2sd      , VexRvm             , V(F20F00,7B,_,I,_,x,2,T1W), 0                         , 0 , 0 , 3807, 308, 66 , 0 ), // #827
-  INST(Vcvtusi2ss      , VexRvm             , V(F30F00,7B,_,I,_,x,2,T1W), 0                         , 0 , 0 , 3818, 308, 66 , 0 ), // #828
+  INST(Vcvtusi2sd      , VexRvm_Wx          , V(F20F00,7B,_,I,_,x,2,T1W), 0                         , 0 , 0 , 3807, 308, 66 , 0 ), // #827
+  INST(Vcvtusi2ss      , VexRvm_Wx          , V(F30F00,7B,_,I,_,x,2,T1W), 0                         , 0 , 0 , 3818, 308, 66 , 0 ), // #828
   INST(Vdbpsadbw       , VexRvmi_Lx         , V(660F3A,42,_,x,_,0,4,FVM), 0                         , 0 , 0 , 3829, 309, 118, 0 ), // #829
   INST(Vdivpd          , VexRvm_Lx          , V(660F00,5E,_,x,I,1,4,FV ), 0                         , 0 , 0 , 3839, 248, 111, 19), // #830
   INST(Vdivps          , VexRvm_Lx          , V(000F00,5E,_,x,I,0,4,FV ), 0                         , 0 , 0 , 3846, 249, 111, 19), // #831
